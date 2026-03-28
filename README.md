@@ -91,6 +91,15 @@ $ bb beme format src/                                   # directory, recursive
 
 Requires [Babashka](https://babashka.org) or [Clojure](https://clojure.org).
 
+## Editor Support
+
+| Editor | Repository | Features |
+|--------|-----------|----------|
+| [Zed](https://zed.dev) | [zed-beme](https://github.com/beme-lang/zed-beme) | Syntax highlighting, brackets, indentation, symbol outline |
+| [VS Code](https://code.visualstudio.com) | [vscode-beme](https://github.com/beme-lang/vscode-beme) | Syntax highlighting, brackets, indentation, folding |
+
+Tree-sitter grammar: [tree-sitter-beme](https://github.com/beme-lang/tree-sitter-beme)
+
 ## Documentation
 
 - [Language Reference](doc/language-reference.md) — complete syntax guide
