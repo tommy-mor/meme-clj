@@ -14,7 +14,7 @@ semantic ones — imposed by syntax that demands manual bracket management.
 meme is a thin syntactic lens over Clojure. One rule replaces
 S-expression nesting with readable, familiar syntax:
 
-`f(x y)` — call. Head of a list written outside the parens (spacing irrelevant).
+`f(x y)` — call. Head of a list written outside the parens, adjacent to `(` (spacing significant).
 
 Everything else is unchanged from Clojure. meme is a reader, not a language.
 It emits standard Clojure forms that run on Babashka, Clojure JVM, or
@@ -83,7 +83,7 @@ ClojureScript without modification.
 
 | ID | Requirement | Status |
 |----|-------------|--------|
-| R1 | Parse `f(x y)` as `(f x y)` — head outside parens (spacing irrelevant) | Done |
+| R1 | Parse `f(x y)` as `(f x y)` — head outside parens, adjacent `(` required (spacing significant) | Done |
 | R5 | Parse `def(x 42)` as `(def x 42)` | Done |
 | R6 | Parse `let([x 1] body)` — bindings in call form | Done |
 | R7 | Parse `for([x xs] body)` — bindings in call form | Done |

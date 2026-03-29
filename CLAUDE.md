@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 meme is a syntactic lens over Clojure — a reader (not a language) that translates M-expression syntax into standard Clojure forms. It replaces S-expression nesting with human-readable syntax via one rule:
 
-**Call**: `f(x y)` → `(f x y)` — the head of a list is written outside the parens (spacing irrelevant)
+**Call**: `f(x y)` → `(f x y)` — the head of a list is written outside the parens, adjacent to `(` (spacing significant: `f(x)` is a call, `f ()` is two forms)
 
 Everything else (data literals, reader syntax, destructuring, commas-as-whitespace) is unchanged from Clojure.
 
@@ -160,8 +160,8 @@ clojure-lsp is configured via the `.claude-plugin/` directory for Claude Code in
 
 ## meme Syntax Quick Reference (for writing .meme code)
 
-- `symbol(args)` is a call — the head is written outside the parens
-- `f (x)` is also a call — spacing between head and `(` is irrelevant
+- `symbol(args)` is a call — the head is written outside the parens, adjacent to `(`
+- `f (x)` is NOT a call — spacing is significant; `f(x)` is a call, `f ()` is two forms
 - Vectors can also be heads: `[x](body)` → `([x] body)` (used for multi-arity clauses)
 - Everything uses call syntax: `def(x 42)`, `let([x 1] body)`, `if(cond then else)`
 - `defn(name [args] body)` — single arity function definition

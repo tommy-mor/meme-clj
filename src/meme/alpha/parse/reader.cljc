@@ -374,10 +374,18 @@
 ;; Main parse dispatch
 ;; ---------------------------------------------------------------------------
 
+(defn- adjacent-open-paren?
+  "Is the next token an ( with no preceding whitespace?
+   Spacing is significant: f(x) is a call, f () is two separate forms."
+  [p]
+  (let [tok (ppeek p)]
+    (and (tok-type? tok :open-paren)
+         (not (:ws tok)))))
+
 (defn- maybe-call
-  "If next token is (, parse call args and wrap — spacing is irrelevant."
+  "If next token is ( with no whitespace gap, parse call args and wrap."
   [p head]
-  (if (tok-type? (ppeek p) :open-paren)
+  (if (adjacent-open-paren? p)
     (let [args (parse-call-args p)]
       (apply list head args))
     head))
@@ -653,10 +661,10 @@
 (defn- parse-call-chain
   "After parsing a form, check for chained call openers: f(x)(y) → ((f x) y).
    Handles arbitrary depth: f(x)(y)(z) → (((f x) y) z).
-   Skipped for discard sentinels."
+   Skipped for discard sentinels. Requires adjacent ( (no whitespace)."
   [p form]
   (if (and (not (discard-sentinel? form))
-           (tok-type? (ppeek p) :open-paren))
+           (adjacent-open-paren? p))
     (let [args (parse-call-args p)]
       (recur p (apply list form args)))
     form))

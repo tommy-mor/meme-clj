@@ -150,19 +150,29 @@
 ;; Scar tissue: spacing between head and ( is irrelevant.
 ;; ---------------------------------------------------------------------------
 
-(deftest spacing-irrelevant-for-calls
-  (testing "symbol with space before paren is a call"
-    (is (= '[(f x)] (core/meme->forms "f (x)"))))
-  (testing "symbol with multiple spaces is a call"
-    (is (= '[(f x)] (core/meme->forms "f   (x)"))))
-  (testing "symbol with tab is a call"
-    (is (= '[(f x)] (core/meme->forms "f\t(x)"))))
-  (testing "symbol with newline is a call"
-    (is (= '[(f x)] (core/meme->forms "f\n(x)"))))
-  (testing "keyword with space is a call"
-    (is (= '(:k x) (first (core/meme->forms ":k (x)")))))
-  (testing "vector with space is a call (vector-as-head)"
-    (is (= '([x] 1) (first (core/meme->forms "[x] (1)"))))))
+(deftest spacing-significant-for-calls
+  (testing "adjacency required — f(x) is a call"
+    (is (= '[(f x)] (core/meme->forms "f(x)"))))
+  (testing "space prevents call — f (x) is bare paren error"
+    (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
+          #"Bare parentheses"
+          (core/meme->forms "f (x)"))))
+  (testing "tab prevents call"
+    (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
+          #"Bare parentheses"
+          (core/meme->forms "f\t(x)"))))
+  (testing "newline prevents call"
+    (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
+          #"Bare parentheses"
+          (core/meme->forms "f\n(x)"))))
+  (testing "keyword adjacency required"
+    (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
+          #"Bare parentheses"
+          (core/meme->forms ":k (x)"))))
+  (testing "vector adjacency required"
+    (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
+          #"Bare parentheses"
+          (core/meme->forms "[x] (1)")))))
 
 ;; ---------------------------------------------------------------------------
 ;; Scar tissue: bare (...) without a head is a parse error.
@@ -193,8 +203,12 @@
           printed (p/print-meme-string forms)
           forms2 (core/meme->forms printed)]
       (is (= forms forms2))))
-  (testing "vector-as-head with space"
-    (is (= '([a b] (+ a b)) (first (core/meme->forms "[a b] (+(a b))"))))))
+  (testing "vector-as-head requires adjacency — space prevents call"
+    (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
+          #"Bare parentheses"
+          (core/meme->forms "[a b] (+(a b))"))))
+  (testing "vector-as-head adjacent works"
+    (is (= '([a b] (+ a b)) (first (core/meme->forms "[a b](+(a b))"))))))
 
 ;; ---------------------------------------------------------------------------
 ;; Scar tissue: keyword-as-head for ns :require/:import clauses.

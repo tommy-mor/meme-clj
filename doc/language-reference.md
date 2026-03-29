@@ -5,26 +5,33 @@ Complete syntax reference for writing `.meme` code.
 
 ## The Rule
 
-Parentheses after a symbol, keyword, or vector form a call — spacing
-is irrelevant. The preceding element becomes the head of a Clojure list.
+Parentheses **immediately** after a symbol, keyword, or vector form a call.
+The preceding element becomes the head of a Clojure list.
 
 ```
 f(x y)     →  (f x y)
 +(1 2 3)   →  (+ 1 2 3)
 ```
 
-**Spacing is irrelevant**: `foo(x)` and `foo (x)` are both calls — the head is outside the parens.
+**Adjacency required**: `foo(x)` is a call — the head is outside the parens. `foo (x)` is NOT a call — the space makes them separate forms.
 Keywords work too: `:active(m)` → `(:active m)` (keyword-as-function).
 Vectors can be heads: `[x](body)` → `([x] body)` (used for multi-arity clauses).
 Maps and sets can also be heads (they are functions in Clojure): `{:a 1}(:a)` → `({:a 1} :a)`, `#{:a :b}(x)` → `(#{:a :b} x)`.
 
-### Spacing is irrelevant
+### Adjacency required
 
-The head of a list is written outside the parens. Spacing between the head and `(` does not matter:
+The head of a list is written outside the parens, directly adjacent to `(`. Whitespace prevents call formation:
 
 ```
 foo(x)    ;; call: (foo x)
-foo (x)   ;; also a call: (foo x)
+foo ()    ;; NOT a call — symbol foo, then empty list ()
+```
+
+This makes `()` (the empty list) unambiguous in all positions:
+
+```
+{:value ()}    ;; map with two entries: :value and ()
+[x ()]         ;; vector with two elements: x and ()
 ```
 
 ## Binding

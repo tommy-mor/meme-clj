@@ -344,7 +344,7 @@
     (is (= f1 f2))))
 
 (deftest roundtrip-ns
-  (let [[f1 f2 _] (roundtrip-forms "ns(my.app (:require [clojure.string :as str]))")]
+  (let [[f1 f2 _] (roundtrip-forms "ns(my.app :require([clojure.string :as str]))")]
     (is (= f1 f2))))
 
 (deftest roundtrip-ns-with-docstring

@@ -248,11 +248,14 @@
 (deftest form-snapshot-vector-as-head
   (is (= '([x] 1) (first (forms-for "[x](1)")))))
 
-(deftest form-snapshot-spacing-irrelevant
+(deftest form-snapshot-spacing-significant
   (is (= '[(f x)] (forms-for "f(x)")))
-  (is (= '[(f x)] (forms-for "f (x)")))
-  (is (= '[(f x)] (forms-for "f\n(x)")))
-  (is (= '[(f x)] (forms-for "f\t(x)"))))
+  (testing "space prevents call — bare paren error"
+    (is (thrown-with-msg? #?(:clj Exception :cljs js/Error) #"Bare parentheses" (forms-for "f (x)"))))
+  (testing "newline prevents call"
+    (is (thrown-with-msg? #?(:clj Exception :cljs js/Error) #"Bare parentheses" (forms-for "f\n(x)"))))
+  (testing "tab prevents call"
+    (is (thrown-with-msg? #?(:clj Exception :cljs js/Error) #"Bare parentheses" (forms-for "f\t(x)")))))
 
 (deftest form-snapshot-data-literals
   (is (= [[1 2 3]] (forms-for "[1 2 3]")))

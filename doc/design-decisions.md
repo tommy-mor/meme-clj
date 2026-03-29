@@ -98,25 +98,31 @@ to the rule — they are instances of it.
 
 ## Head-outside-parens call detection
 
-A call is formed when a symbol, keyword, or vector precedes `(` —
-spacing is irrelevant. `foo(x)` and `foo (x)` both produce `(foo x)`.
+A call is formed when a symbol, keyword, or vector **immediately**
+precedes `(` with no whitespace. `foo(x)` produces `(foo x)`.
 
-The rule is: the head of a list is written outside the parens. This
-applies to symbols (`f(x)`), keywords (`:require([bar])`), and
-vectors (`[x](body)` for multi-arity clauses like `([x] body)`).
+The rule is: the head of a list is written outside the parens, adjacent
+to `(`. This applies to symbols (`f(x)`), keywords (`:require([bar])`),
+and vectors (`[x](body)` for multi-arity clauses like `([x] body)`).
 
 Bare `(...)` with content but no preceding head is an error — the reader
 rejects it with "Bare parentheses not allowed." `()` (empty parens) is
 the empty list — it is unambiguous and needs no head.
 
 
-## Spacing irrelevance
+## Spacing significance
 
-Spacing between a head and its opening `(` is irrelevant — `f(x)` and
-`f (x)` both produce `(f x)`. Since bare `(content)` is rejected (every
-`(` with content requires a head), spacing irrelevance introduces no
-ambiguity — there is no valid meme program where `f (x)` could mean
-anything other than `(f x)`.
+Spacing between a head and its opening `(` is significant — `f(x)` is
+a call producing `(f x)`, but `f (x)` is two forms: the symbol `f`
+followed by bare `(x)` which is an error. This makes `()` unambiguous
+in all positions: `{:value ()}` is a map with two entries (`:value` and
+the empty list), not `:value` calling `()`. Similarly, `[x ()]` is a
+two-element vector, not `[(x)]`.
+
+Previously, spacing was irrelevant (`f (x)` was also a call). This was
+changed because it made `()` (the empty list) impossible to place after
+any callable form in a container — the reader would always consume it
+as a zero-arg call.
 
 
 ## `#` dispatch forms follow the rule
