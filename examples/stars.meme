@@ -1,7 +1,7 @@
 require('[cheshire.core :as json])
 
-defn begin stars [owner repo]
-  let begin
+defn(stars [owner repo]
+  let(
     [
       url   str("https://api.github.com/repos/" owner "/" repo)
       resp  slurp(url)
@@ -9,8 +9,6 @@ defn begin stars [owner repo]
       count :stargazers_count(data)
     ]
 
-    println(str(owner "/" repo ": " count " ⭐"))
-  end
-end
+    println(str(owner "/" repo ": " count " ⭐"))))
 
 stars("beme-lang" "meme-clj")

@@ -89,28 +89,19 @@
    :namespaced-map-raw "namespaced map"
    :namespaced-map-start "namespaced map prefix"
    :syntax-quote-raw "syntax-quote"
-   :syntax-quote-start "syntax-quote"
-   :close-end    "end"})
+   :syntax-quote-start "syntax-quote"})
 
 (def ^:private closer-name
   "Human-readable descriptions for closing delimiters."
   {:close-paren  "closing )"
    :close-bracket "closing ]"
-   :close-brace  "closing }"
-   :close-end    "end"})
+   :close-brace  "closing }"})
 
 (def ^:private closer-context
   "What structure each closer terminates."
   {:close-paren  "call"
    :close-bracket "vector"
-   :close-brace  "map/set"
-   :close-end    "call"})
-
-(defn- begin-symbol? [tok]
-  (and (= :symbol (:type tok)) (= "begin" (:value tok))))
-
-(defn- end-symbol? [tok]
-  (and (= :symbol (:type tok)) (= "end" (:value tok))))
+   :close-brace  "map/set"})
 
 (defn- describe-token [tok]
   (let [typ (:type tok)
@@ -131,9 +122,7 @@
 (defn- parse-forms-until
   ([p end-type] (parse-forms-until p end-type nil))
   ([p end-type open-loc]
-   (let [end-pred (if (= end-type :close-end)
-                    end-symbol?
-                    #(= end-type (:type %)))]
+   (let [end-pred #(= end-type (:type %))]
      (loop [forms []]
        (when (peof? p)
          (let [ctx (get closer-context end-type "expression")
@@ -180,20 +169,13 @@
       s)))
 
 ;; ---------------------------------------------------------------------------
-;; Call: f(args...) or f begin args... end
+;; Call: f(args...)
 ;; ---------------------------------------------------------------------------
 
-(defn- call-opener? [tok]
-  (or (tok-type? tok :open-paren)
-      (begin-symbol? tok)))
-
 (defn- parse-call-args [p]
-  (let [tok (ppeek p)
-        begin? (begin-symbol? tok)
-        closer-type (if begin? :close-end :close-paren)
-        loc (select-keys tok [:line :col])]
-    (padvance! p) ; ( or begin
-    (parse-forms-until p closer-type loc)))
+  (let [loc (select-keys (ppeek p) [:line :col])]
+    (padvance! p) ; (
+    (parse-forms-until p :close-paren loc)))
 
 
 ;; ---------------------------------------------------------------------------
@@ -289,12 +271,12 @@
 ;; ---------------------------------------------------------------------------
 
 (defn- maybe-call
-  "If next token is ( or begin, parse call args and wrap — spacing is irrelevant.
+  "If next token is (, parse call args and wrap — spacing is irrelevant.
    In clj-mode (inside quoted lists), never forms calls — returns head as-is."
   [p head]
   (if @(:clj-mode p)
     head
-    (if (call-opener? (ppeek p))
+    (if (tok-type? (ppeek p) :open-paren)
       (let [args (parse-call-args p)]
         (apply list head args))
       head)))
@@ -445,8 +427,7 @@
           (parse-form p) ; parse and discard
           (let [nxt (ppeek p)]
             (if (or (nil? nxt)
-                    (#{:close-paren :close-bracket :close-brace} (:type nxt))
-                    (end-symbol? nxt))
+                    (#{:close-paren :close-bracket :close-brace} (:type nxt)))
               discard-sentinel
               (parse-form p))))
 
@@ -520,7 +501,7 @@
   [p form]
   (if (and (not @(:clj-mode p))
            (not (discard-sentinel? form))
-           (call-opener? (ppeek p)))
+           (tok-type? (ppeek p) :open-paren))
     (let [args (parse-call-args p)]
       (recur p (apply list form args)))
     form))

@@ -10,10 +10,9 @@ syntax for Lisp. S-expressions were the internal representation — not
 meant for humans to write directly. The human-friendly syntax was never
 built; S-expressions stuck by accident.
 
-meme picks up that thread for Clojure. Two rules:
+meme picks up that thread for Clojure. One rule:
 
-1. The head of a list is written outside the parens: `f(x y)` → `(f x y)`.
-2. `begin`/`end` as textual call delimiters: `f begin x y end` → `(f x y)`.
+The head of a list is written outside the parens: `f(x y)` → `(f x y)`.
 
 Everything else is Clojure.
 
@@ -89,8 +88,7 @@ on JVM and a JS array on ClojureScript.
 
 All special forms use call syntax: `def(x 42)`, `defn(f [x] body)`,
 `if(cond then else)`, `try(body catch(Exception e handler))`. There
-are no bare forms. The only alternative delimiters are `begin`/`end`
-(Rule 2), which are equivalent to parentheses.
+are no bare forms — every `(...)` must have a head.
 
 This dramatically simplifies both the reader and the printer:
 - The reader has no special-form parsers — all symbols go through the
@@ -117,21 +115,13 @@ Outside these quote contexts, every `(...)` must have a head, making the
 call rule uniform and eliminating ambiguity.
 
 
-## Spacing irrelevance is required by begin/end
+## Spacing irrelevance
 
-Spacing between a head and its opening delimiter is irrelevant — this
-is not a stylistic preference but a structural requirement. Rule 2's
-`begin`/`end` delimiters are textual tokens, so there is always at
-least a space between the head and `begin`: `f begin x end`. If the
-reader required adjacency (no whitespace before `(`), `begin`/`end`
-could not work at all — the head would never be adjacent to the
-delimiter.
-
-The two rules are coupled: once textual delimiters exist, spacing
-*must* be irrelevant for both `(` and `begin`. And since bare `()`
-is rejected (every `(` requires a head), spacing irrelevance
-introduces no ambiguity — there is no valid meme program where
-`f (x)` could mean anything other than `(f x)`.
+Spacing between a head and its opening `(` is irrelevant — `f(x)` and
+`f (x)` both produce `(f x)`. Since bare `()` is rejected (every `(`
+requires a head), spacing irrelevance introduces no ambiguity — there
+is no valid meme program where `f (x)` could mean anything other than
+`(f x)`.
 
 
 ## `#` dispatch forms are opaque
@@ -346,27 +336,3 @@ The secondary locations and hints are extension points for richer
 diagnostics as the error system grows.
 
 
-## Textual call delimiters (begin/end) — Rule 2
-
-`begin` and `end` are alternative call delimiters, equivalent
-to parentheses: `f begin x y end` parses as `(f x y)`, identical to
-`f(x y)`. This is the second of meme's two syntactic rules.
-
-The motivation is readability for multi-line blocks. In meme, everything
-is a call — `defn`, `let`, `try`, `if` all use `head(args...)`. For
-short expressions, parentheses are natural. For multi-line function
-bodies or `try`/`catch` blocks, `begin`/`end` reads more like
-natural-language block structure.
-
-**`end` is reserved inside begin blocks.** The reader treats `end` as a
-closing delimiter when inside a `begin` block. This means `end`
-cannot appear as a data symbol in that context. Outside begin blocks,
-`end` is a normal symbol. This is a deliberate trade-off: the reserved
-word is uncommon in Clojure code, and the alternative (an escape
-mechanism) would add complexity for a rare edge case.
-
-**The printer always emits parentheses.** `begin`/`end` is reader
-convenience — the canonical meme form uses `f(args...)`. This keeps the
-printer simple and means there is one canonical output form. Code written
-with `begin`/`end` round-trips semantically (same Clojure forms) but not
-textually (the printer emits parens).

@@ -232,5 +232,5 @@
   (testing "respects :width option"
     (let [narrow (core/pprint-meme ['(+ 1 2 3 4 5)] {:width 10})
           wide (core/pprint-meme ['(+ 1 2 3 4 5)] {:width 200})]
-      (is (re-find #"begin" narrow))
-      (is (not (re-find #"begin" wide))))))
+      (is (re-find #"\n" narrow))
+      (is (not (re-find #"\n" wide))))))

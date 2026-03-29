@@ -88,14 +88,14 @@ Read a Clojure source string, return a vector of forms. JVM/Babashka only.
 (meme.alpha.core/pprint-meme forms opts)
 ```
 
-Pretty-print Clojure forms as multi-line, indented meme text. Uses `begin`/`end` for forms that exceed the line width. Preserves comments from `:ws` metadata (attached by the pipeline's scan stage). All platforms.
+Pretty-print Clojure forms as multi-line, indented meme text. Uses indented parenthesized form for calls that exceed the line width. Preserves comments from `:ws` metadata (attached by the pipeline's scan stage). All platforms.
 
 Options:
 - `:width` — target line width (default: 80)
 
 ```clojure
 (pprint-meme ['(defn greet [name] (println (str "Hello " name)))])
-;=> "defn begin greet [name]\n  println(str(\"Hello \" name))\nend"
+;=> "defn(greet [name]\n  println(str(\"Hello \" name)))"
 ```
 
 ### Text-to-text track
@@ -205,7 +205,7 @@ Low-level pretty-printer API.
 (meme.alpha.emit.pprint/pprint-form form opts)
 ```
 
-Pretty-print a single Clojure form as meme text. Width-aware — uses `begin`/`end` for forms that don't fit on one line. Preserves comments from `:ws` metadata.
+Pretty-print a single Clojure form as meme text. Width-aware — uses indented parenthesized form for calls that don't fit on one line. Preserves comments from `:ws` metadata.
 
 Options:
 - `:width` — target line width (default: 80)

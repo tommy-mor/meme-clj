@@ -414,17 +414,3 @@
 (deftest form-snapshot-bigdecimal
   (is (= 1.5M (first (forms-for "1.5M"))))))
 
-;; ---------------------------------------------------------------------------
-;; begin/end textual call delimiters
-;; ---------------------------------------------------------------------------
-
-(deftest token-snapshot-begin-end
-  (is (= [{:type :symbol :value "foo" :line 1 :col 1}
-           {:type :symbol :value "begin" :line 1 :col 5}
-           {:type :symbol :value "x" :line 1 :col 11}
-           {:type :symbol :value "end" :line 1 :col 13}]
-         (tokens-for "foo begin x end"))))
-
-(deftest form-snapshot-begin-end
-  (is (= '[(foo x)] (forms-for "foo begin x end")))
-  (is (= '[(foo (bar x))] (forms-for "foo begin bar begin x end end"))))

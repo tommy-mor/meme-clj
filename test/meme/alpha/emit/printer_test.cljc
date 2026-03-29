@@ -348,7 +348,7 @@
            (p/print-form '(reify Object (toString [this] "hello")))))))
 
 ;; ---------------------------------------------------------------------------
-;; begin/end as symbols (not delimiters) in printed output
+;; begin/end as regular symbols in printed output
 ;; ---------------------------------------------------------------------------
 
 (deftest print-begin-end-as-arguments

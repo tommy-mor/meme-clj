@@ -1,6 +1,6 @@
 (ns meme.alpha.emit.pprint
   "Pretty-printer: Clojure forms → idiomatic multi-line meme text.
-   Width-aware — uses begin/end for forms that don't fit on one line."
+   Width-aware — uses indented parenthesized form for multi-line calls."
   (:require [meme.alpha.emit.printer :as printer]
             [meme.alpha.forms :as forms]
             [clojure.string :as str]))
@@ -80,33 +80,29 @@
               [nil args])
 
             inner-col (+ col indent-step)
-            inner-indent (indent-str inner-col)
-            outer-indent (indent-str col)]
+            inner-indent (indent-str inner-col)]
 
         (if head-args
           ;; Some args stay on the head line — but only if they fit
           (let [head-args-str (str/join " " (map flat head-args))
-                first-line (str head-str " begin " head-args-str)]
+                first-line (str head-str "(" head-args-str)]
             (if (<= (+ col (count first-line)) width)
-              ;; Head-line args fit: head begin name [params]\n  body\nend
+              ;; Head-line args fit: head(name [params]\n  body)
               (let [pp-body (map #(pp % inner-col width) body-args)
                     body (str/join (str "\n" inner-indent) pp-body)]
                 (str first-line "\n"
-                     inner-indent body "\n"
-                     outer-indent "end"))
+                     inner-indent body ")"))
               ;; Head-line args don't fit: fall back to all-in-body
               (let [pp-args (map #(pp % inner-col width) (concat head-args body-args))
                     body (str/join (str "\n" inner-indent) pp-args)]
-                (str head-str " begin\n"
-                     inner-indent body "\n"
-                     outer-indent "end"))))
+                (str head-str "(\n"
+                     inner-indent body ")"))))
 
           ;; All args in body
           (let [pp-args (map #(pp % inner-col width) body-args)
                 body (str/join (str "\n" inner-indent) pp-args)]
-            (str head-str " begin\n"
-                 inner-indent body "\n"
-                 outer-indent "end")))))))
+            (str head-str "(\n"
+                 inner-indent body ")")))))))
 
 ;; ---------------------------------------------------------------------------
 ;; Collection formatting

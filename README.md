@@ -1,4 +1,4 @@
-# meme-clj — begin/end and M-expressions for Clojure
+# meme-clj — M-expressions for Clojure
 
 [![CI](https://github.com/beme-lang/meme-clj/actions/workflows/ci.yml/badge.svg)](https://github.com/beme-lang/meme-clj/actions/workflows/ci.yml)
 [![Clojure](https://img.shields.io/badge/Clojure-JVM%20%7C%20Babashka%20%7C%20ClojureScript-blue?logo=clojure&logoColor=white)](https://clojure.org)
@@ -6,12 +6,10 @@
 
 M-expressions were McCarthy's original intended syntax for Lisp (1960).
 S-expressions were meant to be internal representation only — but they stuck.
-meme picks up where McCarthy left off: two rules that make nesting self-evident,
+meme picks up where McCarthy left off: one rule that makes nesting self-evident,
 while preserving Clojure's semantics exactly.
 
-**Rule 1** — head outside the parens: `f(x y)` => `(f x y)`
-
-**Rule 2** (optional) — `begin`/`end` instead of parens: `f begin x y end` => `(f x y)`
+**The rule** — head outside the parens: `f(x y)` => `(f x y)`
 
 **Escape hatch** — `'(...)` and `` `(...) `` drop back to S-expression syntax inside: `'(f (g x))` is `(quote (f (g x)))`, not a call. When you need raw Clojure forms, just quote them.
 
@@ -21,8 +19,8 @@ Everything else is Clojure.
 ;; examples/stars.meme — bb meme run examples/stars.meme
 require('[cheshire.core :as json])
 
-defn begin stars [owner repo]
-  let begin
+defn(stars [owner repo]
+  let(
     [
       url   str("https://api.github.com/repos/" owner "/" repo)
       resp  slurp(url)
@@ -30,9 +28,7 @@ defn begin stars [owner repo]
       count :stargazers_count(data)
     ]
 
-    println(str(owner "/" repo ": " count " ⭐"))
-  end
-end
+    println(str(owner "/" repo ": " count " ⭐"))))
 
 stars("beme-lang" "meme-clj")
 ```

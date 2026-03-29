@@ -29,32 +29,6 @@ foo(x)    ;; call: (foo x)
 foo (x)   ;; also a call: (foo x)
 ```
 
-### Rule 2: Textual delimiters (begin/end)
-
-`begin` and `end` can replace parentheses as call delimiters:
-
-```
-f begin x y end     →  (f x y)
-```
-
-These are equivalent to `f(x y)` — the head is still outside the delimiters. Useful for multi-line blocks where parentheses feel noisy:
-
-```
-defn begin greet [name]
-  println(str("Hello " name))
-end
-
-try begin
-  dangerous-operation()
-  catch(Exception e handle(e))
-end
-```
-
-**`end` is reserved inside begin blocks.** Inside a `begin` block, the symbol `end` closes the block — it cannot appear as a data value. Outside begin blocks, `end` is a normal symbol.
-
-**Printer emits parens.** The printer always outputs `f(args...)` — code written with `begin`/`end` round-trips semantically but not textually.
-
-
 ## Binding
 
 ### def
@@ -334,7 +308,6 @@ All of these work exactly as in Clojure:
 | Clojure | meme | Notes |
 |---------|-----|-------|
 | `(f x y)` | `f(x y)` | Parens follow the callable |
-| `(f x y)` | `f begin x y end` | Textual delimiters, equivalent to parens |
 | `'(f (g x))` | `'(f (g x))` | Quote uses S-expression syntax inside |
 
 

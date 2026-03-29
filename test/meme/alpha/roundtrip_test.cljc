@@ -632,31 +632,6 @@
       (is (= f1 f2)))))
 
 ;; ---------------------------------------------------------------------------
-;; begin/end delimiters
-;; ---------------------------------------------------------------------------
-
-(deftest roundtrip-begin-end-basic
-  (testing "begin/end parses to same forms as parens, roundtrips through printer"
-    (let [[f1 f2 text] (roundtrip-forms "foo begin x y end")]
-      (is (= f1 f2))
-      (is (= "foo(x y)" text)))))
-
-(deftest roundtrip-begin-end-nested
-  (testing "nested begin/end roundtrips"
-    (let [[f1 f2 _] (roundtrip-forms "foo begin bar begin x end end")]
-      (is (= f1 f2)))))
-
-(deftest roundtrip-begin-end-mixed
-  (testing "begin/end mixed with parens roundtrips"
-    (let [[f1 f2 _] (roundtrip-forms "foo begin bar(x) baz(y z) end")]
-      (is (= f1 f2)))))
-
-(deftest roundtrip-begin-end-defn
-  (testing "real-world defn with begin/end roundtrips"
-    (let [[f1 f2 _] (roundtrip-forms "defn begin greet [name] str(\"Hello \" name) end")]
-      (is (= f1 f2)))))
-
-;; ---------------------------------------------------------------------------
 ;; letfn, condp, deftype with implementations
 ;; ---------------------------------------------------------------------------
 

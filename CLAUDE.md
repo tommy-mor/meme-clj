@@ -4,10 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-meme is a syntactic lens over Clojure — a reader (not a language) that translates M-expression syntax into standard Clojure forms. It replaces S-expression nesting with human-readable syntax via two rules:
+meme is a syntactic lens over Clojure — a reader (not a language) that translates M-expression syntax into standard Clojure forms. It replaces S-expression nesting with human-readable syntax via one rule:
 
-1. **Call**: `f(x y)` → `(f x y)` — the head of a list is written outside the parens (spacing irrelevant)
-2. **Begin/end**: `f begin x y end` → `(f x y)` — textual call delimiters, equivalent to parentheses
+**Call**: `f(x y)` → `(f x y)` — the head of a list is written outside the parens (spacing irrelevant)
 
 Everything else (data literals, reader syntax, destructuring, commas-as-whitespace) is unchanged from Clojure.
 
@@ -78,7 +77,7 @@ The pipeline has three stages (composed by `meme.alpha.pipeline`):
 - `meme.alpha.parse.reader` (.cljc) — Recursive-descent parser (grouped tokens → Clojure forms). Delegates value resolution to `meme.alpha.parse.resolve`. Portable.
 - `meme.alpha.parse.resolve` (.cljc) — Value resolution: converts raw token text to Clojure values. Centralizes all host reader delegation (`read-string` calls) with consistent error wrapping. Handles platform asymmetries (JVM vs CLJS). Portable.
 - `meme.alpha.emit.printer` (.cljc) — Pattern-matches on Clojure form structure to produce meme text. Portable.
-- `meme.alpha.emit.pprint` (.cljc) — Pretty-printer: width-aware, uses `begin`/`end` for forms that exceed line width. Preserves comments from `:ws` metadata. Portable.
+- `meme.alpha.emit.pprint` (.cljc) — Pretty-printer: width-aware, uses indented parenthesized form for multi-line calls. Preserves comments from `:ws` metadata. Portable.
 - `meme.alpha.pipeline` (.cljc) — Explicit pipeline composition: `scan → group → parse`. Each stage is a `ctx → ctx` function. Exposes intermediate state (`:raw-tokens`, `:tokens`, `:forms`) for tooling. Portable.
 - `meme.alpha.core` (.cljc) — Public API in three tracks: text-to-form (`meme->forms`, `forms->meme`), form-to-text (`forms->clj`, `clj->forms`), text-to-text (`meme->clj`, `clj->meme`). Also `pprint-meme` for pretty-printing and `run-pipeline` for tooling access to intermediate pipeline state. `clj->forms` and `clj->meme` are JVM only.
 - `meme.alpha.runtime.repl` (.cljc) — REPL. Requires `eval`; JVM/Babashka only by default, CLJS with injected `:eval`/`:read-line`.
@@ -123,7 +122,7 @@ The pipeline has three stages (composed by `meme.alpha.pipeline`):
 | `parse/reader/errors_test` | Error cases, rejected forms (unquote outside backtick), error messages with locations, CLJS-specific errors |
 | `parse/resolve_test` | Value resolution: numbers, strings, chars, regex, keywords, tagged literals |
 | `emit/printer_test` | Printer: Clojure forms → meme text. Individual form cases. |
-| `emit/pprint_test` | Pretty-printer: width-aware formatting, begin/end, comments |
+| `emit/pprint_test` | Pretty-printer: width-aware formatting, multi-line layout, comments |
 | `roundtrip_test` | Read → print → re-read identity. Structural invariant tests. |
 | `regression/scan_test` | Scar tissue: tokenizer and grouper bugs (opaque form depth, char/string in syntax-quote, symbol parsing, EOF handling) |
 | `regression/reader_test` | Scar tissue: parser bugs (discard sentinel, depth limits, head types, spacing, duplicates, metadata) |
@@ -172,7 +171,6 @@ clojure-lsp is configured via the `.claude-plugin/` directory for Claude Code in
 - `defprotocol(Name method-sigs...)`, `defrecord(Name [fields])` — protocols and records
 - `defmulti(name dispatch-fn)`, `defmethod(name dispatch-val [args] body)` — multimethods
 - `::keyword` — auto-resolve keywords are opaque (deferred to Clojure's reader)
-- Threading macros (`->`, `->>`) are just calls per Rule 1
-- `f begin x y end` — textual call delimiters, equivalent to `f(x y)`
+- Threading macros (`->`, `->>`) are just calls
 - `'(...)` uses Clojure S-expression syntax inside — `'(f (g x))` is `(quote (f (g x)))`, not a call
 - `[]` is always data; use `list(1 2 3)` for list literals

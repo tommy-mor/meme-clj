@@ -164,17 +164,17 @@
 #?(:clj
 (deftest pprint-head-line-args-respect-width
   (testing "long if-condition falls back to body when it exceeds width"
-    (let [form '(if (and (> x 100) (< y 200) (not= z 0)) (body1) (body2))
+    (let [form '(if (and (> x 100) (< y 200) (not= z 0) (pos? w)) (body1) (body2))
           result (pprint/pprint-form form {:width 40})]
-      (is (not (re-find #"if begin and" result))
+      (is (not (re-find #"if\(and" result))
           "long condition should not stay on head line")
       (doseq [line (str/split-lines result)]
         (is (<= (count line) 42)
             (str "line exceeds width: " (pr-str line))))))
-  (testing "short if-condition stays on head line when begin/end needed"
+  (testing "short if-condition stays on head line when multi-line needed"
     (let [form '(if (> x 0) (do-something-with x) (do-something-else y))
           result (pprint/pprint-form form {:width 40})]
-      (is (re-find #"if begin >" result)
+      (is (re-find #"if\(>" result)
           "short condition should stay on head line")))))
 
 ;; ---------------------------------------------------------------------------
@@ -245,7 +245,7 @@
 
 ;; ---------------------------------------------------------------------------
 ;; Bug: comment lines from :ws metadata emitted at column 0 inside nested
-;; begin/end blocks. Second+ comment lines had no indent; original whitespace
+;; multi-line blocks. Second+ comment lines had no indent; original whitespace
 ;; was preserved instead of re-indented to the current pprint column.
 ;; ---------------------------------------------------------------------------
 
@@ -343,9 +343,8 @@
 
 ;; ---------------------------------------------------------------------------
 ;; Bug: pprint lost reader-sugar notation (@, #', ') when forms exceeded
-;; width. pp-call-smart emitted clojure.core/deref begin...end instead of
-;; @inner, var begin...end instead of #'sym, quote begin...end instead of
-;; 'sym. Output was valid meme (begin/end roundtrips) but unidiomatic.
+;; width. pp-call-smart emitted clojure.core/deref(...) instead of
+;; @inner, var(...) instead of #'sym, quote(...) instead of 'sym.
 ;; Fix: add explicit dispatch for deref, var, quote-non-seq before call?.
 ;; ---------------------------------------------------------------------------
 
@@ -369,7 +368,7 @@
     (let [form (list 'var 'some.ns/my-var)
           result (pprint/pprint-form form {:width 5})]
       (is (str/starts-with? result "#'"))
-      (is (not (str/includes? result "var begin")))
+      (is (not (str/includes? result "var(")))
       (is (= (list form) (core/meme->forms result)))))))
 
 #?(:clj
@@ -378,5 +377,5 @@
     (let [form (list 'quote 'my-long-symbol-name)
           result (pprint/pprint-form form {:width 5})]
       (is (str/starts-with? result "'"))
-      (is (not (str/includes? result "quote begin")))
+      (is (not (str/includes? result "quote(")))
       (is (= (list form) (core/meme->forms result)))))))

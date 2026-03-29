@@ -9,24 +9,21 @@ def(r #(rand-int(100)))
 assert(number?(r()))
 
 ;; letfn — mutual recursion
-letfn begin
+letfn(
   [
     my-even?([n] if(=(n 0) true my-odd?(dec(n))))
     my-odd?([n] if(=(n 0) false my-even?(dec(n))))
   ]
   assert(=(my-even?(10) true))
   assert(=(my-odd?(7) true))
-  assert(=(my-even?(3) false))
-end
+  assert(=(my-even?(3) false)))
 
 ;; condp
-defn begin classify-number [x]
-  condp begin = mod(x 3)
+defn(classify-number [x]
+  condp(= mod(x 3)
     0 "fizz"
     1 "one"
-    2 "two"
-  end
-end
+    2 "two"))
 assert(=(classify-number(9) "fizz"))
 assert(=(classify-number(7) "one"))
 assert(=(classify-number(5) "two"))
@@ -46,23 +43,19 @@ assert(=(some->>([1 2 3] seq first) 1))
 assert(=(some->>(nil seq) nil))
 
 ;; cond-> and cond->>
-assert begin
-  = begin
+assert(
+  =(
     cond->({}
       true  assoc(:a 1)
       false assoc(:b 2)
       true  assoc(:c 3))
-    {:a 1 :c 3}
-  end
-end
+    {:a 1 :c 3}))
 
 ;; as-> (thread through named binding)
-assert begin
-  = begin
+assert(
+  =(
     as->(0 v
       inc(v)
       +(v 10)
       *(v 2))
-    22
-  end
-end
+    22))

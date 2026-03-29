@@ -1,4 +1,0 @@
-[(foo x y)
- (bar (baz 1))
- (f)
- (defn greet [name] (str "Hello " name))]

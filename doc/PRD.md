@@ -11,11 +11,10 @@ semantic ones — imposed by syntax that demands manual bracket management.
 
 ## Solution
 
-meme is a thin syntactic lens over Clojure. Two rules replace
+meme is a thin syntactic lens over Clojure. One rule replaces
 S-expression nesting with readable, familiar syntax:
 
-1. `f(x y)` — call. Head of a list written outside the parens (spacing irrelevant).
-2. `f begin x y end` — textual call delimiters, equivalent to parentheses.
+`f(x y)` — call. Head of a list written outside the parens (spacing irrelevant).
 
 Everything else is unchanged from Clojure. meme is a reader, not a language.
 It emits standard Clojure forms that run on Babashka, Clojure JVM, or
@@ -104,7 +103,6 @@ ClojureScript without modification.
 | R24 | `#:ns{...}` namespaced maps pass through to Clojure's reader | Done |
 | R25 | `#()` uses meme syntax inside, `%` params → `fn` form | Done |
 | R26 | `run-pipeline` exposes intermediate pipeline state for tooling | Done |
-| R27 | `begin`/`end` as textual call delimiters — `f begin args end` equivalent to `f(args)` | Done |
 
 ### Printer
 

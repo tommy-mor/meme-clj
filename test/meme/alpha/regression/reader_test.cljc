@@ -75,18 +75,7 @@
     (is (= '[(foo 1)] (core/meme->forms "foo(1 #_2)"))))
   (testing "#_ only form in collection"
     (is (= [[]] (core/meme->forms "[#_1]"))))
-  (testing "Bug: #_ inside begin/end block — discard must recognize end as closer"
-    (is (= '[(f 1)] (core/meme->forms "f begin 1 #_2 end"))))
-  (testing "Bug: #_ as only form in begin/end block"
-    (is (= '[(f)] (core/meme->forms "f begin #_1 end"))))
-  (testing "Bug: multiple #_ before end in begin/end block"
-    (is (= '[(f 3)] (core/meme->forms "f begin #_1 #_2 3 end"))))
-  (testing "Bug: #_ #_ double-discard inside begin/end"
-    (is (= '[(f c)] (core/meme->forms "f begin #_ #_ a b c end"))))
-  (testing "#_ #_ in middle of begin/end body"
-    (is (= '[(f x y)] (core/meme->forms "f begin x #_ #_ a b y end"))))
-  (testing "#_ #_ discards everything in begin/end body"
-    (is (= '[(f)] (core/meme->forms "f begin #_ #_ a b end")))))
+)
 
 ;; ---------------------------------------------------------------------------
 ;; Scar tissue: discard-sentinel must not leak into :meta or :tagged-literal.
@@ -281,16 +270,14 @@
            (core/meme->forms "#'#_foo bar")))))
 
 ;; ---------------------------------------------------------------------------
-;; Bug: "be" was previously reserved as a shorthand for "begin".
+;; "be" is a normal symbol (not reserved).
 ;; ---------------------------------------------------------------------------
 
 (deftest be-is-a-normal-symbol
-  (testing "be parses as a regular symbol, not a delimiter"
+  (testing "be parses as a regular symbol"
     (is (= '[be] (core/meme->forms "be"))))
   (testing "be followed by parens is a call headed by be"
-    (is (= '[(be x y)] (core/meme->forms "be(x y)"))))
-  (testing "be inside begin/end is a normal symbol"
-    (is (= '[(foo be)] (core/meme->forms "foo begin be end")))))
+    (is (= '[(be x y)] (core/meme->forms "be(x y)")))))
 
 ;; ---------------------------------------------------------------------------
 ;; Bug: ^42 x throws ClassCastException instead of meme error.
@@ -393,8 +380,6 @@
     (is (= '[(( f x) y)] (core/meme->forms "f(x)(y)"))))
   (testing "f(x)(y)(z) → (((f x) y) z)"
     (is (= '[(((f x) y) z)] (core/meme->forms "f(x)(y)(z)"))))
-  (testing "chaining with begin/end"
-    (is (= '[((f x) y)] (core/meme->forms "f(x) begin y end"))))
   (testing "printer output roundtrips"
     (let [form '((f x) y)
           printed (p/print-form form)

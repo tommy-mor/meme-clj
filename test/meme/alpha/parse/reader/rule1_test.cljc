@@ -323,89 +323,15 @@
          (core/meme->forms "try(risky() catch(Exception e handle(e)))"))))
 
 ;; ===========================================================================
-;; begin/end delimiters
+;; begin and end are regular symbols (not delimiters)
 ;; ===========================================================================
 
-;; ---------------------------------------------------------------------------
-;; begin/end is equivalent to () for calls
-;; ---------------------------------------------------------------------------
-
-(deftest begin-end-basic-call
-  (is (= '[(foo x y)] (core/meme->forms "foo begin x y end"))))
-
-(deftest begin-end-zero-arity
-  (is (= '[(foo)] (core/meme->forms "foo begin end"))))
-
-(deftest begin-end-nested-parens
-  (is (= '[(foo (bar x))] (core/meme->forms "foo begin bar(x) end"))))
-
-(deftest begin-end-nested-begin-end
-  (is (= '[(foo (bar x))] (core/meme->forms "foo begin bar begin x end end"))))
-
-(deftest begin-end-with-spacing
-  (testing "spacing irrelevant before begin"
-    (is (= '[(f x)] (core/meme->forms "f  begin x end")))
-    (is (= '[(f x)] (core/meme->forms "f\nbegin x end")))))
-
-;; ---------------------------------------------------------------------------
-;; begin/end with all head types
-;; ---------------------------------------------------------------------------
-
-(deftest begin-end-keyword-head
-  (is (= '(:require [bar]) (first (core/meme->forms ":require begin [bar] end")))))
-
-(deftest begin-end-vector-head
-  (is (= '([x] 1) (first (core/meme->forms "[x] begin 1 end")))))
-
-;; ---------------------------------------------------------------------------
-;; begin/end as symbols when not in call position
-;; ---------------------------------------------------------------------------
-
 (deftest begin-as-standalone-symbol
-  (testing "begin without following ( or begin is a symbol"
-    (is (= '[begin] (core/meme->forms "begin")))))
+  (is (= '[begin] (core/meme->forms "begin"))))
 
 (deftest end-as-standalone-symbol
-  (testing "end outside begin-block is a symbol"
-    (is (= '[end] (core/meme->forms "end")))))
+  (is (= '[end] (core/meme->forms "end"))))
 
-(deftest begin-end-as-call-head
+(deftest begin-as-call-head
   (testing "begin can be a call head with parens"
     (is (= '[(begin x)] (core/meme->forms "begin(x)")))))
-
-;; ---------------------------------------------------------------------------
-;; Real-world patterns with begin/end
-;; ---------------------------------------------------------------------------
-
-(deftest begin-end-defn
-  (is (= '[(defn greet [name] (str "Hello " name))]
-         (core/meme->forms "defn begin greet [name] str(\"Hello \" name) end"))))
-
-(deftest begin-end-let
-  (is (= '[(let [x 1] (+ x 2))]
-         (core/meme->forms "let begin [x 1] +(x 2) end"))))
-
-(deftest begin-end-try-catch
-  (is (= '[(try (risky) (catch Exception e (handle e)))]
-         (core/meme->forms "try begin risky() catch begin Exception e handle(e) end end"))))
-
-;; ---------------------------------------------------------------------------
-;; begin/end error paths
-;; ---------------------------------------------------------------------------
-
-(deftest begin-end-unclosed-at-eof
-  (testing "f begin x — missing end at EOF"
-    (let [e (try (core/meme->forms "f begin x")
-                 nil
-                 (catch #?(:clj Exception :cljs js/Error) e e))]
-      (is (some? e))
-      (is (:incomplete (ex-data e)) "should be :incomplete for REPL continuation")
-      (is (re-find #"end" (ex-message e)))))
-  (testing "f begin — empty body, missing end"
-    (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
-          #"end"
-          (core/meme->forms "f begin"))))
-  (testing "nested begin without inner end"
-    (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
-          #"end"
-          (core/meme->forms "f begin g begin x end")))))
