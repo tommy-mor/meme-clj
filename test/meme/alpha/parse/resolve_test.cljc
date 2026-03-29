@@ -89,38 +89,6 @@
     (is (= "data" (.-form tl))))))
 
 ;; ---------------------------------------------------------------------------
-;; Syntax-quote (JVM only)
-;; ---------------------------------------------------------------------------
-
-#?(:clj
-(deftest resolve-syntax-quote-basic
-  (is (some? (resolve/resolve-syntax-quote "`foo" {:line 1 :col 1})))))
-
-#?(:cljs
-(deftest resolve-syntax-quote-cljs-error
-  (is (thrown? :default
-              (resolve/resolve-syntax-quote "`foo" {:line 1 :col 1})))))
-
-;; ---------------------------------------------------------------------------
-;; Reader conditionals (JVM only)
-;; ---------------------------------------------------------------------------
-
-#?(:clj
-(deftest resolve-reader-cond-basic
-  (let [rc (resolve/resolve-reader-cond "#?(:clj 1 :cljs 2)" {:line 1 :col 1})]
-    (is (reader-conditional? rc)))))
-
-;; ---------------------------------------------------------------------------
-;; Namespaced maps (JVM only)
-;; ---------------------------------------------------------------------------
-
-#?(:clj
-(deftest resolve-namespaced-map-basic
-  (let [m (resolve/resolve-namespaced-map "#:user{:name \"x\"}" {:line 1 :col 1})]
-    (is (map? m))
-    (is (= "x" (:user/name m))))))
-
-;; ---------------------------------------------------------------------------
 ;; Error location wrapping
 ;; ---------------------------------------------------------------------------
 

@@ -133,14 +133,14 @@ Convert a Clojure source string to meme source string. JVM/Babashka only. Equiva
 (meme.alpha.core/run-pipeline source opts)
 ```
 
-Run the full pipeline: source → scan → group → parse. Returns a context map with intermediate state. All platforms. Useful for tooling that needs access to raw tokens, grouped tokens, or parsed forms.
+Run the full pipeline: source → scan → group → parse. Returns a context map with intermediate state. All platforms. Useful for tooling that needs access to raw tokens, tokens, or parsed forms.
 
 ```clojure
 (run-pipeline "foo(1 2)")
 ;=> {:source "foo(1 2)"
 ;    :opts nil
-;    :raw-tokens [...tokenizer output...]
-;    :tokens [...grouped tokens...]
+;    :raw-tokens [...tokenizer output with :ws...]
+;    :tokens [...same (grouper is pass-through)...]
 ;    :forms [(foo 1 2)]}
 ```
 
@@ -155,9 +155,9 @@ Low-level reader API.
 (meme.alpha.parse.reader/read-meme-string-from-tokens tokens opts source)
 ```
 
-Parse pre-tokenized, pre-grouped tokens into Clojure forms. Used by `meme.alpha.pipeline/parse`. Most callers should use `meme.alpha.core/meme->forms` instead.
+Parse a token vector into Clojure forms. Used by `meme.alpha.pipeline/parse`. Most callers should use `meme.alpha.core/meme->forms` instead.
 
-- `tokens` — a grouped token vector (output of `meme.alpha.scan.grouper/group-tokens`)
+- `tokens` — a token vector (output of `meme.alpha.scan.grouper/group-tokens` or directly from the tokenizer)
 - `opts` — same options as `meme->forms` (e.g., `:resolve-keyword`)
 - `source` — original source text for error context (optional)
 
@@ -318,7 +318,7 @@ Tokenize source text into flat tokens with whitespace attachment. Reads `:source
 (meme.alpha.pipeline/group ctx)
 ```
 
-Collapse opaque regions (reader conditionals, namespaced maps, syntax-quote brackets) from flat tokens into composite tokens. Reads `:raw-tokens` and `:source` from ctx, assocs `:tokens`.
+Pass-through stage — returns tokens unchanged. Retained for pipeline symmetry. Reads `:raw-tokens` and `:source` from ctx, assocs `:tokens`.
 
 ### parse
 
@@ -346,7 +346,7 @@ Run the full pipeline: `scan → group → parse`. Returns the complete context 
 
 ## meme.alpha.scan.grouper
 
-Token grouping stage. Collapses opaque-region marker tokens into single composite tokens.
+Pass-through stage — all forms are now parsed natively by the recursive-descent parser. Retained for pipeline symmetry.
 
 ### group-tokens
 
@@ -354,14 +354,12 @@ Token grouping stage. Collapses opaque-region marker tokens into single composit
 (meme.alpha.scan.grouper/group-tokens tokens source)
 ```
 
-Process a flat token vector, collapsing opaque regions into single tokens. Marker tokens (`:reader-cond-start`, `:namespaced-map-start`, `:syntax-quote-start`) followed by balanced delimiters are collapsed into the corresponding `-raw` composite tokens (`:reader-cond-raw`, `:namespaced-map-raw`, `:syntax-quote-raw`).
-
-`source` is the original source text, used for reconstructing raw values via source-range extraction.
+Returns `tokens` unchanged. All forms (reader conditionals, namespaced maps, syntax-quote) are parsed natively by the reader. `source` is accepted for API compatibility but unused.
 
 
 ## meme.alpha.scan.source
 
-Source-position utilities shared across pipeline stages. The tokenizer and grouper must agree on how `(line, col)` maps to character offsets — this namespace is that shared definition.
+Source-position utilities shared across pipeline stages. Defines how `(line, col)` maps to character offsets — used by the tokenizer's `attach-whitespace` pass.
 
 ### line-col->offset
 
@@ -369,7 +367,7 @@ Source-position utilities shared across pipeline stages. The tokenizer and group
 (meme.alpha.scan.source/line-col->offset source line col)
 ```
 
-Convert 1-indexed line and column to a 0-indexed character offset in `source`. Used by `attach-whitespace` (tokenizer) and `extract-source-range` (grouper) to locate token positions in the original source string. Returns the source length if the position is past the end.
+Convert 1-indexed line and column to a 0-indexed character offset in `source`. Used by `attach-whitespace` (tokenizer) to locate token positions in the original source string. Returns the source length if the position is past the end.
 
 
 ## meme.alpha.runtime.cli
@@ -404,9 +402,6 @@ All resolvers take the raw token text and a `loc` map (`{:line N :col M}`) for e
 (meme.alpha.parse.resolve/resolve-string raw loc)        ;; "\"hi\"" → "hi"
 (meme.alpha.parse.resolve/resolve-char raw loc)          ;; "\\newline" → \newline
 (meme.alpha.parse.resolve/resolve-regex raw loc)         ;; "#\"\\d+\"" → #"\d+"
-(meme.alpha.parse.resolve/resolve-syntax-quote raw loc)  ;; JVM: host read-string. CLJS: error.
-(meme.alpha.parse.resolve/resolve-namespaced-map raw loc);; JVM: host read-string. CLJS: error.
-(meme.alpha.parse.resolve/resolve-reader-cond raw loc)   ;; JVM: read with {:read-cond :preserve}. CLJS: error.
 ```
 
 ### resolve-auto-keyword

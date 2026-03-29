@@ -74,11 +74,11 @@
 ;; ---------------------------------------------------------------------------
 
 ;; ---------------------------------------------------------------------------
-;; B10: #=() read-eval in opaque forms.
-;; Bug: host-read and host-read-with-opts called clojure.core/read-string
-;; without binding *read-eval* to false, so #=() inside syntax-quote,
-;; namespaced maps, or reader conditionals executed at read time.
-;; Fix: bind *read-eval* false in both host-read and host-read-with-opts.
+;; B10: #=() read-eval blocked in all contexts.
+;; Bug: originally, opaque-region functions called clojure.core/read-string
+;; without binding *read-eval* to false, allowing #=() to execute at read time.
+;; Fix: all forms are now parsed natively by the recursive-descent parser,
+;; which does not recognize #= as a dispatch form — it is rejected at scan time.
 ;; ---------------------------------------------------------------------------
 
 #?(:clj

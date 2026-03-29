@@ -2,7 +2,8 @@
   "meme REPL: read meme, eval as Clojure, print result."
   (:require [meme.alpha.pipeline :as pipeline]
             [meme.alpha.errors :as errors]
-            [clojure.string :as str]))
+            [clojure.string :as str]
+            #?(:clj [clojure.java.io :as io])))
 
 (defn input-state
   "Returns :complete, :incomplete, or :invalid for the given input string.
@@ -94,7 +95,13 @@
                                   #?(:clj #(clojure.core/read-string %)
                                      :cljs nil))]
                        (when rk {:resolve-keyword rk}))]
-     (println "meme REPL. Type meme expressions, balanced input to eval. Ctrl-D to exit.")
+     (let [version #?(:clj (try (some-> (io/resource "meme/version.txt") slurp str/trim)
+                               (catch Exception _ nil))
+                       :cljs nil)
+           banner (if version
+                    (str "meme " version " REPL. Type meme expressions, balanced input to eval. Ctrl-D to exit.")
+                    "meme REPL. Type meme expressions, balanced input to eval. Ctrl-D to exit.")]
+       (println banner))
      (loop []
        (let [prompt #?(:clj (str (ns-name *ns*) "=> ")
                        :cljs "meme=> ")

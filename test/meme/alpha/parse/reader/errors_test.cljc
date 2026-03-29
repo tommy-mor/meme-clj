@@ -1,13 +1,8 @@
 (ns meme.alpha.parse.reader.errors-test
   "Parser tests for error handling: error cases, rejected forms,
-   error messages with source locations, and CLJS-specific errors."
+   error messages with source locations."
   (:require [clojure.test :refer [deftest is testing]]
-            [meme.alpha.core :as core]
-            [meme.alpha.scan.tokenizer :as tokenizer]
-            [meme.alpha.scan.grouper :as grouper]))
-
-(defn- tokenize [s]
-  (-> (tokenizer/tokenize s) (grouper/group-tokens s)))
+            [meme.alpha.core :as core]))
 
 ;; ---------------------------------------------------------------------------
 ;; Parse errors
@@ -56,10 +51,6 @@
   (testing "`if(test then else) produces expanded form"
     (is (some? (first (core/meme->forms "`if(test then else)"))))))
 
-#?(:cljs
-(deftest parse-syntax-quote-rejected-cljs
-  (is (thrown? js/Error (core/meme->forms "`foo")))))
-
 (deftest parse-unquote-outside-syntax-quote
   (is (thrown? #?(:clj Exception :cljs js/Error) (core/meme->forms "~x"))))
 
@@ -99,21 +90,4 @@
       (is (= 2 (:line (ex-data e))))
       (is (some? (:col (ex-data e)))))))
 
-;; ---------------------------------------------------------------------------
-;; ClojureScript-specific: opaque forms give meme-specific error messages
-;; ---------------------------------------------------------------------------
 
-#?(:cljs
-(deftest cljs-opaque-form-errors
-  (testing "reader conditional gives meme-specific error on CLJS"
-    (let [tokens (tokenize "#?(:clj 1 :cljs 2)")]
-      (is (= 1 (count tokens)))
-      (is (= :reader-cond-start (:type (first tokens)))))
-    (is (thrown-with-msg? js/Error #"Reader conditionals"
-                          (core/meme->forms "#?(:clj 1 :cljs 2)"))))
-  (testing "namespaced map gives meme-specific error on CLJS"
-    (let [tokens (tokenize "#:user{:name \"x\"}")]
-      (is (= 1 (count tokens)))
-      (is (= :namespaced-map-raw (:type (first tokens)))))
-    (is (thrown-with-msg? js/Error #"Namespaced maps"
-                          (core/meme->forms "#:user{:name \"x\"}"))))))

@@ -181,10 +181,11 @@ meme rules inside. No opaque regions.
   are JVM/Babashka only. The core call rule and all standard forms
   work on ClojureScript.
 
-- **Printer: reader conditionals emit S-expressions.** The printer
-  delegates `ReaderConditional` objects to `pr-str`, which produces
-  S-expression syntax inside `#?(...)` rather than meme syntax.
-  Affects `clj->meme` on files containing `#?` with calls inside.
+- **Reader conditionals and roundtrips.** The printer emits meme syntax
+  inside `#?(...)` natively. However, `clj->meme` roundtrips of
+  `ReaderConditional` objects are lossy because meme's reader evaluates
+  `#?` to one branch's value at read time — the conditional structure
+  is not preserved through the full roundtrip.
 
 - **Nesting depth limit.** The parser enforces a maximum nesting depth of
   512 levels. Exceeding this produces a clear error. This prevents stack

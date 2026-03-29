@@ -21,8 +21,7 @@
       (assoc ctx :raw-tokens (tokenizer/attach-whitespace tokens source)))))
 
 (defn group
-  "Collapse opaque regions (reader conditionals, namespaced maps,
-   syntax-quote brackets) from flat tokens into composite tokens."
+  "Pass-through stage — returns tokens unchanged. Retained for pipeline symmetry."
   [ctx]
   (when-not (:raw-tokens ctx)
     (throw (ex-info "Pipeline :raw-tokens missing — run scan before group" {})))

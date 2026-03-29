@@ -11,7 +11,7 @@ while preserving Clojure's semantics exactly.
 
 **The rule** — head outside the parens: `f(x y)` => `(f x y)`
 
-**Escape hatch** — `'(...)` and `` `(...) `` drop back to S-expression syntax inside: `'(f (g x))` is `(quote (f (g x)))`, not a call. When you need raw Clojure forms, just quote them.
+**Quote and backtick** — `'` quotes the next meme form: `'f(x)` is `(quote (f x))`. `` ` `` uses meme syntax inside for macro templates: `` `if(~test do(~@body)) ``
 
 Everything else is Clojure.
 
@@ -37,6 +37,7 @@ stars("beme-lang" "meme-clj")
 
 Add to `deps.edn`:
 
+<!-- Update version below when releasing — source of truth is src/meme/version.txt -->
 ```clojure
 io.github.beme-lang/meme-clj {:mvn/version "0.4.0-alpha"}
 ```

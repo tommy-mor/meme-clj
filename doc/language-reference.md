@@ -111,12 +111,13 @@ defn-(helper [x] +(x 1))
 
 ### defmacro
 
-Macros work in `.meme` files. Syntax-quote (`` ` ``) is an opaque boundary —
-the template inside backtick is raw Clojure, passed to Clojure's reader.
+Macros work in `.meme` files. Syntax-quote (`` ` ``) is parsed natively —
+meme call syntax applies inside backtick. `~` (unquote) and `~@` (unquote-splicing)
+work as prefix operators.
 
 ```
 defmacro(my-log [tag expr] list('println tag expr))
-defmacro(unless [test & body] `(if (not ~test) (do ~@body)))
+defmacro(unless [test & body] `if(~test nil do(~@body)))
 ```
 
 
@@ -300,12 +301,12 @@ All of these work exactly as in Clojure:
 - Character literals: `\a`, `\newline`, `\space`
 - Tagged literals: `#inst`, `#uuid`
 - Auto-resolve keywords: `::foo` — in the file runner, deferred to eval time so `::foo` resolves in the file's declared namespace (not the caller's). In the REPL, resolved at read time (like Clojure). When using `meme->forms` directly without `:resolve-keyword`, deferred to eval time via `(read-string "::foo")`. On CLJS, `:resolve-keyword` is required (errors without it)
-- Reader conditionals: `#?(:clj x :cljs y)` — passed through opaquely
+- Reader conditionals: `#?(:clj x :cljs y)` — parsed natively; the matching platform branch is selected at read time
 - Namespaced maps: `#:ns{}`
 - Destructuring in all binding positions
 - Commas are whitespace
 - Line comments: `; comment`
-- Quoted lists: `'(x y z)` — uses Clojure S-expression syntax inside. `'(f (g x))` produces `(quote (f (g x)))`. Inside `'(...)`, parentheses create lists (no Rule 1 calls), so all Clojure forms are quotable. This is the only context where bare `(...)` is valid
+- Quote: `'x` quotes the next meme form. `'f(x y)` produces `(quote (f x y))`. `'()` is `(quote ())`. Note: `'(content)` with content is an error (bare parentheses) — use `list(...)` for list literals
 
 
 ## What's Different from Clojure
@@ -313,20 +314,18 @@ All of these work exactly as in Clojure:
 | Clojure | meme | Notes |
 |---------|-----|-------|
 | `(f x y)` | `f(x y)` | Parens follow the callable |
-| `'(f (g x))` | `'(f (g x))` | Quote uses S-expression syntax inside |
+| `'(f x)` | `'f(x)` | Quote applies to the next meme form |
 
 
 ## Design Boundaries
 
-- **Quote uses Clojure syntax inside.** `'(f (g x))` produces `(quote (f (g x)))`.
-  Inside `'(...)`, parentheses create lists — Rule 1 is suspended. This means
-  all Clojure forms are quotable, including lists with non-callable heads like
-  `'((1 2) (3 4))`. Outside `'(...)`, quote on non-lists works normally: `'foo`,
-  `'42`, `':kw`.
+- **Quote applies to the next meme form.** `'f(x)` produces `(quote (f x))`.
+  `'foo`, `'42`, `':kw`, `'()` all work. `'(content)` with content is an error
+  (bare parentheses) — use `list(...)` for list literals.
 
-- **Backtick is opaque.** Syntax-quote (`` ` ``) and its body are raw Clojure,
-  passed to Clojure's reader. Macro templates use S-expressions inside backtick;
-  meme syntax applies everywhere else.
+- **Backtick uses meme syntax inside.** Syntax-quote (`` ` ``) is parsed natively.
+  `~` (unquote) and `~@` (unquote-splicing) work as prefix operators.
+  Example: `` `if(~test do(~@body)) ``
 
 - **`#()` uses meme syntax inside.** `#(inc(%))` is `(fn [%1] (inc %1))`.
   The call rule applies normally within `#()`. Use `%`, `%1`, `%2` for

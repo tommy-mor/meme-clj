@@ -220,51 +220,6 @@
                               (assoc loc :cause e))))))
 
 ;; ---------------------------------------------------------------------------
-;; Syntax-quote, namespaced maps, reader conditionals
-;; These are still opaque — will be made native in subsequent commits.
-;; ---------------------------------------------------------------------------
-
-(defn- host-read
-  "Read a raw string via the host platform's reader. Temporary — being eliminated."
-  [raw loc error-prefix]
-  (try #?(:clj  (binding [*read-eval* false] (clojure.core/read-string raw))
-          :cljs (cljs.reader/read-string raw))
-       (catch #?(:clj Exception :cljs :default) e
-         (let [cause-msg (#?(:clj ex-message :cljs .-message) e)
-               detail (if cause-msg (str error-prefix " " raw " — " cause-msg)
-                                    (str error-prefix ": " raw))]
-           (errors/meme-error detail (assoc loc :cause e))))))
-
-#?(:clj
-(defn- host-read-with-opts
-  "Read a raw string via the host platform's reader with options (JVM only)."
-  [read-opts raw loc error-prefix]
-  (try (binding [*read-eval* false] (clojure.core/read-string read-opts raw))
-       (catch Exception e
-         (let [cause-msg (ex-message e)
-               detail (if cause-msg (str error-prefix " " raw " — " cause-msg)
-                                    (str error-prefix ": " raw))]
-           (errors/meme-error detail (assoc loc :cause e)))))))
-
-(defn resolve-syntax-quote [raw loc]
-  #?(:clj (host-read raw loc "Invalid syntax-quote")
-     :cljs (errors/meme-error
-             (str "Syntax-quote (`) is not supported in ClojureScript meme reader. Raw form: " raw)
-             loc)))
-
-(defn resolve-namespaced-map [raw loc]
-  #?(:clj (host-read raw loc "Invalid namespaced map")
-     :cljs (errors/meme-error
-             (str "Namespaced maps (#:ns{}) are not supported in ClojureScript meme reader. Raw form: " raw)
-             loc)))
-
-(defn resolve-reader-cond [raw loc]
-  #?(:clj (host-read-with-opts {:read-cond :preserve} raw loc "Invalid reader conditional")
-     :cljs (errors/meme-error
-             (str "Reader conditionals (#?) are not supported in ClojureScript meme reader. Raw form: " raw)
-             loc)))
-
-;; ---------------------------------------------------------------------------
 ;; Auto-resolve keywords
 ;; ---------------------------------------------------------------------------
 
