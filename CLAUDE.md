@@ -92,7 +92,7 @@ The pipeline has three stages (composed by `meme.alpha.pipeline`):
 |------|---------|-----------|
 | Core translation | tokenizer, grouper, reader, resolve, printer, pprint, pipeline, core, errors, forms, source | JVM, Babashka, ClojureScript |
 | Runtime | repl, run | JVM, Babashka (CLJS possible with injected eval) |
-| Test infra | test-runner, dogfood-test | JVM only |
+| Test infra | test-runner, dogfood-test, vendor-roundtrip-test | JVM only |
 
 ## Documentation
 
@@ -107,6 +107,7 @@ The pipeline has three stages (composed by `meme.alpha.pipeline`):
 - Roundtrip tests (read → print → re-read) go in `test/meme/alpha/roundtrip_test.cljc`.
 - `.meme` example files in `test/examples/tests/` are eval-based (self-asserting). Numeric prefixes (`01_`, `02_`, ...) control execution order — the test runner sorts alphabetically, so fundamentals (core rules, definitions) run before features that build on them. New files should continue the numbering sequence.
 - Fixture pairs in `test/examples/fixtures/` compare parsed output against `.edn` expected forms.
+- **Vendor roundtrip tests** use git submodules in `test/vendor/` (core.async, specter, malli, ring, clj-http, medley, hiccup). Each `.clj`/`.cljc` file is roundtripped per-form. Initialize with `git submodule update --init`. Forms containing reader conditionals are skipped (printer delegates to `pr-str`). Read errors (Clojure reader limitations) don't fail the test; roundtrip failures do.
 
 ### Test file placement
 
@@ -137,6 +138,7 @@ The pipeline has three stages (composed by `meme.alpha.pipeline`):
 | `pipeline_snapshot_test` | Characterization tests: exact token and form snapshots for the full pipeline. Regression net for pipeline refactoring. |
 | `generative_test` | Property-based tests with test.check. Print→read roundtrip on generated forms. JVM only. |
 | `errors_test` | Error infrastructure: `source-context`, `meme-error`, `format-error` |
+| `vendor_roundtrip_test` | Vendor roundtrip: real-world Clojure libraries (git submodules in `test/vendor/`) roundtripped per-form through clj→meme→clj. JVM only. |
 
 ## Development tools
 

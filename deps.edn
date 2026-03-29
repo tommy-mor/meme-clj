@@ -9,7 +9,9 @@
                       org.clojure/test.check
                       {:mvn/version "1.1.1"}}
          :main-opts ["-m" "cognitect.test-runner"]
-         :exec-fn cognitect.test-runner.api/test}
+         :exec-fn cognitect.test-runner.api/test
+         :exec-args {:dirs ["test"]
+                     :patterns ["meme\\.alpha\\..*-test"]}}
   :meme {:replace-paths ["src"]
          :replace-deps {}
          :ns-default meme.alpha.runtime.cli}
