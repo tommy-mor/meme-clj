@@ -132,9 +132,11 @@
   (is (= [{:type :reader-cond-raw :value "#?@(:clj [1])" :line 1 :col 1}]
          (tokens-for "#?@(:clj [1])"))))
 
-(deftest token-snapshot-opaque-namespaced-map
-  (is (= [{:type :namespaced-map-raw :value "#:ns{:a 1}" :line 1 :col 1}]
-         (tokens-for "#:ns{:a 1}"))))
+(deftest token-snapshot-namespaced-map
+  (testing "namespaced map tokens start with :namespaced-map-start"
+    (is (= :namespaced-map-start (:type (first (tokens-for "#:ns{:a 1}"))))))
+  (testing "namespaced map parses to correct form"
+    (is (= [{:ns/a 1}] (forms-for "#:ns{:a 1}")))))
 
 (deftest token-snapshot-syntax-quote
   (is (= [{:type :syntax-quote-raw :value "`foo" :line 1 :col 1}]
@@ -210,9 +212,9 @@
            (tokens-for "#?(:clj \")\" :cljs nil)")))))
 
 (deftest token-snapshot-namespaced-map-with-char
-  (testing "#:ns{} with \\} char literal"
-    (is (= [{:type :namespaced-map-raw :value "#:user{:ch \\}}" :line 1 :col 1}]
-           (tokens-for "#:user{:ch \\}}")))))
+  (testing "#:ns{} with \\} char literal parses correctly"
+    (is (= :namespaced-map-start (:type (first (tokens-for "#:user{:ch \\}}")))))
+    (is (= [{:user/ch \}}] (forms-for "#:user{:ch \\}}")))))
 
 (deftest token-snapshot-syntax-quote-unquote-form
   (testing "`~(foo bar) is single token"

@@ -59,15 +59,13 @@
 ;; Opaque-form read-string errors must include meme source location.
 ;; ---------------------------------------------------------------------------
 
-#?(:clj
-(deftest opaque-form-errors-include-location
+(deftest namespaced-map-errors-include-location
   (testing "malformed namespaced map has :line/:col in ex-data"
     (let [ex (try (core/meme->forms "#:ns{:a}")
-                  (catch Exception e e))]
-      (is (instance? clojure.lang.ExceptionInfo ex))
+                  (catch #?(:clj Exception :cljs :default) e e))]
+      (is (some? ex))
       (is (:line (ex-data ex)))
-      (is (:col (ex-data ex)))
-      (is (re-find #"Invalid namespaced map" (ex-message ex)))))))
+      (is (:col (ex-data ex))))))
 
 ;; ---------------------------------------------------------------------------
 ;; B1: tagged-literal CLJS guard.

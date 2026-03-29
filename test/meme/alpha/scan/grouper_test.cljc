@@ -33,15 +33,13 @@
 ;; ---------------------------------------------------------------------------
 
 (deftest group-namespaced-map
-  (testing "#:ns{...} collapses to single :namespaced-map-raw token"
+  (testing "#:ns{...} passes through — not collapsed"
     (let [tokens (group "#:user{:name \"x\" :age 1}")]
-      (is (= 1 (count tokens)))
-      (is (= :namespaced-map-raw (:type (first tokens))))
-      (is (= "#:user{:name \"x\" :age 1}" (:value (first tokens))))))
-  (testing "#:ns{} empty map"
+      (is (= :namespaced-map-start (:type (first tokens))))
+      (is (> (count tokens) 1))))
+  (testing "#:ns{} empty map passes through"
     (let [tokens (group "#:ns{}")]
-      (is (= 1 (count tokens)))
-      (is (= "#:ns{}" (:value (first tokens)))))))
+      (is (= :namespaced-map-start (:type (first tokens)))))))
 
 ;; ---------------------------------------------------------------------------
 ;; Syntax-quote collapsing
@@ -71,10 +69,9 @@
     (let [tokens (group "#?(:clj (foo [1 2]) :cljs nil)")]
       (is (= 1 (count tokens)))
       (is (= :reader-cond-raw (:type (first tokens))))))
-  (testing "#:ns{} with nested vector"
+  (testing "#:ns{} with nested vector — passes through"
     (let [tokens (group "#:user{:ids [1 2 3]}")]
-      (is (= 1 (count tokens)))
-      (is (= :namespaced-map-raw (:type (first tokens)))))))
+      (is (= :namespaced-map-start (:type (first tokens)))))))
 
 ;; ---------------------------------------------------------------------------
 ;; Non-opaque tokens pass through unchanged
@@ -101,10 +98,9 @@
     (let [tokens (group "#?(:clj #(inc %) :cljs identity)")]
       (is (= 1 (count tokens)))
       (is (= :reader-cond-raw (:type (first tokens))))))
-  (testing "#() inside namespaced map"
+  (testing "#() inside namespaced map — passes through"
     (let [tokens (group "#:user{:f #(inc %)}")]
-      (is (= 1 (count tokens)))
-      (is (= :namespaced-map-raw (:type (first tokens)))))))
+      (is (= :namespaced-map-start (:type (first tokens)))))))
 
 ;; ---------------------------------------------------------------------------
 ;; Marker tokens without following bracket pass through ungrouped
@@ -143,11 +139,10 @@
       (is (= 1 (count tokens)))
       (is (= 1 (:end-line (first tokens))))
       (is (= 11 (:end-col (first tokens))))))
-  (testing "#:ns{...} end position spans to closing brace"
+  (testing "#:ns{...} start token has correct position"
     (let [tokens (group "#:ns{:a 1}")]
-      (is (= 1 (count tokens)))
-      (is (= 1 (:end-line (first tokens))))
-      (is (= 11 (:end-col (first tokens))))))
+      (is (= :namespaced-map-start (:type (first tokens))))
+      (is (= 1 (:line (first tokens))))))
   (testing "multi-line #?() end position on correct line"
     (let [tokens (group "#?(:clj\n  1)")]
       (is (= 1 (count tokens)))

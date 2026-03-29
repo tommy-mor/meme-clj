@@ -86,7 +86,6 @@
    :tagged-literal "tagged literal"
    :reader-cond-raw "reader conditional"
    :reader-cond-start "reader conditional"
-   :namespaced-map-raw "namespaced map"
    :namespaced-map-start "namespaced map prefix"
    :syntax-quote-raw "syntax-quote"
    :syntax-quote-start "syntax-quote"})
@@ -426,11 +425,23 @@
                                (error-data p (select-keys tok [:line :col]))))
           (resolve/resolve-tagged-literal tag data (select-keys tok [:line :col]))))
 
-      :namespaced-map-raw
-      ;; #:ns{} forms are opaque — pass through to Clojure's reader
-      (let [raw (:value tok)]
+      :namespaced-map-start
+      ;; #:ns{...} — parse map natively, apply namespace prefix to bare keys
+      (let [prefix (:value tok) ; e.g. "#:user" or "#::foo"
+            ns-str (subs prefix 2) ; strip "#:"
+            auto? (str/starts-with? ns-str ":")
+            ns-name (if auto? (subs ns-str 1) ns-str)]
         (padvance! p)
-        (maybe-call p (resolve/resolve-namespaced-map raw (select-keys tok [:line :col]))))
+        (when-not (tok-type? (ppeek p) :open-brace)
+          (errors/meme-error (str "Expected { after " prefix)
+                             (error-data p (select-keys tok [:line :col]))))
+        (let [m (parse-map p) ; parse the {map} directly, no maybe-call
+              apply-ns (fn [k]
+                         (if (and (keyword? k) (nil? (namespace k)))
+                           (keyword ns-name (name k))
+                           k))
+              nsed (into {} (map (fn [[k v]] [(apply-ns k) v]) m))]
+          (maybe-call p nsed)))
 
       :open-anon-fn
       ;; #() — parse body as meme, collect % params, emit (fn [params] body)

@@ -62,10 +62,9 @@
     (let [tokens (tokenize "#?(:clj ; ] in comment\n x)")]
       (is (= 1 (count tokens)))
       (is (= :reader-cond-raw (:type (first tokens))))))
-  (testing "#:ns{} with ; comment containing } inside"
+  (testing "#:ns{} with ; comment containing } inside — parses correctly"
     (let [tokens (tokenize "#:user{:name ; } tricky\n \"x\"}")]
-      (is (= 1 (count tokens)))
-      (is (= :namespaced-map-raw (:type (first tokens)))))))
+      (is (= :namespaced-map-start (:type (first tokens)))))))
 
 ;; ---------------------------------------------------------------------------
 ;; Bug: read-balanced-raw didn't handle character literals. Bracket-like
@@ -89,10 +88,9 @@
     (let [tokens (tokenize "#?(:clj {\\{ \\}} :cljs nil)")]
       (is (= 1 (count tokens)))
       (is (= :reader-cond-raw (:type (first tokens))))))
-  (testing "#:ns{} with \\} char literal"
+  (testing "#:ns{} with \\} char literal — parses correctly"
     (let [tokens (tokenize "#:user{:ch \\}}")]
-      (is (= 1 (count tokens)))
-      (is (= :namespaced-map-raw (:type (first tokens))))))
+      (is (= :namespaced-map-start (:type (first tokens))))))
   #?(:clj
   (testing "#? with bracket char literals parses correctly on JVM"
     (is (reader-conditional? (first (core/meme->forms "#?(:clj \\) :cljs nil)"))))
@@ -365,12 +363,11 @@
 
 #?(:clj
 (deftest anon-fn-inside-namespaced-map
-  (testing "#:user{:f #(inc %)} tokenizes as single token"
-    (let [tokens (tokenize "#:user{:f #(inc %)}")]
-      (is (= 1 (count tokens)))
-      (is (= :namespaced-map-raw (:type (first tokens))))))
-  (testing "#:user{:f #(inc %)} parses without error"
-    (is (some? (core/meme->forms "#:user{:f #(inc %)}"))))))
+  (testing "#:user{:f #(inc(%))} tokenizes with namespaced-map-start"
+    (let [tokens (tokenize "#:user{:f #(inc(%))}")]
+      (is (= :namespaced-map-start (:type (first tokens))))))
+  (testing "#:user{:f #(inc(%))} parses without error"
+    (is (some? (core/meme->forms "#:user{:f #(inc(%))}"))))))
 
 ;; ---------------------------------------------------------------------------
 ;; Bug: unclosed opaque forms returned :invalid instead of :incomplete.
