@@ -27,6 +27,9 @@
 (def reserved-symbols #{'fn 'quote 'var 'clojure.core/deref
                          'nil 'true 'false})
 
+;; Keywords the printer strips from metadata (compiler/reader-added keys)
+(def reserved-meta-keywords #{:ws :line :column :file})
+
 (def gen-simple-symbol
   (gen/let [first-char (gen/elements (seq safe-symbol-chars))
             rest-chars (gen/vector (gen/elements (seq symbol-suffix-chars)) 0 8)]
@@ -34,12 +37,14 @@
       (if (reserved-symbols sym) (symbol (str first-char "x")) sym))))
 
 (def gen-keyword
-  (gen/one-of
-    [(gen/let [n (gen/not-empty (gen/vector (gen/elements (seq safe-symbol-chars)) 1 8))]
-       (keyword (apply str n)))
-     (gen/let [ns-chars (gen/not-empty (gen/vector (gen/elements (seq safe-symbol-chars)) 1 5))
-               n-chars (gen/not-empty (gen/vector (gen/elements (seq safe-symbol-chars)) 1 5))]
-       (keyword (apply str ns-chars) (apply str n-chars)))]))
+  (gen/such-that
+    #(not (reserved-meta-keywords %))
+    (gen/one-of
+      [(gen/let [n (gen/not-empty (gen/vector (gen/elements (seq safe-symbol-chars)) 1 8))]
+         (keyword (apply str n)))
+       (gen/let [ns-chars (gen/not-empty (gen/vector (gen/elements (seq safe-symbol-chars)) 1 5))
+                 n-chars (gen/not-empty (gen/vector (gen/elements (seq safe-symbol-chars)) 1 5))]
+         (keyword (apply str ns-chars) (apply str n-chars)))])))
 
 (def gen-number
   (gen/frequency
