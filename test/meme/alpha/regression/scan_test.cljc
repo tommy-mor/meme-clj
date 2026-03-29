@@ -118,7 +118,7 @@
 
 (deftest reader-conditional-native-parsing
   (testing "#?(:clj x :cljs y) returns matching platform value"
-    (is (= '[x] (core/meme->forms "#?(:clj x :cljs y)"))))
+    (is (= [#?(:clj 'x :cljs 'y)] (core/meme->forms "#?(:clj x :cljs y)"))))
   (testing "#?(:default fallback) uses :default"
     (is (= '[fallback] (core/meme->forms "#?(:unknown x :default fallback)"))))
   (testing "#?() empty — returns empty list"

@@ -3,7 +3,6 @@
    @deref, ^meta, 'quote, #'var, #_discard, #(), regex, char,
    tagged literals, reader conditionals, namespaced maps."
   (:require [clojure.test :refer [deftest is testing]]
-            [clojure.string :as str]
             [meme.alpha.core :as core]
             [meme.alpha.scan.tokenizer :as tokenizer]
             [meme.alpha.scan.grouper :as grouper]))
@@ -177,11 +176,11 @@
 
 (deftest parse-reader-conditional
   (testing "returns matching platform value"
-    (is (= 1 (first (core/meme->forms "#?(:clj 1 :cljs 2)"))))))
+    (is (= #?(:clj 1 :cljs 2) (first (core/meme->forms "#?(:clj 1 :cljs 2)"))))))
 
 (deftest parse-reader-conditional-splicing
   (testing "splicing returns matched branch value"
-    (is (= [1 2] (first (core/meme->forms "#?@(:clj [1 2] :cljs [3 4])"))))))
+    (is (= #?(:clj [1 2] :cljs [3 4]) (first (core/meme->forms "#?@(:clj [1 2] :cljs [3 4])"))))))
 
 ;; ---------------------------------------------------------------------------
 ;; maybe-call on opaque forms — opaque results can be call heads

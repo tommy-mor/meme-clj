@@ -130,7 +130,7 @@
   (testing "reader cond starts with :reader-cond-start"
     (is (= :reader-cond-start (:type (first (tokens-for "#?(:clj 1)"))))))
   (testing "reader cond parses to matching platform value"
-    (is (= [1] (forms-for "#?(:clj 1 :cljs 2)")))))
+    (is (= [#?(:clj 1 :cljs 2)] (forms-for "#?(:clj 1 :cljs 2)")))))
 
 (deftest token-snapshot-namespaced-map
   (testing "namespaced map tokens start with :namespaced-map-start"
@@ -198,11 +198,11 @@
 
 (deftest reader-cond-with-tricky-content
   (testing "#? with comment containing ) — parses correctly"
-    (is (= [1] (forms-for "#?(:clj ; comment with )\n 1)"))))
+    (is (= [#?(:clj 1 :cljs 1)] (forms-for "#?(:clj ; comment with )\n 1 :cljs 1)"))))
   (testing "#? with char literal \\) — parses matching branch"
-    (is (= [\)] (forms-for "#?(:clj \\) :cljs \\x)"))))
+    (is (= [#?(:clj \) :cljs \x)] (forms-for "#?(:clj \\) :cljs \\x)"))))
   (testing "#? with string containing ) — parses matching branch"
-    (is (= [")"] (forms-for "#?(:clj \")\" :cljs nil)")))))
+    (is (= [#?(:clj ")" :cljs ())] (forms-for "#?(:clj \")\" :cljs nil)")))))
 
 (deftest token-snapshot-namespaced-map-with-char
   (testing "#:ns{} with \\} char literal parses correctly"
@@ -373,7 +373,7 @@
 
 (deftest form-snapshot-reader-conditional
   (testing "reader conditional returns matching platform value"
-    (is (= 1 (first (forms-for "#?(:clj 1 :cljs 2)"))))))
+    (is (= #?(:clj 1 :cljs 2) (first (forms-for "#?(:clj 1 :cljs 2)"))))))
 
 #?(:clj
 (deftest form-snapshot-namespaced-map
