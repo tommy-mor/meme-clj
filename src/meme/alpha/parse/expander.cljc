@@ -12,18 +12,13 @@
 
 (defn- sq-resolve-symbol
   "Resolve a symbol for syntax-quote. Uses the resolver from opts
-   if available, otherwise returns the symbol as-is (best effort)."
+   if available, otherwise returns the symbol as-is.
+   Note: without a resolver, symbols are not namespace-qualified — this
+   differs from Clojure where `foo resolves to current-ns/foo."
   [sym opts]
   (if-let [resolver (:resolve-symbol opts)]
     (resolver sym)
-    ;; Without a resolver, qualify symbols that have no namespace
-    ;; but look like they could be vars. Leave special forms alone.
-    (if (and (nil? (namespace sym))
-             (not (#{'if 'do 'let 'fn 'var 'quote 'loop 'recur 'throw 'try 'catch
-                     'finally 'def 'new 'set! 'monitor-enter 'monitor-exit
-                     'letfn 'case 'deftype 'reify} sym)))
-      sym ; can't resolve without ns context — leave as-is
-      sym)))
+    sym))
 
 (def ^:private ^:dynamic *gensym-env* nil)
 

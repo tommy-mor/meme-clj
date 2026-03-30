@@ -127,12 +127,13 @@
            (clojure.lang.BigInt/fromBigInteger
              (java.math.BigInteger. (subs raw 0 (dec (count raw)))))
 
-           ;; Ratio
+           ;; Ratio — use BigInteger to handle arbitrary-precision components
            (str/includes? raw "/")
            (let [idx (str/index-of raw "/")
-                 num (Long/parseLong (subs raw 0 idx))
-                 den (Long/parseLong (subs raw (inc idx)))]
-             (/ num den))
+                 num (java.math.BigInteger. (subs raw 0 idx))
+                 den (java.math.BigInteger. (subs raw (inc idx)))]
+             (/ (clojure.lang.BigInt/fromBigInteger num)
+                (clojure.lang.BigInt/fromBigInteger den)))
 
            ;; Hex — wrap in MemeRaw to preserve notation
            (or (str/starts-with? raw "0x") (str/starts-with? raw "0X")

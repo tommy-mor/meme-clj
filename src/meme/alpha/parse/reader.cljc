@@ -396,6 +396,11 @@
                                (error-data p (select-keys key-tok [:line :col]))))
           (let [platform-key (keyword (subs (:value key-tok) 1))]
             (padvance! p)
+            (when (or (peof? p) (tok-type? (ppeek p) :close-paren))
+              (errors/meme-error
+                (str "Missing value for " platform-key " in reader conditional")
+                (error-data p (cond-> (select-keys key-tok [:line :col])
+                                (peof? p) (assoc :incomplete true)))))
             (let [form (parse-form p)]
               (if (or (= platform-key platform) (= platform-key :default))
                 (recur form)

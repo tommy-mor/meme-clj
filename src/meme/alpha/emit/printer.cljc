@@ -27,33 +27,6 @@
   [forms]
   (str/join " " (map #(print-form %) forms)))
 
-(defn- percent-param?
-  "Is sym a % parameter symbol (%1, %2, %&)?"
-  [sym]
-  (some? (forms/percent-param-type sym)))
-
-(defn- max-percent-n
-  "Find the max numbered %N param index referenced in a form body.
-   Returns max N found (0 if none). Ignores %& (rest params).
-   Skips nested (fn ...) bodies — their % params are scoped to the inner fn."
-  [form]
-  (cond
-    (symbol? form)
-    (let [p (forms/percent-param-type form)]
-      (if (number? p) p 0))
-    (and (seq? form) (= 'fn (first form))) 0
-    (seq? form) (reduce max 0 (map max-percent-n form))
-    (vector? form) (reduce max 0 (map max-percent-n form))
-    ;; AST node defrecords satisfy (map? x) — check before map?
-    (forms/raw? form) 0
-    (forms/syntax-quote? form) (max-percent-n (:form form))
-    (forms/unquote? form) (max-percent-n (:form form))
-    (forms/unquote-splicing? form) (max-percent-n (:form form))
-    (map? form) (reduce max 0 (mapcat (fn [[k v]] [(max-percent-n k) (max-percent-n v)]) form))
-    (set? form) (reduce max 0 (map max-percent-n form))
-    #?@(:clj [(tagged-literal? form) (max-percent-n (.-form form))])
-    :else 0))
-
 ;; ---------------------------------------------------------------------------
 ;; #() shorthand detection
 ;; ---------------------------------------------------------------------------

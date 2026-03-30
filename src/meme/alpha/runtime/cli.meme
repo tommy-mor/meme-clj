@@ -65,7 +65,11 @@ defn-(process-file-to-disk
       spit(out str(result "\n"))
       if(=(path out) println(str(verb " " path)) println(str(path " → " out)))
       :ok)
-    catch(Exception e println(str(path " ERROR: " .getMessage(e))) :fail)))
+    catch(Exception e
+      let(
+        [src try(slurp(path) catch(Exception _ nil))]
+        binding([*out* *err*] println(errors/format-error(e src))))
+      :fail)))
 
 defn-(process-files
   [{:keys [inputs pred transform output-fn stdout verb]}]
@@ -169,7 +173,10 @@ defn(format-cmd
         :verb "formatted"
       })))
 
-defn(version [_] println(str("meme " str/trim(slurp(io/resource("meme/version.txt"))))))
+defn(version
+  [_]
+  let([v try(some->(io/resource("meme/version.txt") slurp str/trim) catch(Exception _ nil))]
+    println(if(v str("meme " v) "meme (version unknown)"))))
 
 defn(help
   [_]

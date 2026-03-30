@@ -46,7 +46,10 @@
   (testing "1/2 — ratio literal works"
     (is (= 1/2 (first (core/meme->forms "1/2")))))
   (testing "3/4 — ratio literal works"
-    (is (= 3/4 (first (core/meme->forms "3/4")))))))
+    (is (= 3/4 (first (core/meme->forms "3/4")))))
+  (testing "large ratio components exceeding Long.MAX_VALUE"
+    (is (= (/ 99999999999999999999N 3) (first (core/meme->forms "99999999999999999999/3"))))
+    (is (= (/ 1 99999999999999999999N) (first (core/meme->forms "1/99999999999999999999")))))))
 
 ;; ---------------------------------------------------------------------------
 ;; #_ discard at end of stream or before closing delimiters.
@@ -642,6 +645,33 @@
           #"Splicing reader conditional value must be"
           (core/meme->forms #?(:clj  "[#?@(:clj 42)]"
                                 :cljs "[#?@(:cljs 42)]"))))))
+
+;; ---------------------------------------------------------------------------
+;; Scar tissue: missing value for a platform keyword in reader conditional must
+;; produce a specific error, not "Unexpected )".
+;; Bug: parse-reader-cond-eval called parse-form which saw ) and threw a generic
+;; "Unexpected )" error instead of diagnosing the missing value.
+;; Fix: check for ) or EOF after platform keyword before calling parse-form.
+;; ---------------------------------------------------------------------------
+
+(deftest reader-conditional-missing-value-error
+  (testing "missing value for matching platform"
+    (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
+          #"Missing value for"
+          (core/meme->forms #?(:clj  "#?(:clj)"
+                                :cljs "#?(:cljs)")))))
+  (testing "missing value for first (unmatched) platform"
+    (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
+          #"Missing value for"
+          (core/meme->forms #?(:clj  "#?(:cljs)"
+                                :cljs "#?(:clj)")))))
+  (testing "incomplete input is marked :incomplete"
+    (let [e (try (core/meme->forms #?(:clj  "#?(:clj"
+                                       :cljs "#?(:cljs"))
+                 nil
+                 (catch #?(:clj Exception :cljs :default) e e))]
+      (is (some? e))
+      (is (:incomplete (ex-data e))))))
 
 ;; ---------------------------------------------------------------------------
 ;; Scar tissue: hex/octal/radix literals exceeding Long.MAX_VALUE must promote
