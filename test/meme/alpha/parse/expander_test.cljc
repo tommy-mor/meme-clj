@@ -75,20 +75,51 @@
       (is (= 'xs (second (rest concat-form)))))))
 
 ;; ---------------------------------------------------------------------------
+;; Helpers
+;; ---------------------------------------------------------------------------
+
+(defn- collect-auto-gensyms
+  "Walk a form tree and collect all symbols ending in __auto__."
+  [form]
+  (cond
+    (symbol? form)
+    (if (re-find #"__auto__$" (name form)) [form] [])
+
+    (seq? form)
+    (vec (mapcat collect-auto-gensyms form))
+
+    (vector? form)
+    (vec (mapcat collect-auto-gensyms form))
+
+    (map? form)
+    (vec (mapcat (fn [[k v]] (concat (collect-auto-gensyms k)
+                                     (collect-auto-gensyms v))) form))
+
+    (set? form)
+    (vec (mapcat collect-auto-gensyms form))
+
+    :else []))
+
+;; ---------------------------------------------------------------------------
 ;; Gensym consistency
 ;; ---------------------------------------------------------------------------
 
 (deftest expand-gensym-consistent
-  (testing "foo# resolves to the same gensym within one syntax-quote"
-    (let [forms (core/meme->forms "`let([x# 1] x#)")
-          expanded (first (expander/expand-forms forms))]
-      ;; The two occurrences of x# should expand to the same generated symbol
-      ;; Extract the vector arg (second in concat after let head)
-      ;; Structure: (seq (concat (list (quote let)) (list (vec (concat ...))) ...))
-      ;; We just check the full expansion evaluates without error and that
-      ;; the gensym names match by checking they contain "auto"
-      (is (seq? expanded))
-      (is (= 'clojure.core/seq (first expanded))))))
+  (testing "x# resolves to the same gensym within one syntax-quote"
+    (let [expanded (first (expander/expand-forms (core/meme->forms "`let([x# 1] x#)")))
+          gensyms (collect-auto-gensyms expanded)]
+      ;; There should be exactly two occurrences of x__NNN__auto__
+      (is (= 2 (count gensyms))
+          "expected exactly two gensym occurrences")
+      (is (= (first gensyms) (second gensyms))
+          "both occurrences of x# must resolve to the same gensym")))
+  (testing "multiple distinct gensyms within one syntax-quote are independent"
+    (let [expanded (first (expander/expand-forms (core/meme->forms "`let([x# 1 y# 2] +(x# y#))")))
+          gensyms (collect-auto-gensyms expanded)
+          distinct-syms (set gensyms)]
+      ;; x# and y# should produce two different gensyms, each used twice
+      (is (= 4 (count gensyms)) "expected four gensym occurrences (x# x2, y# x2)")
+      (is (= 2 (count distinct-syms)) "expected two distinct gensym symbols"))))
 
 ;; ---------------------------------------------------------------------------
 ;; Nested syntax-quote
@@ -147,3 +178,108 @@
     (let [forms (core/meme->forms "`\"hello\"")
           expanded (first (expander/expand-forms forms))]
       (is (= "hello" expanded)))))
+
+;; ---------------------------------------------------------------------------
+;; Gensym scoping across backtick boundaries
+;; ---------------------------------------------------------------------------
+
+(deftest gensym-independence-across-backticks
+  (testing "same x# in two separate backticks produces different gensyms"
+    (let [exp1 (first (expander/expand-forms (core/meme->forms "`x#")))
+          exp2 (first (expander/expand-forms (core/meme->forms "`x#")))
+          ;; Each is (quote x__NNN__auto__)
+          sym1 (second exp1)
+          sym2 (second exp2)]
+      (is (re-find #"__auto__$" (name sym1)))
+      (is (re-find #"__auto__$" (name sym2)))
+      (is (not= sym1 sym2)
+          "gensyms from separate syntax-quotes must be independent"))))
+
+(deftest gensym-independence-across-nesting-levels
+  (testing "x# in outer backtick and x# in nested backtick get different gensyms"
+    (let [expanded (first (expander/expand-forms (core/meme->forms "`list(x# `x#)")))
+          gensyms (collect-auto-gensyms expanded)]
+      ;; The outer x# and the inner (nested) x# should be different symbols
+      ;; because the nested backtick creates a fresh *gensym-env*
+      (is (>= (count gensyms) 2)
+          "expected at least two gensym occurrences (outer and inner)")
+      (let [distinct-syms (set gensyms)]
+        (is (= 2 (count distinct-syms))
+            "outer and inner x# must resolve to different gensyms")))))
+
+(deftest gensym-escape-with-unquote-quote
+  (testing "~'x# prevents gensym — keeps the literal symbol x#"
+    (let [expanded (first (expander/expand-forms (core/meme->forms "`list(x# ~'x#)")))
+          gensyms (collect-auto-gensyms expanded)]
+      ;; Only the first x# should be gensym'd; ~'x# remains literal x#
+      (is (= 1 (count gensyms))
+          "only the unescaped x# should be gensym'd")
+      ;; The expansion should contain a reference to the literal symbol x#
+      ;; via the unquote path: (list (quote x#)) — not (list (quote x__NNN__auto__))
+      (let [concat-form (second expanded)
+            args (vec (rest concat-form))
+            ;; arg 0: (list (quote list))
+            ;; arg 1: (list (quote x__NNN__auto__)) — gensym'd
+            ;; arg 2: (list (quote x#)) — literal, via ~'x# which is ~(quote x#)
+            escaped-arg (nth args 2)
+            escaped-sym (second (second escaped-arg))]
+        (is (= 'x# escaped-sym)
+            "~'x# should preserve the literal symbol x#")))))
+
+;; ---------------------------------------------------------------------------
+;; Nested syntax-quote: double-backtick with unquote cancellation
+;; ---------------------------------------------------------------------------
+
+#?(:clj
+(deftest double-backtick-eval
+  (testing "``x eval produces (quote x) — double quoting"
+    (let [expanded (first (expander/expand-forms (core/meme->forms "``x")))]
+      (is (= '(quote x) (eval expanded))
+          "eval of ``x should produce (quote x)")))
+  (testing "``foo(x) eval produces inner expansion code, second eval produces (foo x)"
+    (let [expanded (first (expander/expand-forms (core/meme->forms "``foo(x)")))
+          once (eval expanded)]
+      ;; First eval yields the inner expansion code (seq/concat form)
+      (is (seq? once) "first eval should yield a seq form")
+      ;; Second eval of that code produces the actual (foo x) list
+      (is (= '(foo x) (eval once))
+          "double eval of ``foo(x) should produce (foo x)")))))
+
+(deftest double-backtick-single-unquote
+  (testing "``~x — one unquote cancels one backtick level"
+    (let [expanded (first (expander/expand-forms (core/meme->forms "``~x")))]
+      ;; Result should be (quote x) — the ~ cancels one `, leaving one `
+      (is (= '(quote x) expanded)
+          "``~x should expand to (quote x)"))))
+
+(deftest double-backtick-double-unquote
+  (testing "``~~x — two unquotes cancel both backtick levels"
+    (let [expanded (first (expander/expand-forms (core/meme->forms "``~~x")))]
+      ;; Result should be the bare symbol x
+      (is (= 'x expanded)
+          "``~~x should expand to the bare symbol x"))))
+
+;; ---------------------------------------------------------------------------
+;; Nested syntax-quote with gensyms: macro-writing-macro pattern
+;; ---------------------------------------------------------------------------
+
+#?(:clj
+(deftest nested-backtick-gensym-scoping
+  (testing "gensym in outer backtick is independent of gensym in inner backtick"
+    ;; `list(x# `list(x#)) — the outer x# and inner x# should get different gensyms
+    ;; because each backtick level has its own *gensym-env*
+    (let [expanded (first (expander/expand-forms (core/meme->forms "`list(x# `list(x#))")))
+          ;; Eval the outer expansion to get the data form
+          evaled (eval expanded)
+          ;; evaled is (list OUTER-GENSYM INNER-CODE)
+          outer-sym (second evaled)
+          inner-code (nth (seq evaled) 2)
+          ;; Eval the inner code to get (list INNER-GENSYM)
+          inner-evaled (eval inner-code)
+          inner-sym (second inner-evaled)]
+      (is (re-find #"__auto__$" (name outer-sym))
+          "outer x# should be a gensym")
+      (is (re-find #"__auto__$" (name inner-sym))
+          "inner x# should be a gensym")
+      (is (not= outer-sym inner-sym)
+          "outer and inner x# must be different gensyms")))))

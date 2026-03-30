@@ -598,6 +598,25 @@
           "eval of nested syntax-quote should produce the inner expansion as data")))))
 
 ;; ---------------------------------------------------------------------------
+;; Scar tissue: lazy map in expand-sq caused nested syntax-quote gensyms to
+;; resolve with the wrong *gensym-env*. `list(x# `list(x#)) produced the
+;; same gensym for both x# because the inner binding exited before the lazy
+;; map items were realized. Fix: use mapv (eager) in expand-sq.
+;; ---------------------------------------------------------------------------
+
+#?(:clj
+(deftest nested-syntax-quote-gensym-independence
+  (testing "x# in outer and inner backtick produce different gensyms"
+    (let [expanded (first (expander/expand-forms (core/meme->forms "`list(x# `list(x#))")))
+          s (pr-str expanded)
+          gensyms (re-seq #"\w+__auto__" s)
+          distinct-gs (set gensyms)]
+      (is (= 2 (count gensyms))
+          "expected exactly two gensym occurrences")
+      (is (= 2 (count distinct-gs))
+          "outer and inner x# must produce different gensyms")))))
+
+;; ---------------------------------------------------------------------------
 ;; Scar tissue: MemeRaw inside #() body was corrupted by normalize-bare-percent.
 ;; normalize-bare-percent dispatches on (map? form) and uses (into {} ...) which
 ;; destroys the MemeRaw defrecord, replacing it with a plain map. This caused

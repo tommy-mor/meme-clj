@@ -59,31 +59,34 @@
     (list 'quote (sq-gensym (sq-resolve-symbol form opts)))
 
     ;; List — expand to (seq (concat ...))
+    ;; mapv (eager) is critical: lazy map would defer gensym resolution
+    ;; past the binding scope of nested syntax-quotes, causing inner x#
+    ;; to resolve with the wrong *gensym-env*.
     (seq? form)
     (if (empty? form)
       (list 'clojure.core/list)
-      (let [items (map (fn [item]
-                         (cond
-                           (forms/unquote-splicing? item)
-                           (:form item)
-                           (forms/unquote? item)
-                           (list 'clojure.core/list (:form item))
-                           :else
-                           (list 'clojure.core/list (expand-sq item opts loc))))
-                       form)]
+      (let [items (mapv (fn [item]
+                          (cond
+                            (forms/unquote-splicing? item)
+                            (:form item)
+                            (forms/unquote? item)
+                            (list 'clojure.core/list (:form item))
+                            :else
+                            (list 'clojure.core/list (expand-sq item opts loc))))
+                        form)]
         (list 'clojure.core/seq (cons 'clojure.core/concat items))))
 
     ;; Vector — expand to (vec (concat ...))
     (vector? form)
-    (let [items (map (fn [item]
-                       (cond
-                         (forms/unquote-splicing? item)
-                         (:form item)
-                         (forms/unquote? item)
-                         (list 'clojure.core/list (:form item))
-                         :else
-                         (list 'clojure.core/list (expand-sq item opts loc))))
-                     form)]
+    (let [items (mapv (fn [item]
+                        (cond
+                          (forms/unquote-splicing? item)
+                          (:form item)
+                          (forms/unquote? item)
+                          (list 'clojure.core/list (:form item))
+                          :else
+                          (list 'clojure.core/list (expand-sq item opts loc))))
+                      form)]
       (list 'clojure.core/apply 'clojure.core/vector (cons 'clojure.core/concat items)))
 
     ;; MemeRaw — unwrap to plain value for expansion
@@ -102,21 +105,21 @@
 
     ;; Map — expand to (apply hash-map (concat ...))
     (map? form)
-    (let [items (mapcat (fn [[k v]]
-                          [(list 'clojure.core/list (expand-sq k opts loc))
-                           (list 'clojure.core/list (expand-sq v opts loc))])
-                        form)]
+    (let [items (into [] (mapcat (fn [[k v]]
+                                   [(list 'clojure.core/list (expand-sq k opts loc))
+                                    (list 'clojure.core/list (expand-sq v opts loc))]))
+                      form)]
       (list 'clojure.core/apply 'clojure.core/hash-map (cons 'clojure.core/concat items)))
 
     ;; Set — expand to (apply hash-set (concat ...))
     (set? form)
-    (let [items (map (fn [item]
-                       (cond
-                         (forms/unquote-splicing? item)
-                         (:form item)
-                         :else
-                         (list 'clojure.core/list (expand-sq item opts loc))))
-                     form)]
+    (let [items (mapv (fn [item]
+                        (cond
+                          (forms/unquote-splicing? item)
+                          (:form item)
+                          :else
+                          (list 'clojure.core/list (expand-sq item opts loc))))
+                      form)]
       (list 'clojure.core/apply 'clojure.core/hash-set (cons 'clojure.core/concat items)))
 
     ;; Keyword, number, string, char, nil, boolean — self-quoting
