@@ -69,15 +69,45 @@
        (vector? (second form))))
 
 ;; ---------------------------------------------------------------------------
-;; Main dispatch
+;; Metadata prefix helper
 ;; ---------------------------------------------------------------------------
 
-(defn print-form
-  "Print a single Clojure form as meme text."
+(defn- emit-meta-prefix
+  "Convert a metadata map to its prefix string (^:key, ^Type, or ^{map})."
+  [m]
+  (cond
+    (and (= 1 (count m))
+         (keyword? (key (first m)))
+         (true? (val (first m))))
+    (str "^" (print-form (key (first m))))
+    (and (= 1 (count m))
+         (contains? m :tag)
+         (symbol? (:tag m)))
+    (str "^" (print-form (:tag m)))
+    :else
+    (str "^" (print-form m))))
+
+;; ---------------------------------------------------------------------------
+;; Decompose — notation decisions as layout descriptors
+;;
+;; Single source of truth for how a form should be rendered. Both print-form
+;; (flat) and pprint (width-aware) consume these descriptors.
+;;
+;; Layout types:
+;;   :atom    {:text "..."}                                    — leaf
+;;   :prefix  {:prefix "..." :child form}                      — prefix + child
+;;   :call    {:head form :args [form...]}                     — call syntax
+;;   :wrap    {:open "..." :close "..." :children [...]}       — delimited seq
+;;   :pairs   {:open "..." :close "..." :entries [[k v]...]}   — key-value
+;;   :meta    {:prefixes ["..."] :child form}                  — metadata chain
+;; ---------------------------------------------------------------------------
+
+(defn decompose
+  "Decompose a form into a layout descriptor for rendering."
   [form]
   (cond
-    ;; metadata prefix: ^:key, ^Type, or ^{map} — emit before the form
-    ;; Filter out :line/:column/:file added by Clojure's compiler/reader
+    ;; Metadata prefix — checked first, before structural checks.
+    ;; Filter out internal keys (:line/:column/:file/:ws/:meme/*).
     (and (some? form)
          #?(:clj (instance? clojure.lang.IMeta form)
             :cljs (satisfies? IMeta form))
@@ -85,163 +115,177 @@
          (seq (forms/strip-internal-meta (meta form))))
     (let [chain (:meme/meta-chain (meta form))
           stripped (with-meta form nil)
-          emit-one (fn [m]
-                     (cond
-                       (and (= 1 (count m))
-                            (keyword? (key (first m)))
-                            (true? (val (first m))))
-                       (str "^" (print-form (key (first m))))
-                       (and (= 1 (count m))
-                            (contains? m :tag)
-                            (symbol? (:tag m)))
-                       (str "^" (print-form (:tag m)))
-                       :else
-                       (str "^" (print-form m))))]
-      (if chain
-        (str (str/join " " (map emit-one (reverse chain))) " " (print-form stripped))
-        (let [m (forms/strip-internal-meta (meta form))]
-          (str (emit-one m) " " (print-form stripped)))))
+          prefixes (if chain
+                     (mapv emit-meta-prefix (reverse chain))
+                     [(emit-meta-prefix (forms/strip-internal-meta (meta form)))])]
+      {:layout :meta, :prefixes prefixes, :child stripped})
 
-    ;; raw value wrapper — emit original source text
-    (forms/raw? form) (:raw form)
+    ;; Raw value wrapper — emit original source text
+    (forms/raw? form) {:layout :atom, :text (:raw form)}
 
     ;; nil
-    (nil? form) "nil"
+    (nil? form) {:layout :atom, :text "nil"}
 
     ;; boolean
-    (boolean? form) (str form)
+    (boolean? form) {:layout :atom, :text (str form)}
 
     ;; Deferred auto-resolve keywords: (clojure.core/read-string "::foo") → ::foo
     (forms/deferred-auto-keyword? form)
-    (forms/deferred-auto-keyword-raw form)
+    {:layout :atom, :text (forms/deferred-auto-keyword-raw form)}
 
-    ;; empty list
+    ;; Empty list
     (and (seq? form) (empty? form))
-    "()"
+    {:layout :atom, :text "()"}
 
-    ;; Non-callable heads: nil, true, false are resolved as literals by the reader,
-    ;; not as symbols — they cannot be call heads in meme syntax.
-    ;; In :clj mode, fall through to generic S-expression printing.
-    (and (= *mode* :meme) (seq? form) (seq form) (contains? #{nil true false} (first form)))
-    (throw (ex-info (str "Cannot print list with " (pr-str (first form))
-                         " as head — not representable in meme syntax")
-                    {:form form}))
+    ;; Anon-fn shorthand #()
+    (anon-fn-shorthand? form)
+    {:layout :wrap, :open "#(", :close ")", :children [(nth form 2)]}
 
-    ;; sequences — calls and reader sugar
+    ;; Sequences — check sugar then call
     (seq? form)
     (let [head (first form)]
       (cond
-        (anon-fn-shorthand? form)
-        (str "#(" (print-form (nth form 2)) ")")
-
         ;; @deref — sugar only when :meme/sugar tagged by reader
         (and (= head 'clojure.core/deref) (:meme/sugar (meta form)))
-        (str "@" (print-form (second form)))
+        {:layout :prefix, :prefix "@", :child (second form)}
 
         ;; 'quote — sugar only when :meme/sugar tagged by reader
         (and (= head 'quote) (:meme/sugar (meta form)))
-        (str "'" (print-form (second form)))
+        {:layout :prefix, :prefix "'", :child (second form)}
 
         ;; #'var — sugar only when :meme/sugar tagged by reader
         (and (= head 'var) (:meme/sugar (meta form)))
-        (str "#'" (print-form (second form)))
+        {:layout :prefix, :prefix "#'", :child (second form)}
 
-        ;; call: meme emits head(args...), clj emits (head args...)
+        ;; Regular call
         :else
-        (if (= *mode* :clj)
-          (str "(" (print-form head) (when (seq (rest form)) (str " " (print-args (rest form)))) ")")
-          (str (print-form head) "(" (print-args (rest form)) ")"))))
+        {:layout :call, :head head, :args (vec (rest form))}))
 
-    ;; syntax-quote / unquote / unquote-splicing AST nodes
+    ;; Syntax-quote / unquote / unquote-splicing AST nodes
     ;; Must be before map? because these are defrecords (satisfy map?)
     (forms/syntax-quote? form)
-    (str "`" (print-form (:form form)))
+    {:layout :prefix, :prefix "`", :child (:form form)}
 
     (forms/unquote? form)
-    (str "~" (print-form (:form form)))
+    {:layout :prefix, :prefix "~", :child (:form form)}
 
     (forms/unquote-splicing? form)
-    (str "~@" (print-form (:form form)))
+    {:layout :prefix, :prefix "~@", :child (:form form)}
 
-    ;; reader conditional — walk inner forms with meme syntax
-    ;; Must be before map? because CLJS MemeReaderConditional is a defrecord (satisfies map?)
+    ;; Reader conditional — must be before map? (CLJS MemeReaderConditional is a defrecord)
     (forms/meme-reader-conditional? form)
-    (let [prefix (if (forms/rc-splicing? form) "#?@(" "#?(")
-          pairs (partition 2 (forms/rc-form form))
-          body (str/join " " (mapcat (fn [[k v]] [(print-form k) (print-form v)]) pairs))]
-      (str prefix body ")"))
+    (let [prefix (if (forms/rc-splicing? form) "#?@(" "#?(")]
+      {:layout :pairs, :open prefix, :close ")",
+       :entries (vec (partition 2 (forms/rc-form form)))})
 
-    ;; vector
+    ;; Vector
     (vector? form)
-    (str "[" (str/join " " (map print-form form)) "]")
+    {:layout :wrap, :open "[", :close "]", :children (vec form)}
 
-    ;; map — reconstruct #:ns{} when :meme/ns metadata present
+    ;; Map — reconstruct #:ns{} when :meme/ns metadata present
     (map? form)
     (if-let [ns-str (:meme/ns (meta form))]
       (let [strip-ns (fn [k]
-                        (if (and (keyword? k) (= (namespace k) (if (str/starts-with? ns-str ":") (subs ns-str 1) ns-str)))
-                          (keyword (name k))
-                          k))
-            body (str/join " " (map (fn [[k v]] (str (print-form (strip-ns k)) " " (print-form v))) form))]
-        (str "#:" ns-str "{" body "}"))
-      (str "{"
-           (str/join " " (map (fn [[k v]]
-                                (str (print-form k) " " (print-form v)))
-                              form))
-           "}"))
+                       (if (and (keyword? k)
+                                (= (namespace k)
+                                   (if (str/starts-with? ns-str ":") (subs ns-str 1) ns-str)))
+                         (keyword (name k))
+                         k))]
+        {:layout :pairs, :open (str "#:" ns-str "{"), :close "}",
+         :entries (mapv (fn [[k v]] [(strip-ns k) v]) form)})
+      {:layout :pairs, :open "{", :close "}",
+       :entries (vec form)})
 
-    ;; set — use :meme/order for insertion-order output when available
+    ;; Set — use :meme/order for insertion-order output when available
     (set? form)
     (let [elements (or (:meme/order (meta form)) (seq form))]
-      (str "#{" (str/join " " (map print-form elements)) "}"))
+      {:layout :wrap, :open "#{", :close "}", :children (vec (or elements []))})
 
-    ;; symbol
-    (symbol? form) (str form)
+    ;; Symbol
+    (symbol? form) {:layout :atom, :text (str form)}
 
-    ;; keyword
+    ;; Keyword
     (keyword? form)
-    (if (namespace form)
-      (str ":" (namespace form) "/" (name form))
-      (str ":" (name form)))
+    {:layout :atom, :text (if (namespace form)
+                            (str ":" (namespace form) "/" (name form))
+                            (str ":" (name form)))}
 
-    ;; string
-    (string? form) (pr-str form)
+    ;; String
+    (string? form) {:layout :atom, :text (pr-str form)}
 
-    ;; regex — escape bare quotes in the pattern.
-    ;; Match escape sequences (\.) atomically so \\" is parsed as
-    ;; (escaped-backslash)(bare-quote), not (backslash)(escaped-quote).
+    ;; Regex
     (instance? #?(:clj java.util.regex.Pattern :cljs js/RegExp) form)
     (let [raw #?(:clj (.pattern ^java.util.regex.Pattern form) :cljs (.-source form))]
-      (str "#\"" (str/replace raw #"\\.|\"" (fn [m] (if (= m "\"") "\\\"" m))) "\""))
+      {:layout :atom,
+       :text (str "#\"" (str/replace raw #"\\.|\"" (fn [m] (if (= m "\"") "\\\"" m))) "\"")})
 
-    ;; char (JVM/Babashka only — ClojureScript has no char type)
+    ;; Char (JVM/Babashka only — ClojureScript has no char type)
     #?@(:clj [(char? form)
               (let [named {(char 10) "newline" (char 13) "return" (char 9) "tab"
                            (char 32) "space" (char 8) "backspace" (char 12) "formfeed"}]
-                (if-let [n (get named form)]
-                  (str \\ n)
-                  (str \\ form)))])
+                {:layout :atom, :text (if-let [n (get named form)]
+                                        (str \\ n)
+                                        (str \\ form))})])
 
-    ;; number — preserve BigDecimal M and BigInt N suffixes, symbolic values
-    #?@(:clj [(decimal? form) (str form "M")
-              (instance? clojure.lang.BigInt form) (str form "N")
-              (instance? java.math.BigInteger form) (str form "N")])
+    ;; Number — preserve BigDecimal M and BigInt N suffixes, symbolic values
+    #?@(:clj [(decimal? form) {:layout :atom, :text (str form "M")}
+              (instance? clojure.lang.BigInt form) {:layout :atom, :text (str form "N")}
+              (instance? java.math.BigInteger form) {:layout :atom, :text (str form "N")}])
     (and (number? form)
          #?(:clj (Double/isNaN (double form))
             :cljs (js/isNaN form)))
-    "##NaN"
+    {:layout :atom, :text "##NaN"}
     (and (number? form)
          #?(:clj (Double/isInfinite (double form))
             :cljs (and (not (js/isFinite form)) (not (js/isNaN form)))))
-    (if (pos? (double form)) "##Inf" "##-Inf")
-    (number? form) (str form)
+    {:layout :atom, :text (if (pos? (double form)) "##Inf" "##-Inf")}
+    (number? form) {:layout :atom, :text (str form)}
 
-    ;; tagged literal (JVM only — resolved at read time in ClojureScript)
+    ;; Tagged literal (JVM only — resolved at read time in ClojureScript)
     #?@(:clj [(tagged-literal? form)
-              (str "#" (.-tag form) " " (print-form (.-form form)))])
+              {:layout :prefix, :prefix (str "#" (.-tag form) " "), :child (.-form form)}])
 
-    ;; fallback
-    :else (pr-str form)))
+    ;; Fallback
+    :else {:layout :atom, :text (pr-str form)}))
+
+;; ---------------------------------------------------------------------------
+;; Flat rendering — layout descriptor → string
+;; ---------------------------------------------------------------------------
+
+(defn- render-flat
+  "Render a layout descriptor as a flat (single-line) string."
+  [{:keys [layout] :as desc}]
+  (case layout
+    :atom (:text desc)
+
+    :prefix (str (:prefix desc) (print-form (:child desc)))
+
+    :call (let [head (:head desc)]
+            ;; Non-callable heads in :meme mode
+            (when (and (= *mode* :meme) (contains? #{nil true false} head))
+              (throw (ex-info (str "Cannot print list with " (pr-str head)
+                                   " as head — not representable in meme syntax")
+                              {:head head})))
+            (if (= *mode* :clj)
+              (str "(" (print-form head) (when (seq (:args desc)) (str " " (print-args (:args desc)))) ")")
+              (str (print-form head) "(" (print-args (:args desc)) ")")))
+
+    :wrap (str (:open desc) (str/join " " (map print-form (:children desc))) (:close desc))
+
+    :pairs (let [pair-strs (map (fn [[k v]] (str (print-form k) " " (print-form v)))
+                                (:entries desc))]
+             (str (:open desc) (str/join " " pair-strs) (:close desc)))
+
+    :meta (str (str/join " " (:prefixes desc)) " " (print-form (:child desc)))))
+
+;; ---------------------------------------------------------------------------
+;; Main dispatch
+;; ---------------------------------------------------------------------------
+
+(defn print-form
+  "Print a single Clojure form as meme text."
+  [form]
+  (render-flat (decompose form)))
 
 ;; ---------------------------------------------------------------------------
 ;; Public API

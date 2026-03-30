@@ -416,3 +416,49 @@
     (let [forms (core/meme->forms "def(y 1e5)")
           pp (core/pprint-meme forms)]
       (is (str/includes? pp "1e5") "pprint must preserve scientific notation"))))
+
+;; ---------------------------------------------------------------------------
+;; Scar tissue: pprint multi-line paths lost notation-preserving metadata.
+;; Three bugs fixed by refactoring pprint to use printer/decompose:
+;;   1. #() sugar → fn() when body exceeded width
+;;   2. #:ns{} prefix dropped in multi-line maps
+;;   3. ^:a ^:b chain collapsed to ^{:a true :b true}
+;; Fix: pprint dispatches on decompose descriptors, inheriting all notation
+;; decisions from the printer. One source of truth, no divergence.
+;; ---------------------------------------------------------------------------
+
+#?(:clj
+(deftest pprint-preserves-anon-fn-sugar
+  (testing "#() sugar preserved in multi-line"
+    (let [form (first (core/meme->forms "#(long-function(a b c d e f))"))
+          result (pprint/pprint-form form {:width 20})]
+      (is (str/starts-with? result "#("))
+      (is (not (str/includes? result "fn(")))))
+  (testing "#() with short body stays flat"
+    (let [form (first (core/meme->forms "#(inc(%))"))
+          result (pprint/pprint-form form {:width 80})]
+      (is (= "#(inc(%1))" result))))))
+
+#?(:clj
+(deftest pprint-preserves-namespaced-map
+  (testing "#:ns{} prefix preserved in multi-line"
+    (let [form (first (core/meme->forms "#:user{:name \"x\" :age 42 :email \"long@example.com\"}"))
+          result (pprint/pprint-form form {:width 20})]
+      (is (str/starts-with? result "#:user{"))
+      (is (not (re-find #"^\{" result)))))
+  (testing "#:ns{} with auto-resolve preserved"
+    (let [form (first (core/meme->forms "#::foo{:a 1 :b 2 :c \"a-very-long-value-here\"}"))
+          result (pprint/pprint-form form {:width 20})]
+      (is (str/starts-with? result "#::foo{"))))))
+
+#?(:clj
+(deftest pprint-preserves-meta-chain
+  (testing "^:a ^:b chain preserved in multi-line"
+    (let [form (first (core/meme->forms "^:private ^:deprecated defn(foo [x] x)"))
+          result (pprint/pprint-form form {:width 30})]
+      (is (str/starts-with? result "^:private ^:deprecated"))
+      (is (not (str/includes? result "^{")))))
+  (testing "single ^:key still works"
+    (let [form (first (core/meme->forms "^:private defn(foo [x] x)"))
+          result (pprint/pprint-form form {:width 20})]
+      (is (str/starts-with? result "^:private"))))))

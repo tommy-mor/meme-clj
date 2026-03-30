@@ -1,8 +1,8 @@
 (ns meme.alpha.emit.pprint
   "Pretty-printer: Clojure forms → idiomatic multi-line meme text.
-   Width-aware — uses indented parenthesized form for multi-line calls."
+   Width-aware layout engine built on printer/decompose — notation decisions
+   (sugar, namespaced maps, metadata chains) live in one place."
   (:require [meme.alpha.emit.printer :as printer]
-            [meme.alpha.forms :as forms]
             [clojure.string :as str]))
 
 ;; ---------------------------------------------------------------------------
@@ -28,11 +28,6 @@
   [n]
   (apply str (repeat n \space)))
 
-(defn- call?
-  "Is form a non-empty seq (i.e., a call)?"
-  [form]
-  (and (seq? form) (seq form)))
-
 ;; ---------------------------------------------------------------------------
 ;; Call formatting — keeps leading args on head line when appropriate
 ;; ---------------------------------------------------------------------------
@@ -54,113 +49,82 @@
    '-> 1, '->> 1, 'some-> 1, 'some->> 1, 'as-> 2,
    'deftest 1, 'testing 1, 'is 0, 'are 0})
 
-(defn- pp-call-smart
-  "Pretty-print a call, keeping leading args with the head when appropriate."
-  [form col width]
-  (let [head (first form)
-        args (rest form)
-        head-str (flat head)
-        flat-str (flat form)]
-    (cond
-      ;; No args
-      (empty? args)
-      (str head-str "()")
+(defn- pp-call
+  "Pretty-print a call, keeping leading args with the head when appropriate.
+   head and args come from the decompose descriptor."
+  [head args col width]
+  (let [head-str (flat head)
+        n-head-args (get head-line-args head)
+        [head-args body-args]
+        (if (and n-head-args (pos? n-head-args) (> (count args) n-head-args))
+          [(take n-head-args args) (drop n-head-args args)]
+          [nil args])
 
-      ;; Fits flat
-      (<= (+ col (count flat-str)) width)
-      flat-str
+        inner-col (+ col indent-step)
+        inner-indent (indent-str inner-col)]
 
-      ;; Multi-line — check if we should keep some args on the head line
-      :else
-      (let [n-head-args (get head-line-args head)
-            ;; Split into head-line args and body args
-            [head-args body-args]
-            (if (and n-head-args (pos? n-head-args) (> (count args) n-head-args))
-              [(take n-head-args args) (drop n-head-args args)]
-              [nil args])
-
-            inner-col (+ col indent-step)
-            inner-indent (indent-str inner-col)]
-
-        (if head-args
-          ;; Some args stay on the head line — but only if they fit
-          (let [head-args-str (str/join " " (map flat head-args))
-                first-line (str head-str "(" head-args-str)]
-            (if (<= (+ col (count first-line)) width)
-              ;; Head-line args fit: head(name [params]\n  body)
-              (let [pp-body (map #(pp % inner-col width) body-args)
-                    body (str/join (str "\n" inner-indent) pp-body)]
-                (str first-line "\n"
-                     inner-indent body ")"))
-              ;; Head-line args don't fit: fall back to all-in-body
-              (let [pp-args (map #(pp % inner-col width) (concat head-args body-args))
-                    body (str/join (str "\n" inner-indent) pp-args)]
-                (str head-str "(\n"
-                     inner-indent body ")"))))
-
-          ;; All args in body
-          (let [pp-args (map #(pp % inner-col width) body-args)
+    (if head-args
+      ;; Some args stay on the head line — but only if they fit
+      (let [head-args-str (str/join " " (map flat head-args))
+            first-line (str head-str "(" head-args-str)]
+        (if (<= (+ col (count first-line)) width)
+          ;; Head-line args fit: head(name [params]\n  body)
+          (let [pp-body (map #(pp % inner-col width) body-args)
+                body (str/join (str "\n" inner-indent) pp-body)]
+            (str first-line "\n"
+                 inner-indent body ")"))
+          ;; Head-line args don't fit: fall back to all-in-body
+          (let [pp-args (map #(pp % inner-col width) (concat head-args body-args))
                 body (str/join (str "\n" inner-indent) pp-args)]
             (str head-str "(\n"
-                 inner-indent body ")")))))))
+                 inner-indent body ")"))))
+
+      ;; All args in body
+      (let [pp-args (map #(pp % inner-col width) body-args)
+            body (str/join (str "\n" inner-indent) pp-args)]
+        (str head-str "(\n"
+             inner-indent body ")")))))
 
 ;; ---------------------------------------------------------------------------
-;; Collection formatting
+;; Collection formatting — generic wrap and pairs
 ;; ---------------------------------------------------------------------------
 
-(defn- pp-vec
-  "Pretty-print a vector."
-  [form col width]
-  (let [flat-str (flat form)]
-    (if (<= (+ col (count flat-str)) width)
-      flat-str
-      (let [inner-col (+ col indent-step)
-            inner-indent (indent-str inner-col)
-            outer-indent (indent-str col)
-            elems (map #(pp % inner-col width) form)]
-        (str "[\n"
-             inner-indent (str/join (str "\n" inner-indent) elems) "\n"
-             outer-indent "]")))))
+(defn- pp-wrap
+  "Pretty-print a delimited sequence (vector, set, #(), etc.).
+   open/close/children come from the decompose descriptor."
+  [{:keys [open close children]} col width]
+  (let [inner-col (+ col indent-step)
+        inner-indent (indent-str inner-col)
+        outer-indent (indent-str col)
+        elems (map #(pp % inner-col width) children)]
+    (str open "\n"
+         inner-indent (str/join (str "\n" inner-indent) elems) "\n"
+         outer-indent close)))
 
-(defn- pp-map
-  "Pretty-print a map."
-  [form col width]
-  (let [flat-str (flat form)]
-    (if (<= (+ col (count flat-str)) width)
-      flat-str
-      (let [inner-col (+ col indent-step)
-            inner-indent (indent-str inner-col)
-            outer-indent (indent-str col)
-            entries (map (fn [[k v]]
-                           (let [pp-k (pp k inner-col width)
-                                 ;; Value column: after the key's last line + space.
-                                 ;; Single-line keys lack indent (it's added by the
-                                 ;; join), so we add inner-col. Multi-line keys have
-                                 ;; indentation baked into the last line by pp.
-                                 last-line (peek (str/split-lines pp-k))
-                                 multi-line? (not= last-line pp-k)
-                                 val-col (if multi-line?
-                                           (+ (count last-line) 1)
-                                           (+ inner-col (count last-line) 1))]
-                             (str pp-k " " (pp v val-col width))))
-                         form)]
-        (str "{\n"
-             inner-indent (str/join (str "\n" inner-indent) entries) "\n"
-             outer-indent "}")))))
-
-(defn- pp-set
-  "Pretty-print a set."
-  [form col width]
-  (let [flat-str (flat form)]
-    (if (<= (+ col (count flat-str)) width)
-      flat-str
-      (let [inner-col (+ col indent-step)
-            inner-indent (indent-str inner-col)
-            outer-indent (indent-str col)
-            elems (map #(pp % inner-col width) form)]
-        (str "#{\n"
-             inner-indent (str/join (str "\n" inner-indent) elems) "\n"
-             outer-indent "}")))))
+(defn- pp-pairs
+  "Pretty-print key-value pairs (map, #:ns{}, reader conditional, etc.).
+   open/close/entries come from the decompose descriptor."
+  [{:keys [open close entries]} col width]
+  (let [inner-col (+ col indent-step)
+        inner-indent (indent-str inner-col)
+        outer-indent (indent-str col)
+        formatted-entries
+        (map (fn [[k v]]
+               (let [pp-k (pp k inner-col width)
+                     ;; Value column: after the key's last line + space.
+                     ;; Single-line keys lack indent (it's added by the
+                     ;; join), so we add inner-col. Multi-line keys have
+                     ;; indentation baked into the last line by pp.
+                     last-line (peek (str/split-lines pp-k))
+                     multi-line? (not= last-line pp-k)
+                     val-col (if multi-line?
+                               (+ (count last-line) 1)
+                               (+ inner-col (count last-line) 1))]
+                 (str pp-k " " (pp v val-col width))))
+             entries)]
+    (str open "\n"
+         inner-indent (str/join (str "\n" inner-indent) formatted-entries) "\n"
+         outer-indent close)))
 
 ;; ---------------------------------------------------------------------------
 ;; Comment extraction from :ws metadata
@@ -184,94 +148,38 @@
     (extract-comments (:ws (meta form)))))
 
 ;; ---------------------------------------------------------------------------
-;; Main dispatch
+;; Main dispatch — decompose then layout
 ;; ---------------------------------------------------------------------------
-
-;; ---------------------------------------------------------------------------
-;; Main dispatch
-;; ---------------------------------------------------------------------------
-
-(defn- pp-meta-prefix
-  "If form has user metadata (excluding :line/:column/:file/:ws), return
-   the prefix string (e.g. \"^:private\") and the stripped form. Otherwise nil."
-  [form]
-  (when (and (some? form)
-             #?(:clj  (instance? clojure.lang.IMeta form)
-                :cljs (satisfies? IMeta form))
-             (some? (meta form))
-             (seq (forms/strip-internal-meta (meta form))))
-    (let [m (forms/strip-internal-meta (meta form))
-          prefix (cond
-                   (and (= 1 (count m))
-                        (keyword? (key (first m)))
-                        (true? (val (first m))))
-                   (str "^" (flat (key (first m))))
-                   (and (= 1 (count m))
-                        (contains? m :tag)
-                        (symbol? (:tag m)))
-                   (str "^" (flat (:tag m)))
-                   :else
-                   (str "^" (flat m)))]
-      {:prefix prefix :stripped (with-meta form nil)})))
 
 (defn- pp
-  "Pretty-print a form at the given column and width."
+  "Pretty-print a form at the given column and width.
+   Uses printer/decompose for notation decisions, handles layout here."
   [form col width]
   (let [comments (form-comments form)
         indent (indent-str col)
-        meta-info (pp-meta-prefix form)
-        formatted (cond
-                    ;; Metadata prefix — emit before the form, recurse on stripped
-                    meta-info
-                    (let [{:keys [prefix stripped]} meta-info
-                          prefix-len (inc (count prefix))
-                          inner (pp stripped (+ col prefix-len) width)]
-                      (str prefix " " inner))
+        flat-str (flat form)
+        formatted
+        (if (<= (+ col (count flat-str)) width)
+          ;; Fits flat — use single-line representation
+          flat-str
+          ;; Doesn't fit — decompose and render multi-line
+          (let [{:keys [layout] :as desc} (printer/decompose form)]
+            (case layout
+              :atom (:text desc)
 
-                    ;; Deferred auto-resolve keywords — must check before call?
-                    ;; since the deferred form (clojure.core/read-string "::foo")
-                    ;; satisfies call? but should emit ::foo, not a call.
-                    (forms/deferred-auto-keyword? form)
-                    (forms/deferred-auto-keyword-raw form)
+              :prefix (str (:prefix desc)
+                           (pp (:child desc) (+ col (count (:prefix desc))) width))
 
-                    ;; Quote — prefix sugar (only when tagged by reader)
-                    (and (call? form) (= 'quote (first form)) (:meme/sugar (meta form)))
-                    (str "'" (pp (second form) (inc col) width))
+              :call (pp-call (:head desc) (:args desc) col width)
 
-                    ;; @deref — prefix sugar (only when tagged by reader)
-                    (and (call? form) (= 'clojure.core/deref (first form)) (:meme/sugar (meta form)))
-                    (str "@" (pp (second form) (inc col) width))
+              :wrap (pp-wrap desc col width)
 
-                    ;; #'var — prefix sugar (only when tagged by reader)
-                    (and (call? form) (= 'var (first form)) (:meme/sugar (meta form)))
-                    (str "#'" (flat (second form)))
+              :pairs (pp-pairs desc col width)
 
-                    ;; Calls — the main case
-                    (call? form)
-                    (pp-call-smart form col width)
-
-                    ;; Syntax-quote / unquote / unquote-splicing AST nodes
-                    (forms/syntax-quote? form)
-                    (str "`" (pp (:form form) (inc col) width))
-
-                    (forms/unquote? form)
-                    (str "~" (pp (:form form) (inc col) width))
-
-                    (forms/unquote-splicing? form)
-                    (str "~@" (pp (:form form) (+ col 2) width))
-
-                    ;; AST node defrecords satisfy (map? x) — delegate to flat
-                    ;; Must be before vector?/map? to avoid mishandling
-                    (forms/raw? form) (flat form)
-                    (forms/meme-reader-conditional? form) (flat form)
-
-                    ;; Collections
-                    (vector? form) (pp-vec form col width)
-                    (map? form)    (pp-map form col width)
-                    (set? form)    (pp-set form col width)
-
-                    ;; Everything else — flat (primitives, empty list, etc.)
-                    :else (flat form))]
+              :meta (let [prefix-str (str/join " " (:prefixes desc))
+                          prefix-len (inc (count prefix-str))]
+                      (str prefix-str " "
+                           (pp (:child desc) (+ col prefix-len) width))))))]
     (if comments
       ;; First comment line: no indent (caller provides it via join/concat).
       ;; Subsequent comment lines: indent to current column.
