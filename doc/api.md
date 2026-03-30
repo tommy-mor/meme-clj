@@ -363,6 +363,78 @@ Run the pipeline: `strip-shebang → scan → group → parse`. Returns the comp
 ```
 
 
+## meme.alpha.pipeline.contract
+
+Formal contract for the pipeline context map. Provides `clojure.spec.alpha` specs for the context at each stage boundary, a toggleable runtime validator, and explain functions for debugging and tooling.
+
+### Specs
+
+| Spec | Describes |
+|------|-----------|
+| `::token` | A single token map: `:type`, `:value`, `:line`, `:col`, `:offset` (required); `:end-line`, `:end-col`, `:end-offset`, `:ws` (optional) |
+| `::token-vector` | Vector of tokens |
+| `::opts` | Reader options map (nilable): `:resolve-keyword`, `:read-cond`, `:resolve-symbol` |
+| `::forms` | Vector of parsed forms (any Clojure value) |
+| `::ctx-input` | Context as provided by the caller: `{:source string, :opts map?}` |
+| `::ctx-after-scan` | Context after `scan`: adds `:raw-tokens` |
+| `::ctx-after-group` | Context after `group`: adds `:tokens` |
+| `::ctx-after-parse` | Context after `parse`: adds `:forms` |
+| `::ctx-after-expand` | Context after `expand`: `:forms` replaced with expanded forms |
+
+### \*validate\*
+
+```clojure
+meme.alpha.pipeline.contract/*validate*
+```
+
+Dynamic var. When bound to `true`, pipeline stages validate context maps at input and output against the specs above. Default: `false` (zero overhead).
+
+```clojure
+(binding [meme.alpha.pipeline.contract/*validate* true]
+  (pipeline/run "+(1 2)"))
+```
+
+### validate!
+
+```clojure
+(meme.alpha.pipeline.contract/validate! stage phase ctx)
+```
+
+Check `ctx` against the contract for the given `stage` (`:scan`, `:group`, `:parse`, `:expand`, `:strip-shebang`) and `phase` (`:input` or `:output`). Throws `ex-info` with `:stage`, `:phase`, and `:problems` in ex-data. No-op when `*validate*` is false.
+
+### explain-context
+
+```clojure
+(meme.alpha.pipeline.contract/explain-context :scan :input {:source 42})
+;=> "42 - failed: string? in: [:source] at: [:source] ..."
+```
+
+Return a human-readable explanation string, or `nil` if valid. Always runs (not gated by `*validate*`).
+
+### valid?
+
+```clojure
+(meme.alpha.pipeline.contract/valid? :parse :output ctx) ;=> true/false
+```
+
+Check without throwing. Not gated by `*validate*`.
+
+### Guest language usage
+
+A guest parser replacing the `parse` stage must produce a context map conforming to `::ctx-after-parse`:
+
+```clojure
+(require '[meme.alpha.pipeline.contract :as contract])
+
+(binding [contract/*validate* true]
+  (let [ctx (-> {:source src :opts opts}
+                pipeline/scan
+                pipeline/group
+                my-custom-parse)]
+    ctx))
+```
+
+
 ## meme.alpha.scan.grouper
 
 Pass-through stage — all forms are now parsed natively by the recursive-descent parser. Retained for pipeline symmetry.
