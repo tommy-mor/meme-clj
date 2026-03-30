@@ -25,7 +25,7 @@
 (def symbol-suffix-chars "abcdefghijklmnopqrstuvwxyz0123456789-?!*")
 
 (def reserved-symbols #{'fn 'quote 'var 'clojure.core/deref
-                         'nil 'true 'false})
+                         (symbol "nil") (symbol "true") (symbol "false")})
 
 ;; Keywords the printer strips from metadata (compiler/reader-added keys)
 (def reserved-meta-keywords #{:ws :line :column :file})
