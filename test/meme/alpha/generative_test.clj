@@ -112,8 +112,7 @@
    [:deref     (gen/fmap #(list 'clojure.core/deref %) gen-simple-symbol)]
    [:quote     (gen/fmap #(list 'quote %) gen-simple-symbol)]
    [:var       (gen/fmap #(list 'var %) gen-simple-symbol)]
-   [:meta      (gen/let [kw (gen/let [n (gen/not-empty (gen/vector (gen/elements (seq safe-symbol-chars)) 1 4))]
-                               (keyword (apply str n)))
+   [:meta      (gen/let [kw gen-keyword
                          sym gen-simple-symbol]
                  (with-meta sym {kw true}))]])
 
@@ -169,13 +168,10 @@
          (gen/let [k1 gen-keyword k2 gen-keyword s gen-simple-symbol]
            (list k2 (list k1 s)))
          ;; Metadata on symbols
-         (gen/let [kw (gen/let [n (gen/not-empty (gen/vector (gen/elements (seq safe-symbol-chars)) 1 6))]
-                        (keyword (apply str n)))
-                   sym gen-simple-symbol]
+         (gen/let [kw gen-keyword sym gen-simple-symbol]
            (with-meta sym {kw true}))
          ;; Metadata on calls (regression: pprint dropped metadata on multi-line forms)
-         (gen/let [kw (gen/let [n (gen/not-empty (gen/vector (gen/elements (seq safe-symbol-chars)) 1 4))]
-                        (keyword (apply str n)))
+         (gen/let [kw gen-keyword
                    h gen-simple-symbol
                    as (gen/vector gen-simple-symbol 1 3)]
            (with-meta (apply list h as) {kw true}))]))
@@ -204,8 +200,7 @@
 
 (def gen-meta-prefix-form
   "Generate forms with metadata prefix: ^:kw or ^{:kw true}."
-  (gen/let [kw (gen/let [n (gen/not-empty (gen/vector (gen/elements (seq safe-symbol-chars)) 1 4))]
-                 (keyword (apply str n)))
+  (gen/let [kw gen-keyword
             target (gen/one-of [gen-simple-symbol
                                 (gen/let [h gen-simple-symbol a gen-simple-symbol]
                                   (list h a))
@@ -459,8 +454,7 @@
 ;; ===========================================================================
 
 (defspec prop-metadata-on-calls-roundtrip 200
-  (prop/for-all [form (gen/let [kw (gen/let [n (gen/not-empty (gen/vector (gen/elements (seq safe-symbol-chars)) 1 4))]
-                                     (keyword (apply str n)))
+  (prop/for-all [form (gen/let [kw gen-keyword
                                 h gen-simple-symbol
                                 as (gen/vector gen-simple-symbol 1 4)]
                          (with-meta (apply list h as) {kw true}))]
