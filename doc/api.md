@@ -99,8 +99,6 @@ Options:
 ;=> "defn(greet [name]\n  println(str(\"Hello \" name)))"
 ```
 
-`pprint-meme` is a deprecated alias for `format-meme`.
-
 ### Text-to-text track
 
 #### meme->clj

@@ -170,7 +170,7 @@
          ;; Metadata on symbols
          (gen/let [kw gen-keyword sym gen-simple-symbol]
            (with-meta sym {kw true}))
-         ;; Metadata on calls (regression: pprint dropped metadata on multi-line forms)
+         ;; Metadata on calls (regression: canon formatter dropped metadata on multi-line forms)
          (gen/let [kw gen-keyword
                    h gen-simple-symbol
                    as (gen/vector gen-simple-symbol 1 3)]
@@ -450,7 +450,7 @@
 
 ;; ===========================================================================
 ;; Property: metadata on calls survives roundtrip
-;; Regression: pprint dropped metadata on multi-line call forms
+;; Regression: canon formatter dropped metadata on multi-line call forms
 ;; ===========================================================================
 
 (defspec prop-metadata-on-calls-roundtrip 200

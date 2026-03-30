@@ -118,7 +118,7 @@
 ;; ---------------------------------------------------------------------------
 ;; Shared metadata keys — internal keys used by the meme pipeline
 ;;
-;; Both printer and pprint need to distinguish user-visible metadata
+;; Both printer and formatter need to distinguish user-visible metadata
 ;; (^:private, ^:tag, ^{:doc "..."}) from internal bookkeeping keys.
 ;; Centralizing the set here prevents drift between modules.
 ;; ---------------------------------------------------------------------------

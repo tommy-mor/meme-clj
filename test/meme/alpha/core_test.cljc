@@ -252,7 +252,3 @@
           wide (core/format-meme ['(+ 1 2 3 4 5)] {:width 200})]
       (is (re-find #"\n" narrow))
       (is (not (re-find #"\n" wide))))))
-
-(deftest pprint-meme-backwards-compat
-  (testing "pprint-meme is an alias for format-meme"
-    (is (= (core/format-meme ['(def x 42)]) (core/pprint-meme ['(def x 42)])))))

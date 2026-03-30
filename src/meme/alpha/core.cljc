@@ -41,11 +41,6 @@
   ([forms] (fmt-canon/format-forms forms))
   ([forms opts] (fmt-canon/format-forms forms opts)))
 
-;; Backwards compatibility
-(def pprint-meme
-  "Deprecated: use format-meme instead."
-  format-meme)
-
 ;; ---------------------------------------------------------------------------
 ;; Form-to-text track
 ;; ---------------------------------------------------------------------------

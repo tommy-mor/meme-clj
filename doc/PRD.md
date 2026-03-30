@@ -137,7 +137,7 @@ ClojureScript without modification.
 | C1 | `meme run <file>` — run a .meme file | Done |
 | C2 | `meme repl` — start interactive REPL | Done |
 | C3 | `meme convert <file\|dir>` — convert between .meme and .clj (by extension) | Done |
-| C4 | `meme format <file\|dir>` — normalize .meme files via pprint (in-place or stdout) | Done |
+| C4 | `meme format <file\|dir>` — normalize .meme files via canonical formatter (in-place or stdout) | Done |
 
 Note: Requirement IDs are not sequential — gaps (R2–R4, R11–R12, R14,
 P2–P4, P10) are requirements that were merged into other IDs or removed
@@ -152,7 +152,7 @@ during design iteration. IDs are stable references and are not renumbered.
                   source      resolve    expander ──→ eval
                (shared line/col                │
                 → offset contract)       printer ──→ .meme text
-                                          pprint ──→ .meme text
+                                       formatter ──→ .meme text
 ```
 
 The pipeline has composable stages (composed by `meme.alpha.pipeline`), each a `ctx → ctx` function with a `step-` prefix:

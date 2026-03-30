@@ -83,7 +83,7 @@ $ bb meme convert hello.clj                             # .clj → meme
 $ clojure -T:meme convert :file '"hello.meme"'          # Clojure JVM
 ```
 
-Format `.meme` files (normalize syntax via pprint):
+Format `.meme` files (normalize syntax via canonical formatter):
 
 ```bash
 $ bb meme format hello.meme                             # in-place
