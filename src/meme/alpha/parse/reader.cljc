@@ -4,7 +4,6 @@
   (:require [clojure.string :as str]
             [meme.alpha.errors :as errors]
             [meme.alpha.forms :as forms]
-            [meme.alpha.parse.expander :as expander]
             [meme.alpha.parse.resolve :as resolve]))
 
 ;; Sentinel for #_ discard. Contract:
@@ -348,6 +347,10 @@
         (let [platform-key (keyword (subs (:value key-tok) 1))]
           (padvance! p)
           (let [form (parse-form p)]
+            (when (discard-sentinel? form)
+              (errors/meme-error
+                (str "Reader conditional branch " platform-key " value was discarded by #_ — each branch requires a value")
+                (error-data p (select-keys key-tok [:line :col]))))
             (recur (conj pairs platform-key form))))))))
 
 (defn- parse-reader-cond-eval
@@ -687,20 +690,6 @@
         (attach-ws (parse-call-chain p form) ws))
       (finally
         (vswap! (:depth p) dec)))))
-
-;; ---------------------------------------------------------------------------
-;; Syntax-quote expansion — re-exported from parse.expander for compatibility
-;; ---------------------------------------------------------------------------
-
-(def expand-syntax-quotes
-  "Walk a form tree and expand all AST nodes into plain Clojure forms.
-   Delegates to meme.alpha.parse.expander/expand-syntax-quotes."
-  expander/expand-syntax-quotes)
-
-(def expand-forms
-  "Expand all syntax-quote nodes in a vector of forms. For eval pipelines.
-   Delegates to meme.alpha.parse.expander/expand-forms."
-  expander/expand-forms)
 
 ;; ---------------------------------------------------------------------------
 ;; Public API

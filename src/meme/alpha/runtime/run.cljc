@@ -1,6 +1,16 @@
 (ns meme.alpha.runtime.run
   "Run .meme files: read, eval, return last result."
-  (:require [meme.alpha.pipeline :as pipeline]))
+  (:require [clojure.string :as str]
+            [meme.alpha.pipeline :as pipeline]))
+
+(defn- step-strip-shebang
+  "Strip a leading #! shebang line from a context's :source, if present."
+  [ctx]
+  (let [source (:source ctx)]
+    (if (and (string? source) (str/starts-with? source "#!"))
+      (let [nl (str/index-of source "\n")]
+        (assoc ctx :source (if nl (subs source (inc nl)) "")))
+      ctx)))
 
 (defn- default-reader-opts
   "Build reader opts, merging caller-provided opts with platform defaults.
@@ -28,10 +38,10 @@
                         :cljs (throw (ex-info "run-string requires :eval option in ClojureScript" {}))))
          reader-opts (default-reader-opts opts)
          forms (:forms (-> {:source s :opts reader-opts}
-                           pipeline/strip-shebang
-                           pipeline/scan
-                           pipeline/parse
-                           pipeline/expand))]
+                           step-strip-shebang
+                           pipeline/step-scan
+                           pipeline/step-parse
+                           pipeline/step-expand-syntax-quotes))]
      (reduce (fn [_ form] (eval-fn form)) nil forms))))
 
 (defn run-file

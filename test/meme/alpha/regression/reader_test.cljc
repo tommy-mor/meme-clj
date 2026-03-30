@@ -5,8 +5,7 @@
             [meme.alpha.core :as core]
             [meme.alpha.emit.printer :as p]
             [meme.alpha.forms :as forms]
-            [meme.alpha.parse.expander :as expander]
-            [meme.alpha.parse.reader :as reader]))
+            [meme.alpha.parse.expander :as expander]))
 
 ;; ---------------------------------------------------------------------------
 ;; Scar tissue: auto-resolve keywords are opaque
@@ -437,7 +436,7 @@
   (testing "~@ in map inside syntax-quote — error at expansion time"
     (let [forms (core/meme->forms "`{~@xs 1}")]
       (is (forms/syntax-quote? (first forms)) "read produces AST node")
-      (try (reader/expand-forms forms)
+      (try (expander/expand-forms forms)
            (is false "should have thrown")
            (catch #?(:clj Exception :cljs :default) e
              (is (re-find #"Unquote-splicing" (ex-message e))))))))
@@ -749,3 +748,23 @@
     (is (nil? (first (core/meme->forms "nil")))))
   (testing "nil with space before parens is two forms"
     (is (= [nil 'x] (core/meme->forms "nil x")))))
+
+;; ---------------------------------------------------------------------------
+;; Bug: parse-reader-cond-preserve did not handle discard-sentinel.
+;; #?(:clj #_x) in :read-cond :preserve mode would leak the sentinel object
+;; into the ReaderConditional, producing garbage when printed.
+;; Fix: added discard-sentinel? check in parse-reader-cond-preserve.
+;; ---------------------------------------------------------------------------
+
+(deftest discard-sentinel-in-reader-cond-preserve
+  (testing "#_ discarding a branch value in :read-cond :preserve throws"
+    (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
+          #"discarded by #_"
+          (core/meme->forms "#?(:clj #_x)" {:read-cond :preserve}))))
+  (testing "#_ in multi-branch preserve causes structural error"
+    (is (thrown? #?(:clj Exception :cljs js/Error)
+          (core/meme->forms "#?(:clj #_x :cljs y)" {:read-cond :preserve}))))
+  (testing "normal :read-cond :preserve still works"
+    (let [forms (core/meme->forms "#?(:clj x :cljs y)" {:read-cond :preserve})]
+      (is (= 1 (count forms)))
+      (is (forms/meme-reader-conditional? (first forms))))))

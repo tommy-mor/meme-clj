@@ -5,18 +5,6 @@
             [clojure.string :as str]))
 
 ;; ---------------------------------------------------------------------------
-;; Comment extraction for trailing whitespace
-;; ---------------------------------------------------------------------------
-
-(defn- extract-comments
-  "Extract comment lines from a whitespace string.
-   Returns a vector of comment strings (with leading ; intact), or nil."
-  [ws]
-  (when ws
-    (let [lines (str/split-lines ws)]
-      (not-empty (filterv #(re-find #"^\s*;" %) lines)))))
-
-;; ---------------------------------------------------------------------------
 ;; Public API
 ;; ---------------------------------------------------------------------------
 
@@ -39,7 +27,7 @@
   ([forms opts]
    (let [trailing-ws (:trailing-ws (meta forms))
          trailing-comments (when trailing-ws
-                             (extract-comments trailing-ws))
+                             (printer/extract-comments trailing-ws))
          body (str/join "\n\n" (map #(pprint-form % opts) forms))]
      (if trailing-comments
        (str body "\n\n" (str/join "\n" trailing-comments))

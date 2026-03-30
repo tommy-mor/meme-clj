@@ -155,19 +155,20 @@ during design iteration. IDs are stable references and are not renumbered.
                                           pprint ──→ .meme text
 ```
 
-The pipeline has composable stages (composed by `meme.alpha.pipeline`), each a `ctx → ctx` function:
-1. **Strip-shebang** — remove `#!` line from `:source` (for executable scripts).
-   Not part of the core pipeline; used only by the runner.
-2. **Scan** (`meme.alpha.scan.tokenizer`) — character stream → flat token vector.
+The pipeline has composable stages (composed by `meme.alpha.pipeline`), each a `ctx → ctx` function with a `step-` prefix:
+1. **step-strip-shebang** — remove `#!` line from `:source` (for executable scripts).
+   Defined in `runtime/run`, not part of the core pipeline.
+2. **step-scan** (`meme.alpha.scan.tokenizer`) — character stream → flat token vector.
    Compound forms (dispatch, syntax-quote) emit marker tokens.
-3. **Parse** (`meme.alpha.parse.reader`) — recursive-descent parser, tokens → Clojure
+3. **step-parse** (`meme.alpha.parse.reader`) — recursive-descent parser, tokens → Clojure
    forms. Value resolution (numbers, strings, chars, regex, keywords, tagged
    literals) is delegated to `meme.alpha.parse.resolve`. Volatile position
    counter for portability. No intermediate AST — forms are emitted as
    standard Clojure data. No `read-string` delegation.
-4. **Expand** (`meme.alpha.parse.expander`) — syntax-quote AST nodes → plain Clojure
-   forms. Only needed before eval, not for tooling. `meme.alpha.pipeline/run`
-   intentionally omits this stage, returning AST nodes for tooling access.
+4. **step-expand-syntax-quotes** (`meme.alpha.parse.expander`) — syntax-quote AST nodes →
+   plain Clojure forms. Only needed before eval, not for tooling.
+   `meme.alpha.pipeline/run` intentionally omits this stage, returning AST
+   nodes for tooling access.
 
 The printer pattern-matches on form structure to reverse the transformation.
 It detects special forms and produces their meme syntax equivalents.

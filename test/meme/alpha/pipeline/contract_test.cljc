@@ -71,13 +71,13 @@
 
 (deftest actual-scan-output-conforms
   (testing "scan output passes ::ctx-after-scan"
-    (let [ctx (pipeline/scan {:source "foo(1 2)"})]
+    (let [ctx (pipeline/step-scan {:source "foo(1 2)"})]
       (is (s/valid? ::contract/ctx-after-scan ctx)
           (s/explain-str ::contract/ctx-after-scan ctx)))))
 
 (deftest actual-scan-output-has-tokens
   (testing "scan output includes both :raw-tokens and :tokens"
-    (let [ctx (pipeline/scan {:source "foo(1 2)"})]
+    (let [ctx (pipeline/step-scan {:source "foo(1 2)"})]
       (is (= (:raw-tokens ctx) (:tokens ctx))))))
 
 (deftest actual-parse-output-conforms

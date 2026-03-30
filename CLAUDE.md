@@ -58,10 +58,10 @@ clojure -T:build deploy
 ```
 
 The pipeline has composable stages (composed by `meme.alpha.pipeline`), each a `ctx → ctx` function:
-1. **Strip-shebang** — remove `#!` line from `:source` (for executable scripts). Not part of the core pipeline; used only by the runner.
-2. **Scan** (`meme.alpha.scan.tokenizer`) — characters → flat token vector. Compound forms emit marker tokens.
-3. **Parse** (`meme.alpha.parse.reader`) — recursive-descent parser, tokens → Clojure forms. Value resolution delegated to `meme.alpha.parse.resolve`.
-4. **Expand** (`meme.alpha.parse.expander`) — syntax-quote AST nodes → plain Clojure forms. Only needed before eval, not for tooling.
+1. **step-strip-shebang** — remove `#!` line from `:source` (for executable scripts). Defined in `runtime/run`, not part of the core pipeline.
+2. **step-scan** (`meme.alpha.scan.tokenizer`) — characters → flat token vector. Compound forms emit marker tokens.
+3. **step-parse** (`meme.alpha.parse.reader`) — recursive-descent parser, tokens → Clojure forms. Value resolution delegated to `meme.alpha.parse.resolve`.
+4. **step-expand-syntax-quotes** (`meme.alpha.parse.expander`) — syntax-quote AST nodes → plain Clojure forms. Only needed before eval, not for tooling.
 
 - The reader is a **pure function** from meme text to Clojure forms. No runtime dependency. No `read-string` delegation — everything is parsed natively.
 - A printer (`meme.alpha.emit.printer`) converts Clojure forms back to meme syntax (also pure). Supports `:meme` and `:clj` output modes.
@@ -82,7 +82,7 @@ The pipeline has composable stages (composed by `meme.alpha.pipeline`), each a `
 - `meme.alpha.parse.resolve` (.cljc) — Value resolution: converts raw token text to Clojure values. Centralizes all host reader delegation (`read-string` calls) with consistent error wrapping. Handles platform asymmetries (JVM vs CLJS). Portable.
 - `meme.alpha.emit.printer` (.cljc) — Wadler-Lindig pretty-printer: `to-doc` (form → Doc tree) + `layout` (Doc tree → string at given width). Single source of truth for both flat and width-aware rendering. Supports `:meme` and `:clj` output modes. Portable.
 - `meme.alpha.emit.pprint` (.cljc) — Thin wrapper: `pprint-form` = `to-doc` + `layout` at configured width. Preserves comments from `:ws` metadata. Portable.
-- `meme.alpha.pipeline` (.cljc) — Composable pipeline stages: `strip-shebang`, `scan`, `group`, `parse`, `expand`. Each is a `ctx → ctx` function. Context map contract documented in namespace docstring. Exposes intermediate state (`:raw-tokens`, `:tokens`, `:forms`) for tooling. Portable.
+- `meme.alpha.pipeline` (.cljc) — Composable pipeline stages: `step-scan`, `step-parse`, `step-expand-syntax-quotes`. Each is a `ctx → ctx` function. Context map contract documented in namespace docstring. Exposes intermediate state (`:raw-tokens`, `:tokens`, `:forms`) for tooling. Portable.
 - `meme.alpha.core` (.cljc) — Public API in three tracks: text-to-form (`meme->forms`, `forms->meme`), form-to-text (`forms->clj`, `clj->forms`), text-to-text (`meme->clj`, `clj->meme`). Also `pprint-meme` for pretty-printing and `run-pipeline` for tooling access to intermediate pipeline state. `clj->forms` and `clj->meme` are JVM only.
 - `meme.alpha.runtime.repl` (.cljc) — REPL. Requires `eval`; JVM/Babashka only by default, CLJS with injected `:eval`/`:read-line`.
 - `meme.alpha.runtime.run` (.cljc) — File runner. Requires `eval` + `slurp`; JVM/Babashka only by default.

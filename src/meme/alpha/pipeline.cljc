@@ -1,5 +1,5 @@
 (ns meme.alpha.pipeline
-  "Explicit pipeline composition: source → scan → parse → expand → forms.
+  "Explicit pipeline composition: source → step-scan → step-parse → step-expand-syntax-quotes → forms.
    Each stage is a ctx → ctx function operating on a shared context map.
 
    Context map contract:
@@ -27,8 +27,7 @@
    the context map at each stage boundary. Enable runtime validation with:
      (binding [meme.alpha.pipeline.contract/*validate* true]
        (pipeline/run source))"
-  (:require [clojure.string :as str]
-            [meme.alpha.scan.tokenizer :as tokenizer]
+  (:require [meme.alpha.scan.tokenizer :as tokenizer]
             [meme.alpha.parse.reader :as reader]
             [meme.alpha.parse.expander :as expander]
             [meme.alpha.pipeline.contract :as contract]))
@@ -37,20 +36,7 @@
 ;; Pipeline stages — each takes and returns a context map
 ;; ---------------------------------------------------------------------------
 
-(defn strip-shebang
-  "Source transform: strip a leading #! shebang line from :source, if present.
-   Useful for executable .meme scripts."
-  [ctx]
-  (contract/validate! :strip-shebang :input ctx)
-  (let [source (:source ctx)
-        result (if (and (string? source) (str/starts-with? source "#!"))
-                 (let [nl (str/index-of source "\n")]
-                   (assoc ctx :source (if nl (subs source (inc nl)) "")))
-                 ctx)]
-    (contract/validate! :strip-shebang :output result)
-    result))
-
-(defn scan
+(defn step-scan
   "Tokenize source text into tokens.
    Attaches leading whitespace/comments to each token as :ws.
    Writes both :tokens (for parse) and :raw-tokens (backward compat / tooling)."
@@ -65,7 +51,7 @@
       (contract/validate! :scan :output result)
       result)))
 
-(defn parse
+(defn step-parse
   "Parse tokens into Clojure forms."
   [ctx]
   (contract/validate! :parse :input ctx)
@@ -76,7 +62,7 @@
     (contract/validate! :parse :output result)
     result))
 
-(defn expand
+(defn step-expand-syntax-quotes
   "Expand syntax-quote AST nodes and unwrap MemeRaw values in :forms.
    Produces plain Clojure forms ready for eval.
    Not needed for tooling that works with AST nodes directly."
@@ -101,5 +87,5 @@
   ([source] (run source nil))
   ([source opts]
    (-> {:source source :opts opts}
-       scan
-       parse)))
+       step-scan
+       step-parse)))

@@ -6,7 +6,7 @@
 
    The pipeline is composable ctx → ctx stages:
 
-     strip-shebang → scan → parse → expand
+     scan → parse → expand
 
    Context map contract:
 
@@ -85,8 +85,6 @@
   (s/keys :req-un [::source]
           :opt-un [::opts]))
 
-(s/def ::ctx-after-strip-shebang ::ctx-input)
-
 (s/def ::ctx-after-scan
   (s/keys :req-un [::source ::raw-tokens ::tokens]
           :opt-un [::opts]))
@@ -103,15 +101,13 @@
 
 (def stage-input-spec
   "Map from stage keyword to the spec its input context must satisfy."
-  {:strip-shebang ::ctx-input
-   :scan          ::ctx-input
+  {:scan          ::ctx-input
    :parse         ::ctx-after-scan
    :expand        ::ctx-after-parse})
 
 (def stage-output-spec
   "Map from stage keyword to the spec its output context must satisfy."
-  {:strip-shebang ::ctx-after-strip-shebang
-   :scan          ::ctx-after-scan
+  {:scan          ::ctx-after-scan
    :parse         ::ctx-after-parse
    :expand        ::ctx-after-expand})
 

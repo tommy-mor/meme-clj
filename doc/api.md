@@ -156,7 +156,7 @@ Low-level reader API.
 (meme.alpha.parse.reader/read-meme-string-from-tokens tokens opts source)
 ```
 
-Parse a token vector into Clojure forms. Used by `meme.alpha.pipeline/parse`. Most callers should use `meme.alpha.core/meme->forms` instead.
+Parse a token vector into Clojure forms. Used by `meme.alpha.pipeline/step-parse`. Most callers should use `meme.alpha.core/meme->forms` instead.
 
 - `tokens` — a token vector (output of `meme.alpha.scan.tokenizer/tokenize`)
 - `opts` — same options as `meme->forms` (e.g., `:resolve-keyword`)
@@ -305,39 +305,31 @@ Read and eval a `.meme` file. Returns the last result. Uses `slurp` internally (
 
 Explicit pipeline composition. Each stage is a `ctx → ctx` function operating on a shared context map with keys `:source`, `:opts`, `:raw-tokens`, `:tokens`, `:forms`.
 
-### strip-shebang
+### step-scan
 
 ```clojure
-(meme.alpha.pipeline/strip-shebang ctx)
-```
-
-Remove `#!` shebang line from `:source` if present. For executable `.meme` scripts. This is the first pipeline stage.
-
-### scan
-
-```clojure
-(meme.alpha.pipeline/scan ctx)
+(meme.alpha.pipeline/step-scan ctx)
 ```
 
 Tokenize source text into tokens with whitespace attachment. Reads `:source` from ctx, assocs both `:tokens` and `:raw-tokens` (identical; `:raw-tokens` retained for backward compatibility). Each token carries a `:ws` key with the leading whitespace and comments between it and the previous token. Trailing whitespace (after the last token) is stored as `:trailing-ws` metadata on the token vector. This is how the pretty-printer preserves comments.
 
-### parse
+### step-parse
 
 ```clojure
-(meme.alpha.pipeline/parse ctx)
+(meme.alpha.pipeline/step-parse ctx)
 ```
 
 Parse tokens into Clojure forms. Reads `:tokens`, `:opts`, `:source` from ctx, assocs `:forms`.
 
-### expand
+### step-expand-syntax-quotes
 
 ```clojure
-(meme.alpha.pipeline/expand ctx)
+(meme.alpha.pipeline/step-expand-syntax-quotes ctx)
 ```
 
 Expand syntax-quote AST nodes (`MemeSyntaxQuote`) into plain Clojure forms (`seq`/`concat`/`list`). Also unwraps `MemeRaw` values. Only needed before eval — tooling paths work with AST nodes directly.
 
-Note: `run` intentionally omits this stage so tooling can access the unexpanded forms. Runtime paths (`run-string`, `run-file`) include `expand` in their pipeline.
+Note: `run` intentionally omits this stage so tooling can access the unexpanded forms. Runtime paths (`run-string`, `run-file`) include `step-expand-syntax-quotes` in their pipeline.
 
 ### run
 
@@ -346,7 +338,7 @@ Note: `run` intentionally omits this stage so tooling can access the unexpanded 
 (meme.alpha.pipeline/run source opts)
 ```
 
-Run the pipeline: `scan → parse`. Returns the complete context map. Does **not** include `expand` — forms contain AST nodes (`MemeSyntaxQuote`, `MemeRaw`) for tooling access. Call `expand` separately if you need eval-ready forms.
+Run the pipeline: `step-scan → step-parse`. Returns the complete context map. Does **not** include `step-expand-syntax-quotes` — forms contain AST nodes (`MemeSyntaxQuote`, `MemeRaw`) for tooling access. Call `step-expand-syntax-quotes` separately if you need eval-ready forms.
 
 ```clojure
 (meme.alpha.pipeline/run "+(1 2)")
@@ -391,7 +383,7 @@ Dynamic var. When bound to `true`, pipeline stages validate context maps at inpu
 (meme.alpha.pipeline.contract/validate! stage phase ctx)
 ```
 
-Check `ctx` against the contract for the given `stage` (`:scan`, `:parse`, `:expand`, `:strip-shebang`) and `phase` (`:input` or `:output`). Throws `ex-info` with `:stage`, `:phase`, and `:problems` in ex-data. No-op when `*validate*` is false.
+Check `ctx` against the contract for the given `stage` (`:scan`, `:parse`, `:expand`) and `phase` (`:input` or `:output`). Throws `ex-info` with `:stage`, `:phase`, and `:problems` in ex-data. No-op when `*validate*` is false.
 
 ### explain-context
 
@@ -419,7 +411,7 @@ A guest parser replacing the `parse` stage must produce a context map conforming
 
 (binding [contract/*validate* true]
   (let [ctx (-> {:source src :opts opts}
-                pipeline/scan
+                pipeline/step-scan
                 my-custom-parse)]
     ctx))
 ```

@@ -112,7 +112,7 @@
 
              (:forms parsed)
              (do (try
-                   (let [expanded (:forms (pipeline/expand {:forms (:forms parsed) :opts reader-opts}))]
+                   (let [expanded (:forms (pipeline/step-expand-syntax-quotes {:forms (:forms parsed) :opts reader-opts}))]
                      (doseq [form expanded]
                        (let [result (eval-fn form)]
                          (prn result))))

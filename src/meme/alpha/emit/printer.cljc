@@ -3,6 +3,7 @@
    Single pass: form → Doc tree → layout → string.
    Handles both flat (print-form) and width-aware (pprint) rendering."
   (:require [clojure.string :as str]
+            [meme.alpha.errors :as errors]
             [meme.alpha.forms :as forms]))
 
 ;; ---------------------------------------------------------------------------
@@ -159,7 +160,7 @@
 ;; Comment extraction from :ws metadata
 ;; ---------------------------------------------------------------------------
 
-(defn- extract-comments
+(defn extract-comments
   "Extract comment lines from a :ws metadata string.
    Returns a vector of trimmed comment strings, or nil."
   [ws]
@@ -265,9 +266,9 @@
       (do
         ;; Non-callable heads
         (when (contains? #{nil true false} head)
-          (throw (ex-info (str "Cannot print list with " (pr-str head)
-                               " as head — not representable in meme syntax")
-                          {:head head})))
+          (errors/meme-error (str "Cannot print list with " (pr-str head)
+                                  " as head — not representable in meme syntax")
+                             {:head head}))
         (let [n-head (get head-line-args head)]
           (cond
             ;; Zero args: head()

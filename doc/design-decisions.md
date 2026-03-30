@@ -21,10 +21,10 @@ Everything else is Clojure.
 
 The reader pipeline is split into two core stages:
 
-1. **Scan** (`meme.alpha.scan.tokenizer`) — character scanning → flat token vector.
+1. **step-scan** (`meme.alpha.scan.tokenizer`) — character scanning → flat token vector.
    Compound forms (reader conditionals, namespaced maps, syntax-quote)
    emit marker tokens.
-2. **Parse** (`meme.alpha.parse.reader`) — recursive-descent parser → Clojure forms.
+2. **step-parse** (`meme.alpha.parse.reader`) — recursive-descent parser → Clojure forms.
    No `read-string` delegation — all values resolved natively.
 
 The split makes each stage independently testable and the pipeline extensible.
