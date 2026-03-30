@@ -331,7 +331,7 @@
   (loop [pairs []]
     (cond
       (peof? p)
-      (errors/meme-error (str "Unclosed reader conditional — expected ) but reached end of input")
+      (errors/meme-error "Unclosed reader conditional — expected ) but reached end of input"
                          (error-data p (cond-> (assoc loc :incomplete true)
                                          loc (assoc :secondary [{:line (:line loc) :col (:col loc) :label "opened here"}])
                                          loc (assoc :hint "Add ) to close this reader conditional"))))
@@ -358,7 +358,7 @@
     (loop [matched discard-sentinel]
       (cond
         (peof? p)
-        (errors/meme-error (str "Unclosed reader conditional — expected ) but reached end of input")
+        (errors/meme-error "Unclosed reader conditional — expected ) but reached end of input"
                            (error-data p (cond-> (assoc loc :incomplete true)
                                            loc (assoc :secondary [{:line (:line loc) :col (:col loc) :label "opened here"}])
                                            loc (assoc :hint "Add ) to close this reader conditional"))))
@@ -484,17 +484,17 @@
                 target (parse-form p)
                 _ (when (discard-sentinel? target)
                     (errors/meme-error "Metadata target was discarded by #_ — nothing to attach metadata to"
-                                      (error-data p (select-keys tok [:line :col]))))]
-            (let [entry (cond
-                          (keyword? m) {m true}
-                          (symbol? m)  {:tag m}
-                          (map? m)     m
-                          :else
-                          (errors/meme-error
-                            (str "Metadata must be a keyword, symbol, or map — got " (pr-str m))
-                            (error-data p (select-keys tok [:line :col]))))
-                  chain (conj (or (:meme/meta-chain (meta target)) []) entry)]
-              (vary-meta target merge entry {:meme/meta-chain chain}))))
+                                      (error-data p (select-keys tok [:line :col]))))
+                entry (cond
+                        (keyword? m) {m true}
+                        (symbol? m)  {:tag m}
+                        (map? m)     m
+                        :else
+                        (errors/meme-error
+                          (str "Metadata must be a keyword, symbol, or map — got " (pr-str m))
+                          (error-data p (select-keys tok [:line :col]))))
+                chain (conj (or (:meme/meta-chain (meta target)) []) entry)]
+            (vary-meta target merge entry {:meme/meta-chain chain})))
 
       :quote
       ;; ' quotes the next meme form. No S-expression escape hatch.
@@ -591,9 +591,9 @@
                          (if (and (keyword? k) (nil? (namespace k)))
                            (keyword ns-name (name k))
                            k))
-              nsed (into {} (map (fn [[k v]] [(apply-ns k) v]) m))]
-          (let [tagged (vary-meta nsed assoc :meme/ns (if auto? (str ":" ns-name) ns-name))]
-            (maybe-call p tagged))))
+              nsed (into {} (map (fn [[k v]] [(apply-ns k) v]) m))
+              tagged (vary-meta nsed assoc :meme/ns (if auto? (str ":" ns-name) ns-name))]
+          (maybe-call p tagged)))
 
       :open-anon-fn
       ;; #() — parse body as meme, collect % params, emit (fn [params] body)

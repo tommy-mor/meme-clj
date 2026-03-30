@@ -1,7 +1,8 @@
 (ns meme.alpha.core-test
   "Tests for the meme.alpha.core public API."
   (:require [clojure.test :refer [deftest is testing]]
-            [meme.alpha.core :as core]))
+            [meme.alpha.core :as core]
+            [meme.alpha.forms :as forms]))
 
 ;; ---------------------------------------------------------------------------
 ;; Text-to-form track
@@ -213,6 +214,23 @@
     (let [ctx (core/run-pipeline "::foo"
                 {:resolve-keyword #(clojure.core/read-string %)})]
       (is (= [:user/foo] (:forms ctx)))))))
+
+;; ---------------------------------------------------------------------------
+;; AST node accessors (MemeRaw)
+;; ---------------------------------------------------------------------------
+
+(deftest meme-raw-accessors
+  (testing "run-pipeline exposes MemeRaw nodes with raw-value and raw-text"
+    (let [ctx (core/run-pipeline "42")
+          form (first (:forms ctx))]
+      (when (forms/raw? form)
+        (is (= 42 (forms/raw-value form)))
+        (is (= "42" (forms/raw-text form))))))
+  (testing "MemeRaw constructed directly"
+    (let [r (forms/->MemeRaw 3.14 "3.14")]
+      (is (forms/raw? r))
+      (is (= 3.14 (forms/raw-value r)))
+      (is (= "3.14" (forms/raw-text r))))))
 
 ;; ---------------------------------------------------------------------------
 ;; pprint-meme

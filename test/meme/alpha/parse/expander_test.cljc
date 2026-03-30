@@ -66,14 +66,13 @@
 (deftest expand-syntax-quote-with-unquote-splicing
   (testing "unquote-splicing inside syntax-quote splices the collection"
     (let [forms (core/meme->forms "`foo(~@xs)")
-          expanded (first (expander/expand-forms forms))]
-      ;; (seq (concat (list (quote foo)) xs))
-      (let [concat-form (second expanded)
-            args (rest concat-form)]
-        ;; First arg: (list (quote foo)) — quoted head
-        (is (= '(clojure.core/list (quote foo)) (first args)))
-        ;; Second arg: xs — spliced directly
-        (is (= 'xs (second args)))))))
+          expanded (first (expander/expand-forms forms))
+          ;; (seq (concat (list (quote foo)) xs))
+          concat-form (second expanded)]
+      ;; First arg: (list (quote foo)) — quoted head
+      (is (= '(clojure.core/list (quote foo)) (first (rest concat-form))))
+      ;; Second arg: xs — spliced directly
+      (is (= 'xs (second (rest concat-form)))))))
 
 ;; ---------------------------------------------------------------------------
 ;; Gensym consistency

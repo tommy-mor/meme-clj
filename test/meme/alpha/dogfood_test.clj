@@ -7,6 +7,7 @@
             [meme.alpha.core :as core]
             [meme.alpha.emit.printer :as p]
             [clojure.java.io :as io]
+            [clojure.set :as set]
             [clojure.string :as str]
             [clj-kondo.core :as kondo]))
 
@@ -176,4 +177,4 @@
             roundtripped (kondo-var-defs (str tmp))]
         (.delete tmp)
         (is (every? roundtripped original)
-            (str "vars lost in roundtrip: " (clojure.set/difference original roundtripped)))))))
+            (str "vars lost in roundtrip: " (set/difference original roundtripped)))))))
