@@ -30,7 +30,6 @@
          forms (:forms (-> {:source s :opts reader-opts}
                            pipeline/strip-shebang
                            pipeline/scan
-                           pipeline/group
                            pipeline/parse
                            pipeline/expand))]
      (reduce (fn [_ form] (eval-fn form)) nil forms))))

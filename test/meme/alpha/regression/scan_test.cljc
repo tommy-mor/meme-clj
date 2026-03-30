@@ -5,7 +5,6 @@
             [meme.alpha.core :as core]
             [meme.alpha.emit.printer :as p]
             [meme.alpha.forms :as forms]
-            [meme.alpha.pipeline :as pipeline]
             [meme.alpha.scan.tokenizer :as tokenizer]
             [meme.alpha.scan.grouper :as grouper]))
 
@@ -477,18 +476,7 @@
     (is (= "##NaN" (p/print-meme-string (core/meme->forms "##NaN")))))))
 
 ;; ---------------------------------------------------------------------------
-;; Bug: pipeline/group crashed with NPE when :source was absent from context.
-;; The grouper needs :source for extract-source-range on opaque regions, but
-;; the group stage only validated :raw-tokens, not :source.
-;; Fix: added (string? (:source ctx)) guard to pipeline/group.
+;; The group stage was collapsed into scan (it was a pass-through).
+;; This scar tissue is retained as a note; the original bug is no longer
+;; possible since scan validates :source and writes both :raw-tokens and :tokens.
 ;; ---------------------------------------------------------------------------
-
-(deftest group-requires-source
-  (testing "group with nil :source throws clear pipeline error"
-    (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
-          #"Pipeline :source"
-          (pipeline/group {:raw-tokens []}))))
-  (testing "group with non-string :source throws clear pipeline error"
-    (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
-          #"Pipeline :source"
-          (pipeline/group {:raw-tokens [] :source 42})))))

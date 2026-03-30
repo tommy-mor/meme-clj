@@ -75,11 +75,10 @@
       (is (s/valid? ::contract/ctx-after-scan ctx)
           (s/explain-str ::contract/ctx-after-scan ctx)))))
 
-(deftest actual-group-output-conforms
-  (testing "group output passes ::ctx-after-group"
-    (let [ctx (-> {:source "foo(1 2)"} pipeline/scan pipeline/group)]
-      (is (s/valid? ::contract/ctx-after-group ctx)
-          (s/explain-str ::contract/ctx-after-group ctx)))))
+(deftest actual-scan-output-has-tokens
+  (testing "scan output includes both :raw-tokens and :tokens"
+    (let [ctx (pipeline/scan {:source "foo(1 2)"})]
+      (is (= (:raw-tokens ctx) (:tokens ctx))))))
 
 (deftest actual-parse-output-conforms
   (testing "parse output passes ::ctx-after-parse"

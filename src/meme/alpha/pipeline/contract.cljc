@@ -4,18 +4,18 @@
    Defines clojure.spec.alpha specs for the context at each stage boundary,
    a toggleable runtime validator, and explain functions for debugging.
 
-   The pipeline is 5 composable ctx → ctx stages:
+   The pipeline is composable ctx → ctx stages:
 
-     strip-shebang → scan → group → parse → expand
+     strip-shebang → scan → parse → expand
 
    Context map contract:
 
    | Key          | Type           | Written by    | Read by              |
    |--------------|----------------|---------------|----------------------|
-   | :source      | String         | caller        | scan, group, parse   |
+   | :source      | String         | caller        | scan, parse          |
    | :opts        | Map or nil     | caller        | parse, expand        |
-   | :raw-tokens  | Vector         | scan          | group                |
-   | :tokens      | Vector         | group         | parse                |
+   | :raw-tokens  | Vector         | scan          | (tooling)            |
+   | :tokens      | Vector         | scan          | parse                |
    | :forms       | Vector         | parse, expand | expand, caller       |
 
    Guest languages that replace stages (e.g. a custom parser that reads
@@ -88,10 +88,6 @@
 (s/def ::ctx-after-strip-shebang ::ctx-input)
 
 (s/def ::ctx-after-scan
-  (s/keys :req-un [::source ::raw-tokens]
-          :opt-un [::opts]))
-
-(s/def ::ctx-after-group
   (s/keys :req-un [::source ::raw-tokens ::tokens]
           :opt-un [::opts]))
 
@@ -109,15 +105,13 @@
   "Map from stage keyword to the spec its input context must satisfy."
   {:strip-shebang ::ctx-input
    :scan          ::ctx-input
-   :group         ::ctx-after-scan
-   :parse         ::ctx-after-group
+   :parse         ::ctx-after-scan
    :expand        ::ctx-after-parse})
 
 (def stage-output-spec
   "Map from stage keyword to the spec its output context must satisfy."
   {:strip-shebang ::ctx-after-strip-shebang
    :scan          ::ctx-after-scan
-   :group         ::ctx-after-group
    :parse         ::ctx-after-parse
    :expand        ::ctx-after-expand})
 

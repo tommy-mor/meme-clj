@@ -207,9 +207,9 @@
 
 #?(:clj
 (deftest run-pipeline-jvm-test
-  (testing "raw-tokens are pre-grouper"
+  (testing "raw-tokens and tokens are identical"
     (let [ctx (core/run-pipeline "`foo")]
-      (is (>= (count (:raw-tokens ctx)) (count (:tokens ctx))))))
+      (is (= (:raw-tokens ctx) (:tokens ctx)))))
   (testing "opts pass through"
     (let [ctx (core/run-pipeline "::foo"
                 {:resolve-keyword #(clojure.core/read-string %)})]

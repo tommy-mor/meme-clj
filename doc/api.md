@@ -158,7 +158,7 @@ Low-level reader API.
 
 Parse a token vector into Clojure forms. Used by `meme.alpha.pipeline/parse`. Most callers should use `meme.alpha.core/meme->forms` instead.
 
-- `tokens` — a token vector (output of `meme.alpha.scan.grouper/group-tokens` or directly from the tokenizer)
+- `tokens` — a token vector (output of `meme.alpha.scan.tokenizer/tokenize`)
 - `opts` — same options as `meme->forms` (e.g., `:resolve-keyword`)
 - `source` — original source text for error context (optional)
 
@@ -319,15 +319,7 @@ Remove `#!` shebang line from `:source` if present. For executable `.meme` scrip
 (meme.alpha.pipeline/scan ctx)
 ```
 
-Tokenize source text into flat tokens with whitespace attachment. Reads `:source` from ctx, assocs `:raw-tokens`. Each token carries a `:ws` key with the leading whitespace and comments between it and the previous token. Trailing whitespace (after the last token) is stored as `:trailing-ws` metadata on the token vector. This is how the pretty-printer preserves comments.
-
-### group
-
-```clojure
-(meme.alpha.pipeline/group ctx)
-```
-
-Pass-through stage — returns tokens unchanged. Retained for pipeline symmetry. Reads `:raw-tokens` and `:source` from ctx, assocs `:tokens`.
+Tokenize source text into tokens with whitespace attachment. Reads `:source` from ctx, assocs both `:tokens` and `:raw-tokens` (identical; `:raw-tokens` retained for backward compatibility). Each token carries a `:ws` key with the leading whitespace and comments between it and the previous token. Trailing whitespace (after the last token) is stored as `:trailing-ws` metadata on the token vector. This is how the pretty-printer preserves comments.
 
 ### parse
 
@@ -335,7 +327,7 @@ Pass-through stage — returns tokens unchanged. Retained for pipeline symmetry.
 (meme.alpha.pipeline/parse ctx)
 ```
 
-Parse grouped tokens into Clojure forms. Reads `:tokens`, `:opts`, `:source` from ctx, assocs `:forms`.
+Parse tokens into Clojure forms. Reads `:tokens`, `:opts`, `:source` from ctx, assocs `:forms`.
 
 ### expand
 
@@ -354,7 +346,7 @@ Note: `run` intentionally omits this stage so tooling can access the unexpanded 
 (meme.alpha.pipeline/run source opts)
 ```
 
-Run the pipeline: `strip-shebang → scan → group → parse`. Returns the complete context map. Does **not** include `expand` — forms contain AST nodes (`MemeSyntaxQuote`, `MemeRaw`) for tooling access. Call `expand` separately if you need eval-ready forms.
+Run the pipeline: `scan → parse`. Returns the complete context map. Does **not** include `expand` — forms contain AST nodes (`MemeSyntaxQuote`, `MemeRaw`) for tooling access. Call `expand` separately if you need eval-ready forms.
 
 ```clojure
 (meme.alpha.pipeline/run "+(1 2)")
@@ -376,8 +368,7 @@ Formal contract for the pipeline context map. Provides `clojure.spec.alpha` spec
 | `::opts` | Reader options map (nilable): `:resolve-keyword`, `:read-cond`, `:resolve-symbol` |
 | `::forms` | Vector of parsed forms (any Clojure value) |
 | `::ctx-input` | Context as provided by the caller: `{:source string, :opts map?}` |
-| `::ctx-after-scan` | Context after `scan`: adds `:raw-tokens` |
-| `::ctx-after-group` | Context after `group`: adds `:tokens` |
+| `::ctx-after-scan` | Context after `scan`: adds `:raw-tokens` and `:tokens` |
 | `::ctx-after-parse` | Context after `parse`: adds `:forms` |
 | `::ctx-after-expand` | Context after `expand`: `:forms` replaced with expanded forms |
 
@@ -400,7 +391,7 @@ Dynamic var. When bound to `true`, pipeline stages validate context maps at inpu
 (meme.alpha.pipeline.contract/validate! stage phase ctx)
 ```
 
-Check `ctx` against the contract for the given `stage` (`:scan`, `:group`, `:parse`, `:expand`, `:strip-shebang`) and `phase` (`:input` or `:output`). Throws `ex-info` with `:stage`, `:phase`, and `:problems` in ex-data. No-op when `*validate*` is false.
+Check `ctx` against the contract for the given `stage` (`:scan`, `:parse`, `:expand`, `:strip-shebang`) and `phase` (`:input` or `:output`). Throws `ex-info` with `:stage`, `:phase`, and `:problems` in ex-data. No-op when `*validate*` is false.
 
 ### explain-context
 
@@ -429,23 +420,9 @@ A guest parser replacing the `parse` stage must produce a context map conforming
 (binding [contract/*validate* true]
   (let [ctx (-> {:source src :opts opts}
                 pipeline/scan
-                pipeline/group
                 my-custom-parse)]
     ctx))
 ```
-
-
-## meme.alpha.scan.grouper
-
-Pass-through stage — all forms are now parsed natively by the recursive-descent parser. Retained for pipeline symmetry.
-
-### group-tokens
-
-```clojure
-(meme.alpha.scan.grouper/group-tokens tokens source)
-```
-
-Returns `tokens` unchanged. All forms (reader conditionals, namespaced maps, syntax-quote) are parsed natively by the reader. `source` is accepted for API compatibility but unused.
 
 
 ## meme.alpha.scan.source

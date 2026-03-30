@@ -1,16 +1,11 @@
 (ns meme.alpha.scan.grouper
-  "Token grouping stage: pass-through (all forms are now parsed natively
-   by the recursive-descent parser). Retained for pipeline symmetry.")
-
-;; ---------------------------------------------------------------------------
-;; Group pass
-;; ---------------------------------------------------------------------------
+  "Vestigial token grouping stage — identity function.
+   All forms are now parsed natively by the recursive-descent parser.
+   No longer part of the pipeline; retained for backward compatibility
+   with test helpers that call group-tokens directly.")
 
 (defn group-tokens
-  "Pass-through stage — returns tokens unchanged.
-   All forms (reader conditionals, namespaced maps, syntax-quote) are now
-   parsed natively by the recursive-descent parser. Retained for pipeline symmetry.
-
-   source is accepted for API compatibility but unused."
+  "Identity — returns tokens unchanged.
+   Retained for backward compatibility. Not part of the pipeline."
   [tokens _source]
   tokens)

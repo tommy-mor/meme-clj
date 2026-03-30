@@ -54,15 +54,14 @@ clojure -T:build deploy
 ## Architecture
 
 ```
-.meme file → tokenizer → grouper → parser → Clojure forms → Babashka / Clojure JVM / ClojureScript
+.meme file → tokenizer → parser → Clojure forms → Babashka / Clojure JVM / ClojureScript
 ```
 
-The pipeline has five stages (composed by `meme.alpha.pipeline`), each a `ctx → ctx` function:
-1. **Strip-shebang** — remove `#!` line from `:source` (for executable scripts).
+The pipeline has composable stages (composed by `meme.alpha.pipeline`), each a `ctx → ctx` function:
+1. **Strip-shebang** — remove `#!` line from `:source` (for executable scripts). Not part of the core pipeline; used only by the runner.
 2. **Scan** (`meme.alpha.scan.tokenizer`) — characters → flat token vector. Compound forms emit marker tokens.
-3. **Group** (`meme.alpha.scan.grouper`) — pass-through stage (all forms are now parsed natively; retained for pipeline symmetry).
-4. **Parse** (`meme.alpha.parse.reader`) — recursive-descent parser, tokens → Clojure forms. Value resolution delegated to `meme.alpha.parse.resolve`.
-5. **Expand** (`meme.alpha.parse.expander`) — syntax-quote AST nodes → plain Clojure forms. Only needed before eval, not for tooling.
+3. **Parse** (`meme.alpha.parse.reader`) — recursive-descent parser, tokens → Clojure forms. Value resolution delegated to `meme.alpha.parse.resolve`.
+4. **Expand** (`meme.alpha.parse.expander`) — syntax-quote AST nodes → plain Clojure forms. Only needed before eval, not for tooling.
 
 - The reader is a **pure function** from meme text to Clojure forms. No runtime dependency. No `read-string` delegation — everything is parsed natively.
 - A printer (`meme.alpha.emit.printer`) converts Clojure forms back to meme syntax (also pure). Supports `:meme` and `:clj` output modes.
@@ -75,10 +74,10 @@ The pipeline has five stages (composed by `meme.alpha.pipeline`), each a `ctx �
 
 - `meme.alpha.errors` (.cljc) — Error infrastructure: `meme-error` (throw with consistent `:line`/`:col` ex-data), `format-error` (display with source context and caret), `source-context`. Uses the **display line model** (`str/split-lines` — splits on `\n` and `\r\n`). `format-error` bridges scanner positions to display: clamps carets when scanner col exceeds display line length (CRLF). Used by tokenizer, grouper, reader, and REPL. Portable.
 - `meme.alpha.forms` (.cljc) — Shared form-level predicates, constructors, and constants. Cross-stage contracts that both the parser and printer depend on (e.g. deferred auto-resolve keyword encoding, `percent-param-type`, `strip-internal-meta`). Portable.
-- `meme.alpha.scan.source` (.cljc) — Scanner-level source-position utilities. `line-col->offset` uses the **scanner line model** (only `\n` is a line break, `\r` occupies a column). Tokenizer and grouper must agree with this model. Note: the scanner and display line models diverge for CRLF sources — see `format-error` for how the bridge is handled. Portable.
+- `meme.alpha.scan.source` (.cljc) — Scanner-level source-position utilities. `line-col->offset` uses the **scanner line model** (only `\n` is a line break, `\r` occupies a column). Note: the scanner and display line models diverge for CRLF sources — see `format-error` for how the bridge is handled. Portable.
 - `meme.alpha.scan.tokenizer` (.cljc) — Character scanning and token production. Emits flat token vector with marker tokens for compound forms. Portable.
-- `meme.alpha.scan.grouper` (.cljc) — Pass-through stage (all forms are now parsed natively). Retained for pipeline symmetry. Portable.
-- `meme.alpha.parse.reader` (.cljc) — Recursive-descent parser (grouped tokens → Clojure forms). Delegates value resolution to `meme.alpha.parse.resolve`. Re-exports `expand-forms`/`expand-syntax-quotes` from `parse.expander` for backwards compatibility. Portable.
+- `meme.alpha.scan.grouper` (.cljc) — Vestigial pass-through (all forms are now parsed natively by the reader). Not part of the pipeline; retained for backward compatibility. Portable.
+- `meme.alpha.parse.reader` (.cljc) — Recursive-descent parser (tokens → Clojure forms). Delegates value resolution to `meme.alpha.parse.resolve`. Re-exports `expand-forms`/`expand-syntax-quotes` from `parse.expander` for backwards compatibility. Portable.
 - `meme.alpha.parse.expander` (.cljc) — Syntax-quote expansion: `MemeSyntaxQuote` AST nodes → plain Clojure forms (`seq`/`concat`/`list`). Called by runtime paths (run, repl) before eval. Also unwraps `MemeRaw` to plain values. Portable.
 - `meme.alpha.parse.resolve` (.cljc) — Value resolution: converts raw token text to Clojure values. Centralizes all host reader delegation (`read-string` calls) with consistent error wrapping. Handles platform asymmetries (JVM vs CLJS). Portable.
 - `meme.alpha.emit.printer` (.cljc) — Wadler-Lindig pretty-printer: `to-doc` (form → Doc tree) + `layout` (Doc tree → string at given width). Single source of truth for both flat and width-aware rendering. Supports `:meme` and `:clj` output modes. Portable.
@@ -94,7 +93,7 @@ The pipeline has five stages (composed by `meme.alpha.pipeline`), each a `ctx �
 
 | Tier | Modules | Platforms |
 |------|---------|-----------|
-| Core translation | tokenizer, grouper, reader, expander, resolve, printer, pprint, pipeline, core, errors, forms, source | JVM, Babashka, ClojureScript |
+| Core translation | tokenizer, reader, expander, resolve, printer, pprint, pipeline, core, errors, forms, source | JVM, Babashka, ClojureScript |
 | Runtime | repl, run | JVM, Babashka (CLJS possible with injected eval) |
 | Test infra | test-runner, dogfood-test, vendor-roundtrip-test | JVM only |
 
@@ -118,7 +117,7 @@ The pipeline has five stages (composed by `meme.alpha.pipeline`), each a `ctx �
 | File | What belongs here |
 |------|-------------------|
 | `scan/tokenizer_test` | Tokenizer behavior in isolation (token types, column tracking) |
-| `scan/grouper_test` | Grouper: pass-through behavior, marker token handling |
+| `scan/grouper_test` | Grouper: vestigial pass-through behavior tests |
 | `scan/source_test` | Source-position contract: `line-col->offset` |
 | `parse/reader/rule1_test` | Rule 1 (call syntax): head type x spacing x arity matrix |
 | `parse/reader/calls_test` | All Clojure forms as calls: def, defn, fn, let, loop, for, if, when, cond, try, threading, ns, protocols, records, multimethods, concurrency, "everything is a call" |
@@ -130,7 +129,7 @@ The pipeline has five stages (composed by `meme.alpha.pipeline`), each a `ctx �
 | `emit/printer_test` | Printer: Clojure forms → meme text. Individual form cases. |
 | `emit/pprint_test` | Pretty-printer: width-aware formatting, multi-line layout, comments |
 | `roundtrip_test` | Read → print → re-read identity. Structural invariant tests. |
-| `regression/scan_test` | Scar tissue: tokenizer and grouper bugs (bracket depth, char/string in syntax-quote, symbol parsing, EOF handling) |
+| `regression/scan_test` | Scar tissue: tokenizer bugs (bracket depth, char/string in syntax-quote, symbol parsing, EOF handling) |
 | `regression/reader_test` | Scar tissue: parser bugs (discard sentinel, depth limits, head types, spacing, duplicates, metadata) |
 | `regression/emit_test` | Scar tissue: printer and pprint bugs (regex escaping, reader-sugar pprint, deferred auto-keywords, metadata, comments, width) |
 | `regression/errors_test` | Scar tissue: error infrastructure and resolve error-wrapping bugs (source-context, gutter width, CLJS guards) |

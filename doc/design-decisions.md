@@ -17,23 +17,27 @@ The head of a list is written outside the parens: `f(x y)` → `(f x y)`.
 Everything else is Clojure.
 
 
-## Three-stage pipeline (scan → group → parse)
+## Two-stage pipeline (scan → parse)
 
-The reader pipeline is split into three explicit stages:
+The reader pipeline is split into two core stages:
 
 1. **Scan** (`meme.alpha.scan.tokenizer`) — character scanning → flat token vector.
    Compound forms (reader conditionals, namespaced maps, syntax-quote)
    emit marker tokens.
-2. **Group** (`meme.alpha.scan.grouper`) — pass-through stage (all forms are
-   now parsed natively; retained for pipeline symmetry).
-3. **Parse** (`meme.alpha.parse.reader`) — recursive-descent parser → Clojure forms.
+2. **Parse** (`meme.alpha.parse.reader`) — recursive-descent parser → Clojure forms.
    No `read-string` delegation — all values resolved natively.
 
-The three-stage split makes each stage independently testable and the
-pipeline extensible. The grouper operates on already-tokenized input where
-bracket matching is trivial — strings, chars, and comments are individual
-tokens, so `\)` inside a string is just a `:string` token, not a closing
-paren.
+The split makes each stage independently testable and the pipeline extensible.
+The tokenizer handles all character-level concerns (strings, chars, comments
+are individual tokens, so `\)` inside a string is just a `:string` token,
+not a closing paren). The parser handles all structural concerns.
+
+A grouper stage previously existed between scan and parse, collapsing
+"opaque regions" (reader conditionals, namespaced maps, syntax-quote) into
+single grouped tokens. As the parser gained native support for each of
+these forms, the grouper became a pass-through and was removed from the
+pipeline. `meme.alpha.scan.grouper` is retained as a vestigial identity
+function for backward compatibility.
 
 `meme.alpha.pipeline` composes the stages as `ctx → ctx` functions, threading a
 context map with `:source`, `:raw-tokens`, `:tokens`, `:forms`. This makes
@@ -227,7 +231,7 @@ behavior to the host platform without depending on its reader.
 
 The codebase is split into three platform tiers:
 
-- **Core translation** (tokenizer, grouper, reader, resolve, printer,
+- **Core translation** (tokenizer, reader, resolve, printer,
   pipeline, core, errors) — portable `.cljc`, runs on JVM, Babashka,
   and ClojureScript. These are pure functions with no eval or I/O dependency.
 - **Runtime** (repl, run) — `.cljc` but require `eval` and `read-line`/
@@ -289,8 +293,8 @@ attachment disagreed after a newline.
 
 Note: the grouper previously used `extract-source-range` to capture raw
 text for opaque regions, but all forms are now parsed natively and the
-grouper is a pass-through. The shared contract remains important for
-the tokenizer's whitespace attachment.
+grouper has been removed from the pipeline. The shared contract remains
+important for the tokenizer's whitespace attachment.
 
 
 ## Centralized error infrastructure (meme.alpha.errors)
@@ -298,7 +302,7 @@ the tokenizer's whitespace attachment.
 All error throw sites go through `meme-error`, which constructs `ex-info`
 with a consistent structure: `:line`, `:col` (1-indexed), optional
 `:cause`, and optional `:source-context`. This gives every error —
-whether from the tokenizer, grouper, reader, or resolver — a uniform
+whether from the tokenizer, reader, or resolver — a uniform
 shape that callers can rely on.
 
 The `:incomplete` flag in ex-data is the REPL continuation protocol.
