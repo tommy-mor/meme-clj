@@ -366,7 +366,13 @@
         (tok-type? (ppeek p) :close-paren)
         (do (padvance! p)
             (if (discard-sentinel? matched)
-              discard-sentinel
+              ;; No match — consume any adjacent call args intended for the result.
+              ;; e.g. #?(:cljs identity)(42) on JVM: discard (42) along with the head.
+              (do (loop []
+                    (when (adjacent-open-paren? p)
+                      (parse-call-args p)
+                      (recur)))
+                  discard-sentinel)
               (if splice?
                 (if (sequential? matched)
                   (splice-result matched)

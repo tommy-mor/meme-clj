@@ -482,6 +482,28 @@
     (is (= [] (core/meme->forms "#?()")))))
 
 ;; ---------------------------------------------------------------------------
+;; Scar tissue: non-matching reader conditional with adjacent call args must
+;; consume the args, not leave them as bare parentheses.
+;; Bug: parse-reader-cond-eval returned discard-sentinel without consuming
+;; adjacent (args), causing "Bare parentheses not allowed" on the next parse.
+;; Fix: loop-consume adjacent call args when returning discard-sentinel.
+;; ---------------------------------------------------------------------------
+
+(deftest reader-conditional-no-match-consumes-call-args
+  (testing "non-matching reader cond with call args produces no form"
+    #?(:clj  (is (= [] (core/meme->forms "#?(:cljs identity)(42)")))
+       :cljs (is (= [] (core/meme->forms "#?(:clj identity)(42)")))))
+  (testing "chained call args also consumed"
+    #?(:clj  (is (= [] (core/meme->forms "#?(:cljs identity)(42)(43)")))
+       :cljs (is (= [] (core/meme->forms "#?(:clj identity)(42)(43)")))))
+  (testing "surrounding forms preserved"
+    #?(:clj  (is (= [1 2] (core/meme->forms "1 #?(:cljs inc)(42) 2")))
+       :cljs (is (= [1 2] (core/meme->forms "1 #?(:clj inc)(42) 2")))))
+  (testing "matching case still works with call args"
+    #?(:clj  (is (= ['(inc 42)] (core/meme->forms "#?(:clj inc)(42)")))
+       :cljs (is (= ['(identity 42)] (core/meme->forms "#?(:cljs identity)(42)"))))))
+
+;; ---------------------------------------------------------------------------
 ;; Scar tissue: #_ inside reader conditional must not consume platform keyword.
 ;; Bug: #_ read-through consumed the next platform keyword as the branch value,
 ;; corrupting the pair structure. e.g. #?(:clj #_x :cljs 99) — #_ discards x,
