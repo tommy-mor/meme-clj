@@ -57,10 +57,12 @@ clojure -T:build deploy
 .meme file → tokenizer → grouper → parser → Clojure forms → Babashka / Clojure JVM / ClojureScript
 ```
 
-The pipeline has three stages (composed by `meme.alpha.pipeline`):
-1. **Scan** (`meme.alpha.scan.tokenizer`) — characters → flat token vector. Compound forms emit marker tokens.
-2. **Group** (`meme.alpha.scan.grouper`) — pass-through stage (all forms are now parsed natively; retained for pipeline symmetry).
-3. **Parse** (`meme.alpha.parse.reader`) — recursive-descent parser, tokens → Clojure forms. Value resolution delegated to `meme.alpha.parse.resolve`.
+The pipeline has five stages (composed by `meme.alpha.pipeline`), each a `ctx → ctx` function:
+1. **Strip-shebang** — remove `#!` line from `:source` (for executable scripts).
+2. **Scan** (`meme.alpha.scan.tokenizer`) — characters → flat token vector. Compound forms emit marker tokens.
+3. **Group** (`meme.alpha.scan.grouper`) — pass-through stage (all forms are now parsed natively; retained for pipeline symmetry).
+4. **Parse** (`meme.alpha.parse.reader`) — recursive-descent parser, tokens → Clojure forms. Value resolution delegated to `meme.alpha.parse.resolve`.
+5. **Expand** (`meme.alpha.parse.expander`) — syntax-quote AST nodes → plain Clojure forms. Only needed before eval, not for tooling.
 
 - The reader is a **pure function** from meme text to Clojure forms. No runtime dependency. No `read-string` delegation — everything is parsed natively.
 - A printer (`meme.alpha.emit.printer`) converts Clojure forms back to meme syntax (also pure). Supports `:meme` and `:clj` output modes.
@@ -79,9 +81,9 @@ The pipeline has three stages (composed by `meme.alpha.pipeline`):
 - `meme.alpha.parse.reader` (.cljc) — Recursive-descent parser (grouped tokens → Clojure forms). Delegates value resolution to `meme.alpha.parse.resolve`. Re-exports `expand-forms`/`expand-syntax-quotes` from `parse.expander` for backwards compatibility. Portable.
 - `meme.alpha.parse.expander` (.cljc) — Syntax-quote expansion: `MemeSyntaxQuote` AST nodes → plain Clojure forms (`seq`/`concat`/`list`). Called by runtime paths (run, repl) before eval. Also unwraps `MemeRaw` to plain values. Portable.
 - `meme.alpha.parse.resolve` (.cljc) — Value resolution: converts raw token text to Clojure values. Centralizes all host reader delegation (`read-string` calls) with consistent error wrapping. Handles platform asymmetries (JVM vs CLJS). Portable.
-- `meme.alpha.emit.printer` (.cljc) — Pattern-matches on Clojure form structure to produce meme text. Portable.
-- `meme.alpha.emit.pprint` (.cljc) — Pretty-printer: width-aware, uses indented parenthesized form for multi-line calls. Preserves comments from `:ws` metadata. Portable.
-- `meme.alpha.pipeline` (.cljc) — Explicit pipeline composition: `scan → group → parse`. Each stage is a `ctx → ctx` function. Exposes intermediate state (`:raw-tokens`, `:tokens`, `:forms`) for tooling. Portable.
+- `meme.alpha.emit.printer` (.cljc) — Wadler-Lindig pretty-printer: `to-doc` (form → Doc tree) + `layout` (Doc tree → string at given width). Single source of truth for both flat and width-aware rendering. Supports `:meme` and `:clj` output modes. Portable.
+- `meme.alpha.emit.pprint` (.cljc) — Thin wrapper: `pprint-form` = `to-doc` + `layout` at configured width. Preserves comments from `:ws` metadata. Portable.
+- `meme.alpha.pipeline` (.cljc) — Composable pipeline stages: `strip-shebang`, `scan`, `group`, `parse`, `expand`. Each is a `ctx → ctx` function. Context map contract documented in namespace docstring. Exposes intermediate state (`:raw-tokens`, `:tokens`, `:forms`) for tooling. Portable.
 - `meme.alpha.core` (.cljc) — Public API in three tracks: text-to-form (`meme->forms`, `forms->meme`), form-to-text (`forms->clj`, `clj->forms`), text-to-text (`meme->clj`, `clj->meme`). Also `pprint-meme` for pretty-printing and `run-pipeline` for tooling access to intermediate pipeline state. `clj->forms` and `clj->meme` are JVM only.
 - `meme.alpha.runtime.repl` (.cljc) — REPL. Requires `eval`; JVM/Babashka only by default, CLJS with injected `:eval`/`:read-line`.
 - `meme.alpha.runtime.run` (.cljc) — File runner. Requires `eval` + `slurp`; JVM/Babashka only by default.

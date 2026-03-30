@@ -1,7 +1,6 @@
 (ns meme.alpha.runtime.repl
   "meme REPL: read meme, eval as Clojure, print result."
   (:require [meme.alpha.pipeline :as pipeline]
-            [meme.alpha.parse.expander :as expander]
             [meme.alpha.errors :as errors]
             [clojure.string :as str]
             #?(:clj [clojure.java.io :as io])))
@@ -113,9 +112,10 @@
 
              (:forms parsed)
              (do (try
-                   (doseq [form (expander/expand-forms (:forms parsed) reader-opts)]
-                     (let [result (eval-fn form)]
-                       (prn result)))
+                   (let [expanded (:forms (pipeline/expand {:forms (:forms parsed) :opts reader-opts}))]
+                     (doseq [form expanded]
+                       (let [result (eval-fn form)]
+                         (prn result))))
                    (catch #?(:clj Throwable :cljs :default) e
                      (print-error e (:input parsed))))
                  (recur))
