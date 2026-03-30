@@ -8,8 +8,7 @@
 
    Pipeline:
      meme.alpha.pipeline/run — full ctx->ctx pipeline with intermediate state"
-  (:require [clojure.string :as str]
-            [meme.alpha.emit.printer :as printer]
+  (:require [meme.alpha.emit.printer :as printer]
             [meme.alpha.emit.pprint :as pprint]
             [meme.alpha.pipeline :as pipeline]))
 
@@ -46,9 +45,9 @@
 ;; ---------------------------------------------------------------------------
 
 (defn forms->clj
-  "Print Clojure forms as Clojure source string."
+  "Print Clojure forms as Clojure source string with reader sugar."
   [forms]
-  (str/join "\n\n" (map pr-str forms)))
+  (printer/print-clj-string forms))
 
 #?(:clj
 (def ^:private eof-sentinel (Object.)))

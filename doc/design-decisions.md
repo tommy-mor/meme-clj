@@ -316,3 +316,43 @@ The secondary locations and hints are extension points for richer
 diagnostics as the error system grows.
 
 
+## Syntactic transparency — sugar preservation
+
+meme is a **syntactic lens**, not a compiler. The read→print pipeline
+must be transparent: if the user writes `'x` (sugar), it prints back as
+`'x`; if they write `quote(x)` (explicit call), it prints back as
+`quote(x)`. The same applies to `@`/`clojure.core/deref` and
+`#'`/`var`.
+
+**Principle:** Every piece of user syntax that has more than one
+representation must be preserved through the pipeline. When the reader
+collapses two notations into the same Clojure form, it must tag the form
+with metadata recording which notation was used. The printer checks that
+metadata to reconstruct the original syntax.
+
+**Implementation:** The reader attaches `:meme/sugar true` metadata to
+forms produced by sugar syntax (`'`, `@`, `#'`). The printer checks
+this: sugar-tagged forms emit sugar; untagged forms emit the explicit
+call. The `:meme/sugar` key is stripped from display metadata (alongside
+`:line`, `:column`, `:file`, `:ws`) so it never appears in output.
+
+**Why this matters:** Without this, the pipeline silently normalizes
+user code. `var(x)` becomes `#'x`. `quote(list)` becomes `'list`.
+A syntactic lens that rewrites your code is not a lens — it's a
+formatter with opinions. Every new syntax feature should be checked:
+can two notations produce the same form? If yes, metadata must
+distinguish them.
+
+**Known remaining losses** (as of v0.5.0-alpha):
+- Numeric representations: `0xFF`, `010`, `2r1010`, `1e2` all resolve
+  to values, losing the original notation.
+- Character escapes: `\u0041`, `\o101` resolve to the char value.
+- String unicode escapes: `\u0041` inside strings decoded to literal.
+- Syntax-quote: expanded at read time, no inverse exists.
+- Namespaced maps: `#:ns{:a 1}` expanded to `{:ns/a 1}`.
+- Commas: treated as whitespace, not preserved.
+- `#_` discarded forms: gone by design.
+- Chained metadata annotations: merged, order and count lost.
+- Set element ordering: hash-determined.
+
+

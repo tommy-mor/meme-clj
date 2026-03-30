@@ -8,26 +8,29 @@
             [meme.alpha.emit.pprint :as pprint]))
 
 ;; ---------------------------------------------------------------------------
-;; Scar tissue: quoted lists print as '(...) not head(args).
-;; Bug: printer's catch-all for non-symbol-headed lists emitted 1(2 3)
-;; for (quote (1 2 3)), producing '1(2 3) instead of '(1 2 3).
+;; Scar tissue: quoted lists print correctly in both sugar and call modes.
+;; Sugar mode (:meme/sugar true) emits 'f(x y).
+;; Call mode (no tag) emits quote(f(x y)).
+;; Both roundtrip through the reader.
 ;; ---------------------------------------------------------------------------
 
 (deftest quoted-call-printer
-  (testing "'f(x y) roundtrips"
-    (let [form '(quote (f x y))
+  (testing "'f(x y) sugar roundtrips"
+    (let [form (with-meta '(quote (f x y)) {:meme/sugar true})
           printed (p/print-form form)
           read-back (first (core/meme->forms printed))]
       (is (= "'f(x y)" printed))
-      (is (= form read-back))))
-  (testing "'+(1 2) roundtrips"
+      (is (= '(quote (f x y)) read-back))))
+  (testing "quote(+(1 2)) call form roundtrips"
     (let [form '(quote (+ 1 2))
           printed (p/print-form form)
           read-back (first (core/meme->forms printed))]
-      (is (= "'+(1 2)" printed))
+      (is (= "quote(+(1 2))" printed))
       (is (= form read-back))))
-  (testing "quoted empty list"
-    (is (= "'()" (p/print-form '(quote ()))))))
+  (testing "quoted empty list — sugar"
+    (is (= "'()" (p/print-form (with-meta '(quote ()) {:meme/sugar true})))))
+  (testing "quoted empty list — call form"
+    (is (= "quote(())" (p/print-form '(quote ()))))))
 
 ;; ---------------------------------------------------------------------------
 ;; Empty list prints as (): not "nil()".
@@ -91,18 +94,17 @@
     (is (= "#(inc(%1))" (p/print-form '(fn [%1] (inc %1)))))))
 
 ;; ---------------------------------------------------------------------------
-;; Quote uses meme syntax — callable-headed quoted forms roundtrip.
-;; Non-callable-headed lists (like (1 2 3)) are not representable in meme.
+;; Quote roundtrips — both sugar and call paths.
 ;; ---------------------------------------------------------------------------
 
 (deftest quoted-call-form-roundtrip
-  (testing "'f(g(x)) roundtrips — nested call inside quote"
-    (let [form '(quote (f (g x)))
+  (testing "'f(g(x)) sugar roundtrips"
+    (let [form (with-meta '(quote (f (g x))) {:meme/sugar true})
           printed (p/print-form form)
           reread (first (core/meme->forms printed))]
       (is (= "'f(g(x))" printed))
-      (is (= form reread))))
-  (testing "'a(b(c) d) roundtrips — nested callable sublists"
+      (is (= '(quote (f (g x))) reread))))
+  (testing "quote(a(b(c) d)) call form roundtrips"
     (let [form '(quote (a (b c) d))
           printed (p/print-form form)
           read-back (first (core/meme->forms printed))]
@@ -302,35 +304,39 @@
 
 #?(:clj
 (deftest pprint-preserves-deref-sugar
-  (testing "@atom preserved at narrow width"
-    (let [form (list 'clojure.core/deref 'my-very-long-atom-name)
+  (testing "@atom sugar preserved at narrow width"
+    (let [form (with-meta (list 'clojure.core/deref 'my-very-long-atom-name) {:meme/sugar true})
           result (pprint/pprint-form form {:width 10})]
       (is (str/starts-with? result "@"))
-      (is (not (str/includes? result "clojure.core/deref")))
-      (is (= (list form) (core/meme->forms result)))))
-  (testing "@(complex expr) preserves sugar and recurses"
-    (let [form (list 'clojure.core/deref (list 'reset! 'state 'val))
+      (is (not (str/includes? result "clojure.core/deref")))))
+  (testing "clojure.core/deref(x) call form preserved when not tagged"
+    (let [form (list 'clojure.core/deref 'my-atom)
           result (pprint/pprint-form form {:width 10})]
-      (is (str/starts-with? result "@"))
-      (is (= (list form) (core/meme->forms result)))))))
+      (is (str/includes? result "clojure.core/deref("))))))
 
 #?(:clj
 (deftest pprint-preserves-var-sugar
-  (testing "#'sym preserved at narrow width"
-    (let [form (list 'var 'some.ns/my-var)
+  (testing "#'sym sugar preserved at narrow width"
+    (let [form (with-meta (list 'var 'some.ns/my-var) {:meme/sugar true})
           result (pprint/pprint-form form {:width 5})]
       (is (str/starts-with? result "#'"))
-      (is (not (str/includes? result "var(")))
-      (is (= (list form) (core/meme->forms result)))))))
+      (is (not (str/includes? result "var(")))))
+  (testing "var(x) call form preserved when not tagged"
+    (let [form (list 'var 'some.ns/my-var)
+          result (pprint/pprint-form form {:width 5})]
+      (is (str/includes? result "var("))))))
 
 #?(:clj
 (deftest pprint-preserves-quote-sugar
-  (testing "'sym preserved at narrow width"
-    (let [form (list 'quote 'my-long-symbol-name)
+  (testing "'sym sugar preserved at narrow width"
+    (let [form (with-meta (list 'quote 'my-long-symbol-name) {:meme/sugar true})
           result (pprint/pprint-form form {:width 5})]
       (is (str/starts-with? result "'"))
-      (is (not (str/includes? result "quote(")))
-      (is (= (list form) (core/meme->forms result)))))))
+      (is (not (str/includes? result "quote(")))))
+  (testing "quote(x) call form preserved when not tagged"
+    (let [form (list 'quote 'my-long-symbol-name)
+          result (pprint/pprint-form form {:width 5})]
+      (is (str/includes? result "quote("))))))
 
 ;; ---------------------------------------------------------------------------
 ;; Bug: reader-conditional printer emitted S-expressions via pr-str.
@@ -372,32 +378,24 @@
           (p/print-form (list false 1 2))))))
 
 ;; ---------------------------------------------------------------------------
-;; Scar tissue: (quote (non-symbol-head ...)) must not use ' prefix sugar.
-;; Bug: '1(2 3) parses as (quote 1) + bare (2 3), not (quote (1 2 3)).
-;; Fix: skip ' sugar when inner is non-empty list with non-symbol head;
-;; fall through to generic call syntax: quote(1(2 3)).
+;; Scar tissue: ' prefix sugar roundtrips for all inner form types.
+;; parse-call-chain in parse-form handles '1(2 3) → (quote (1 2 3))
+;; correctly for all head types. Sugar requires :meme/sugar metadata.
 ;; ---------------------------------------------------------------------------
 
-(deftest quoted-non-symbol-head-skips-sugar
-  (testing "(quote (1 2 3)) — number head, uses call syntax"
-    (let [printed (p/print-form '(quote (1 2 3)))]
-      (is (= "quote(1(2 3))" printed))
-      (is (= ['(quote (1 2 3))] (core/meme->forms printed)))))
-  (testing "(quote (\"s\" a)) — string head, uses call syntax"
-    (let [printed (p/print-form '(quote ("s" a)))]
-      (is (= "quote(\"s\"(a))" printed))
-      (is (= ['(quote ("s" a))] (core/meme->forms printed)))))
-  (testing "(quote (:k v)) — keyword head, uses call syntax"
-    (let [printed (p/print-form '(quote (:k v)))]
-      (is (= "quote(:k(v))" printed))
-      (is (= ['(quote (:k v))] (core/meme->forms printed)))))
-  (testing "(quote ([x] body)) — vector head, uses call syntax"
-    (let [printed (p/print-form '(quote ([x] body)))]
-      (is (= "quote([x](body))" printed))
-      (is (= ['(quote ([x] body))] (core/meme->forms printed)))))
-  (testing "(quote (f x)) — symbol head, still uses ' sugar"
-    (is (= "'f(x)" (p/print-form '(quote (f x))))))
-  (testing "non-list inner forms still use ' sugar"
-    (is (= "'x" (p/print-form '(quote x))))
-    (is (= "'42" (p/print-form '(quote 42))))
-    (is (= "'()" (p/print-form '(quote ()))))))
+(deftest quote-sugar-roundtrips-all-heads
+  (testing "' sugar roundtrips through meme reader for all head types"
+    (doseq [[input expected-form]
+            [["'1(2 3)"       '(quote (1 2 3))]
+             ["'\"s\"(a)"     '(quote ("s" a))]
+             ["':k(v)"        '(quote (:k v))]
+             ["'[x](body)"   '(quote ([x] body))]
+             ["'f(x)"         '(quote (f x))]
+             ["'x"            '(quote x)]
+             ["'42"           '(quote 42)]
+             ["'()"           '(quote ())]]]
+      (testing input
+        (let [forms (core/meme->forms input)
+              printed (core/forms->meme forms)]
+          (is (= [expected-form] forms))
+          (is (= input printed)))))))

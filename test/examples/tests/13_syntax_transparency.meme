@@ -1,0 +1,47 @@
+; Syntax transparency — meme is a syntactic lens, not a normalizer.
+; The read→print pipeline must preserve the user's syntax choices.
+
+require('[meme.alpha.core :as m])
+
+;; Helper: roundtrip meme source through read→print
+defn(rt [src] m/forms->meme(m/meme->forms(src)))
+
+;; ---------------------------------------------------------------
+;; Quote: 'x sugar vs quote(x) call — both must roundtrip exactly
+;; ---------------------------------------------------------------
+
+;; Sugar forms preserved
+assert(=(rt("'foo") "'foo"))
+assert(=(rt("'f(x y)") "'f(x y)"))
+assert(=(rt("'()") "'()"))
+
+;; Call forms preserved
+assert(=(rt("quote(foo)") "quote(foo)"))
+assert(=(rt("quote(f(x))") "quote(f(x))"))
+
+;; ---------------------------------------------------------------
+;; Deref: @x sugar vs clojure.core/deref(x) call
+;; ---------------------------------------------------------------
+
+assert(=(rt("@foo") "@foo"))
+assert(=(rt("clojure.core/deref(foo)") "clojure.core/deref(foo)"))
+
+;; ---------------------------------------------------------------
+;; Var: #'x sugar vs var(x) call
+;; ---------------------------------------------------------------
+
+assert(=(rt("#'foo") "#'foo"))
+assert(=(rt("var(foo)") "var(foo)"))
+
+;; ---------------------------------------------------------------
+;; Clojure output also preserves syntax choices
+;; ---------------------------------------------------------------
+
+defn(rt-clj [src] m/meme->clj(src))
+
+assert(=(rt-clj("'foo") "'foo"))
+assert(=(rt-clj("quote(foo)") "(quote foo)"))
+assert(=(rt-clj("@foo") "@foo"))
+assert(=(rt-clj("clojure.core/deref(foo)") "(clojure.core/deref foo)"))
+assert(=(rt-clj("#'foo") "#'foo"))
+assert(=(rt-clj("var(foo)") "(var foo)"))

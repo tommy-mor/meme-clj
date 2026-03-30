@@ -519,7 +519,7 @@
             (when (discard-sentinel? inner)
               (errors/meme-error "Deref target was discarded by #_ — nothing to dereference"
                                 (error-data p (select-keys tok [:line :col]))))
-            (list 'clojure.core/deref inner)))
+            (with-meta (list 'clojure.core/deref inner) {:meme/sugar true})))
 
       :meta
       (do (padvance! p)
@@ -548,7 +548,7 @@
             (when (discard-sentinel? inner)
               (errors/meme-error "Quote target was discarded by #_ — nothing to quote"
                                 (error-data p (select-keys tok [:line :col]))))
-            (list 'quote inner)))
+            (with-meta (list 'quote inner) {:meme/sugar true})))
 
       :syntax-quote
       ;; ` — parse next form with meme rules, then expand
@@ -590,7 +590,7 @@
             (when (discard-sentinel? inner)
               (errors/meme-error "Var-quote target was discarded by #_ — nothing to reference"
                                 (error-data p (select-keys tok [:line :col]))))
-            (list 'var inner)))
+            (with-meta (list 'var inner) {:meme/sugar true})))
 
       :discard
       ;; #_ discards the next form and, if a non-boundary form follows,

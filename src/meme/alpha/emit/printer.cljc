@@ -1,5 +1,7 @@
 (ns meme.alpha.emit.printer
-  "meme printer: Clojure forms → meme text."
+  "Form printer: Clojure forms → meme or Clojure text.
+   Mode :meme (default) emits head(args...) call syntax.
+   Mode :clj emits (head args...) S-expression syntax with reader sugar."
   (:require [clojure.string :as str]
             [meme.alpha.forms :as forms]))
 
@@ -9,6 +11,12 @@
 
 (declare print-form)
 
+;; ---------------------------------------------------------------------------
+;; Mode — :meme or :clj
+;; ---------------------------------------------------------------------------
+
+(def ^:dynamic *mode* :meme)
+
 
 ;; ---------------------------------------------------------------------------
 ;; Print helpers
@@ -17,7 +25,7 @@
 (defn- print-args
   "Print a sequence of forms separated by spaces."
   [forms]
-  (str/join " " (map print-form forms)))
+  (str/join " " (map #(print-form %) forms)))
 
 (defn- percent-param?
   "Is sym a % parameter symbol (%1, %2, %&)?"
@@ -82,8 +90,8 @@
          #?(:clj (instance? clojure.lang.IMeta form)
             :cljs (satisfies? IMeta form))
          (some? (meta form))
-         (seq (dissoc (meta form) :line :column :file :ws)))
-    (let [m (dissoc (meta form) :line :column :file :ws)
+         (seq (dissoc (meta form) :line :column :file :ws :meme/sugar)))
+    (let [m (dissoc (meta form) :line :column :file :ws :meme/sugar)
           stripped (with-meta form nil)
           prefix (cond
                    ;; single true-valued keyword: ^:key
@@ -117,7 +125,8 @@
 
     ;; Non-callable heads: nil, true, false are resolved as literals by the reader,
     ;; not as symbols — they cannot be call heads in meme syntax.
-    (and (seq? form) (seq form) (contains? #{nil true false} (first form)))
+    ;; In :clj mode, fall through to generic S-expression printing.
+    (and (= *mode* :meme) (seq? form) (seq form) (contains? #{nil true false} (first form)))
     (throw (ex-info (str "Cannot print list with " (pr-str (first form))
                          " as head — not representable in meme syntax")
                     {:form form}))
@@ -129,24 +138,23 @@
         (anon-fn-shorthand? form)
         (str "#(" (print-form (nth form 2)) ")")
 
-        ;; @deref
-        (= head 'clojure.core/deref) (str "@" (print-form (second form)))
+        ;; @deref — sugar only when :meme/sugar tagged by reader
+        (and (= head 'clojure.core/deref) (:meme/sugar (meta form)))
+        (str "@" (print-form (second form)))
 
-        ;; 'quote — prefix sugar.
-        ;; Skip sugar when inner form is a non-empty list with a non-symbol head:
-        ;; '1(2 3) would parse as (quote 1) + bare (2 3), not (quote (1 2 3)).
-        ;; Fall through to generic call: quote(1(2 3)) which roundtrips correctly.
-        (and (= head 'quote)
-             (let [inner (second form)]
-               (not (and (seq? inner) (seq inner) (not (symbol? (first inner)))))))
+        ;; 'quote — sugar only when :meme/sugar tagged by reader
+        (and (= head 'quote) (:meme/sugar (meta form)))
         (str "'" (print-form (second form)))
 
-        ;; #'var
-        (= head 'var) (str "#'" (print-form (second form)))
+        ;; #'var — sugar only when :meme/sugar tagged by reader
+        (and (= head 'var) (:meme/sugar (meta form)))
+        (str "#'" (print-form (second form)))
 
-        ;; call: head(args...) — uniform for all head types
+        ;; call: meme emits head(args...), clj emits (head args...)
         :else
-        (str (print-form head) "(" (print-args (rest form)) ")")))
+        (if (= *mode* :clj)
+          (str "(" (print-form head) (when (seq (rest form)) (str " " (print-args (rest form)))) ")")
+          (str (print-form head) "(" (print-args (rest form)) ")"))))
 
     ;; reader conditional — walk inner forms with meme syntax
     ;; Must be before map? because CLJS MemeReaderConditional is a defrecord (satisfies map?)
@@ -228,3 +236,9 @@
   "Print Clojure forms as meme text."
   [forms]
   (str/join "\n\n" (map print-form forms)))
+
+(defn print-clj-string
+  "Print Clojure forms as Clojure text with reader sugar ('quote, @deref, #'var)."
+  [forms]
+  (binding [*mode* :clj]
+    (str/join "\n\n" (map print-form forms))))

@@ -199,8 +199,8 @@
              #?(:clj  (instance? clojure.lang.IMeta form)
                 :cljs (satisfies? IMeta form))
              (some? (meta form))
-             (seq (dissoc (meta form) :line :column :file :ws)))
-    (let [m (dissoc (meta form) :line :column :file :ws)
+             (seq (dissoc (meta form) :line :column :file :ws :meme/sugar)))
+    (let [m (dissoc (meta form) :line :column :file :ws :meme/sugar)
           prefix (cond
                    (and (= 1 (count m))
                         (keyword? (key (first m)))
@@ -234,20 +234,16 @@
                     (forms/deferred-auto-keyword? form)
                     (forms/deferred-auto-keyword-raw form)
 
-                    ;; Quote — prefix sugar.
-                    ;; Skip sugar when inner is a non-empty list with non-symbol head:
-                    ;; '1(2 3) parses as (quote 1) + bare (2 3), not (quote (1 2 3)).
-                    (and (call? form) (= 'quote (first form))
-                         (let [inner (second form)]
-                           (not (and (seq? inner) (seq inner) (not (symbol? (first inner)))))))
+                    ;; Quote — prefix sugar (only when tagged by reader)
+                    (and (call? form) (= 'quote (first form)) (:meme/sugar (meta form)))
                     (str "'" (pp (second form) (inc col) width))
 
-                    ;; @deref — preserve sugar, recurse on inner
-                    (and (call? form) (= 'clojure.core/deref (first form)))
+                    ;; @deref — prefix sugar (only when tagged by reader)
+                    (and (call? form) (= 'clojure.core/deref (first form)) (:meme/sugar (meta form)))
                     (str "@" (pp (second form) (inc col) width))
 
-                    ;; #'var — preserve sugar (inner is always a symbol)
-                    (and (call? form) (= 'var (first form)))
+                    ;; #'var — prefix sugar (only when tagged by reader)
+                    (and (call? form) (= 'var (first form)) (:meme/sugar (meta form)))
                     (str "#'" (flat (second form)))
 
                     ;; Calls — the main case

@@ -179,13 +179,22 @@
 ;; ---------------------------------------------------------------------------
 
 (deftest print-deref
-  (is (= "@state" (p/print-form '(clojure.core/deref state)))))
+  (testing "sugar: @x when :meme/sugar tagged"
+    (is (= "@state" (p/print-form (with-meta '(clojure.core/deref state) {:meme/sugar true})))))
+  (testing "call form when not tagged"
+    (is (= "clojure.core/deref(state)" (p/print-form '(clojure.core/deref state))))))
 
 (deftest print-var-quote
-  (is (= "#'foo" (p/print-form '(var foo)))))
+  (testing "sugar: #'x when :meme/sugar tagged"
+    (is (= "#'foo" (p/print-form (with-meta '(var foo) {:meme/sugar true})))))
+  (testing "call form when not tagged"
+    (is (= "var(foo)" (p/print-form '(var foo))))))
 
 (deftest print-quote
-  (is (= "'foo" (p/print-form '(quote foo)))))
+  (testing "sugar: 'x when :meme/sugar tagged"
+    (is (= "'foo" (p/print-form (with-meta '(quote foo) {:meme/sugar true})))))
+  (testing "call form when not tagged"
+    (is (= "quote(foo)" (p/print-form '(quote foo))))))
 
 ;; ---------------------------------------------------------------------------
 ;; Primitives

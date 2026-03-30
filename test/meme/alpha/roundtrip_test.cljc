@@ -714,3 +714,59 @@
   (testing "#? inside a call"
     (let [[f1 f2 _] (roundtrip-preserve "let([x #?(:clj 1 :cljs 2)] x)")]
       (is (= f1 f2)))))
+
+;; ---------------------------------------------------------------------------
+;; Sugar syntax preservation
+;; meme is a syntactic lens — the printer must preserve the user's syntax
+;; choice between sugar ('x, @x, #'x) and explicit call (quote(x), etc.).
+;; The reader tags sugar forms with :meme/sugar metadata so the printer
+;; can reconstruct the original notation.
+;; ---------------------------------------------------------------------------
+
+(defn- roundtrip-syntax
+  "Parse meme string, print back, and verify the printed text matches the input.
+   Tests syntactic transparency — the lens should not alter the user's notation."
+  [meme-src]
+  (let [forms (core/meme->forms meme-src)
+        printed (core/forms->meme forms)]
+    printed))
+
+(deftest roundtrip-quote-sugar-preserved
+  (testing "'x sugar roundtrips as 'x, not quote(x)"
+    (is (= "'foo" (roundtrip-syntax "'foo"))))
+  (testing "'f(x) sugar roundtrips as 'f(x)"
+    (is (= "'f(x)" (roundtrip-syntax "'f(x)"))))
+  (testing "'(1 2 3) with number head roundtrips as sugar"
+    (is (= "'1(2 3)" (roundtrip-syntax "'1(2 3)"))))
+  (testing "quote(x) explicit call roundtrips as quote(x), not 'x"
+    (is (= "quote(foo)" (roundtrip-syntax "quote(foo)"))))
+  (testing "quote(f(x)) explicit call preserves call form"
+    (is (= "quote(f(x))" (roundtrip-syntax "quote(f(x))")))))
+
+(deftest roundtrip-deref-sugar-preserved
+  (testing "@x sugar roundtrips as @x"
+    (is (= "@foo" (roundtrip-syntax "@foo"))))
+  (testing "@f(x) sugar roundtrips as @f(x)"
+    (is (= "@f(x)" (roundtrip-syntax "@f(x)"))))
+  (testing "clojure.core/deref(x) explicit call roundtrips as call"
+    (is (= "clojure.core/deref(foo)" (roundtrip-syntax "clojure.core/deref(foo)")))))
+
+(deftest roundtrip-var-sugar-preserved
+  (testing "#'x sugar roundtrips as #'x"
+    (is (= "#'foo" (roundtrip-syntax "#'foo"))))
+  (testing "var(x) explicit call roundtrips as var(x)"
+    (is (= "var(foo)" (roundtrip-syntax "var(foo)")))))
+
+(deftest roundtrip-sugar-in-clj-output
+  (testing "meme 'x → clj 'x"
+    (is (= "'foo" (core/meme->clj "'foo"))))
+  (testing "meme quote(x) → clj (quote x)"
+    (is (= "(quote foo)" (core/meme->clj "quote(foo)"))))
+  (testing "meme @x → clj @x"
+    (is (= "@foo" (core/meme->clj "@foo"))))
+  (testing "meme clojure.core/deref(x) → clj (clojure.core/deref x)"
+    (is (= "(clojure.core/deref foo)" (core/meme->clj "clojure.core/deref(foo)"))))
+  (testing "meme #'x → clj #'x"
+    (is (= "#'foo" (core/meme->clj "#'foo"))))
+  (testing "meme var(x) → clj (var x)"
+    (is (= "(var foo)" (core/meme->clj "var(foo)")))))
