@@ -1,7 +1,8 @@
 (ns meme.alpha.runtime.run
   "Run .meme files: read, eval, return last result."
   (:require [clojure.string :as str]
-            [meme.alpha.pipeline :as pipeline]))
+            [meme.alpha.pipeline :as pipeline]
+            #?(:clj [meme.alpha.runtime.resolve :as resolve])))
 
 (defn- step-strip-shebang
   "Strip a leading #! shebang line from a context's :source, if present."
@@ -14,12 +15,17 @@
 
 (defn- default-reader-opts
   "Build reader opts, merging caller-provided opts with platform defaults.
+   On JVM/Babashka, provides a default :resolve-symbol that matches
+   Clojure's syntax-quote resolution (namespace-qualifying symbols).
    Does NOT provide a default :resolve-keyword — :: keywords use the
    deferred eval path so they resolve in the file's declared namespace
-   at eval time, not the caller's namespace at read time.
-   Passes through all other reader opts unchanged."
+   at eval time, not the caller's namespace at read time."
   [opts]
-  (dissoc opts :eval))
+  (let [base (dissoc opts :eval)]
+    #?(:clj (cond-> base
+              (not (:resolve-symbol base))
+              (assoc :resolve-symbol resolve/default-resolve-symbol))
+       :cljs base)))
 
 (defn run-string
   "Read meme source string, eval each form, return the last result.

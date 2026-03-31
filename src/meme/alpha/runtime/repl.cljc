@@ -3,7 +3,8 @@
   (:require [meme.alpha.pipeline :as pipeline]
             [meme.alpha.errors :as errors]
             [clojure.string :as str]
-            #?(:clj [clojure.java.io :as io])))
+            #?(:clj [clojure.java.io :as io])
+            #?(:clj [meme.alpha.runtime.resolve :as resolve])))
 
 (defn input-state
   "Returns :complete, :incomplete, or :invalid for the given input string.
@@ -93,8 +94,12 @@
                         :cljs (throw (ex-info "REPL requires :eval option in ClojureScript" {}))))
          reader-opts (let [rk (or (:resolve-keyword opts)
                                   #?(:clj #(clojure.core/read-string %)
-                                     :cljs nil))]
-                       (when rk {:resolve-keyword rk}))]
+                                     :cljs nil))
+                          base (if rk {:resolve-keyword rk} {})]
+                       #?(:clj (cond-> base
+                                 (not (:resolve-symbol opts))
+                                 (assoc :resolve-symbol resolve/default-resolve-symbol))
+                          :cljs base))]
      (let [version #?(:clj (try (some-> (io/resource "meme/version.txt") slurp str/trim)
                                (catch Exception _ nil))
                        :cljs nil)
