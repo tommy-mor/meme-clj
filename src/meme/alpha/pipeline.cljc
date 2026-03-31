@@ -29,6 +29,7 @@
   (:require [meme.alpha.scan.tokenizer :as tokenizer]
             [meme.alpha.parse.reader :as reader]
             [meme.alpha.parse.expander :as expander]
+            [meme.alpha.rewrite :as rewrite]
             [meme.alpha.pipeline.contract :as contract]))
 
 ;; ---------------------------------------------------------------------------
@@ -72,6 +73,15 @@
   (let [result (assoc ctx :forms (expander/expand-forms (:forms ctx) (:opts ctx)))]
     (contract/validate! :expand :output result)
     result))
+
+(defn step-rewrite
+  "Apply rewrite rules to :forms. Rules come from :rewrite-rules in :opts.
+   No-op if no rules are provided. Each form is rewritten independently."
+  [ctx]
+  (if-let [rules (get-in ctx [:opts :rewrite-rules])]
+    (let [max-iters (or (get-in ctx [:opts :rewrite-max-iters]) 100)]
+      (assoc ctx :forms (mapv #(rewrite/rewrite rules % max-iters) (:forms ctx))))
+    ctx))
 
 ;; ---------------------------------------------------------------------------
 ;; Pipeline composition

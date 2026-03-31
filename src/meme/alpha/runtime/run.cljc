@@ -31,11 +31,10 @@
   "Read meme source string, eval each form, return the last result.
    Strips shebang lines from source before parsing.
    opts:
-     :eval            — eval fn (default: eval; required on CLJS)
-     :resolve-keyword — fn to resolve :: keywords at read time
-                        (default: none — :: keywords resolve at eval time
-                        in the file's declared namespace. Required on CLJS
-                        for code that uses :: keywords)"
+     :eval             — eval fn (default: eval; required on CLJS)
+     :resolve-keyword  — fn to resolve :: keywords at read time
+     :rewrite-rules    — vector of rewrite rules (applied after expansion)
+     :rewrite-max-iters — max rewrite iterations (default: 100)"
   ([s] (run-string s {}))
   ([s eval-fn-or-opts]
    (let [opts (if (map? eval-fn-or-opts) eval-fn-or-opts {:eval eval-fn-or-opts})
@@ -47,7 +46,8 @@
                            step-strip-shebang
                            pipeline/step-scan
                            pipeline/step-parse
-                           pipeline/step-expand-syntax-quotes))]
+                           pipeline/step-expand-syntax-quotes
+                           pipeline/step-rewrite))]
      (reduce (fn [_ form] (eval-fn form)) nil forms))))
 
 (defn run-file
