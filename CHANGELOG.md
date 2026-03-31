@@ -16,7 +16,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Fixed
 - **Prelude expansion**: prelude forms are now expanded through `step-expand-syntax-quotes` before eval, matching the user-code path. Previously, syntax-quote in prelude files caused runtime errors.
-- **maybe-call nil/true/false guard**: `maybe-call` now rejects `nil`, `true`, `false` as call heads (matching the existing guard in `parse-call-chain`). Previously, reader conditionals resolving to these values could silently produce invalid forms.
+- **nil/true/false as call heads**: `nil(x)`, `true(x)`, `false(x)` now parse and print correctly. The rule is purely syntactic — `nil(1 2)` → `(nil 1 2)`. Previously these were rejected artificially.
 - **build-tree delimiter validation**: `build-tree` now validates expected delimiters after `#?` and `#:ns` prefixes (matching the main parser). Previously, malformed tokens caused silent off-by-one parsing.
 - **load-prelude docstring**: corrected to reflect actual behavior (parse-only, not eval).
 - **README.md**: fixed dead link to `doc/development.md` (now points to `CLAUDE.md`).
@@ -27,7 +27,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - **defrecord-as-map bugs**: `MemeRaw`, `MemeSyntaxQuote`, and other AST node defrecords satisfy `(map? x)`, causing silent mishandling in `expand-sq`, `normalize-bare-percent`, `find-percent-params`, `pp`, and `max-percent-n`. All dispatch sites now guard with `forms/raw?`, `forms/syntax-quote?`, etc. before the `(map? form)` branch.
 - **#?@ splicing**: `#?@(:clj [2 3])` inside a collection now correctly splices elements (`[1 #?@(:clj [2 3]) 4]` produces `[1 2 3 4]`, not `[1 [2 3] 4]`). Non-sequential splice values produce a clear error.
 - **Positive-sign BigInt/Ratio**: `+42N` and `+3/4` now parse correctly. `BigInteger` constructor rejects leading `+`; sign is now stripped before construction (matching hex/octal/radix branches).
-- **Non-callable literal heads**: `nil(x)`, `true(x)`, `false(x)` now rejected at parse time with a clear error instead of silently producing unprintable forms.
+- **Literal head syntax**: `nil(x)`, `true(x)`, `false(x)` are now valid meme syntax, producing the lists `(nil x)`, `(true x)`, `(false x)`. The syntactic rule `f(args)` → `(f args)` applies uniformly regardless of head type.
 - **Nested syntax-quote semantics**: `` ``x `` now correctly produces double-quoting (code that generates the inner expansion), matching Clojure's behavior. Previously the inner expansion was returned directly, losing one nesting level.
 
 ### Changed

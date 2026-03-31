@@ -395,6 +395,32 @@
       (is (= "clojure.string/join" (:value (first tokens)))))))
 
 ;; ---------------------------------------------------------------------------
+;; Bug: clojure.core// was split into two tokens (clojure.core/ and /).
+;; read-symbol-str stopped at the second / because it only allows one /
+;; per symbol (namespace separator). But ns// is a valid symbol where
+;; the name part is "/". Fix: after consuming the namespace /, check if
+;; the next char is also / with no further symbol chars — if so, consume
+;; it as the name.
+;; ---------------------------------------------------------------------------
+
+(deftest namespace-slash-symbol
+  (testing "clojure.core// tokenizes as one symbol"
+    (let [tokens (tokenize "clojure.core//")]
+      (is (= 1 (count tokens)))
+      (is (= :symbol (:type (first tokens))))
+      (is (= "clojure.core//" (:value (first tokens))))))
+  (testing "clojure.core// followed by space and form"
+    (let [tokens (tokenize "clojure.core// foo")]
+      (is (= 2 (count tokens)))
+      (is (= "clojure.core//" (:value (first tokens))))
+      (is (= "foo" (:value (second tokens))))))
+  (testing "clojure.core// parses to one symbol"
+    (is (= [(symbol "clojure.core" "/")]
+           (core/meme->forms "clojure.core//"))))
+  (testing "plain / still works"
+    (is (= ['/] (core/meme->forms "/")))))
+
+;; ---------------------------------------------------------------------------
 ;; Bug: `\char (syntax-quote of character literal) silently broke.
 ;; read-symbol-str returns "" for \ because backslash is not a symbol-char.
 ;; Same bug for `"string" and `~\char.

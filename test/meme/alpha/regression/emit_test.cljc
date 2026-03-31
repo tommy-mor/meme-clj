@@ -297,22 +297,16 @@
 
 ;; ---------------------------------------------------------------------------
 ;; Bug: nil/true/false as call heads produced unparseable meme output.
-;; Fix: throw for non-callable heads.
+;; nil/true/false as list heads — the rule is purely syntactic.
 ;; ---------------------------------------------------------------------------
 
-(deftest non-callable-head-throws
-  (testing "nil as call head"
-    (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
-                          #"not representable"
-                          (fmt-flat/format-form (list nil 1 2)))))
-  (testing "true as call head"
-    (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
-                          #"not representable"
-                          (fmt-flat/format-form (list true 1 2)))))
-  (testing "false as call head"
-    (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
-                          #"not representable"
-                          (fmt-flat/format-form (list false 1 2))))))
+(deftest literal-head-prints
+  (testing "nil as head"
+    (is (= "nil(1 2)" (fmt-flat/format-form (list nil 1 2)))))
+  (testing "true as head"
+    (is (= "true(1 2)" (fmt-flat/format-form (list true 1 2)))))
+  (testing "false as head"
+    (is (= "false(1 2)" (fmt-flat/format-form (list false 1 2))))))
 
 ;; ---------------------------------------------------------------------------
 ;; Scar tissue: ' prefix sugar roundtrips for all inner form types.

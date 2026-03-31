@@ -4,7 +4,6 @@
    (call notation, sugar, metadata, comments) and Clojure output mode.
    Delegates to render for Doc algebra and layout."
   (:require [clojure.string :as str]
-            [meme.alpha.errors :as errors]
             [meme.alpha.emit.render :as render]
             [meme.alpha.forms :as forms]))
 
@@ -118,13 +117,7 @@
           (render/nest 2 (render/cat render/line (intersperse render/line arg-docs)))
           (render/text ")"))))
       ;; Meme mode: head(arg1 arg2) with head-line-args
-      (do
-        ;; Non-callable heads
-        (when (contains? #{nil true false} head)
-          (errors/meme-error (str "Cannot print list with " (pr-str head)
-                                  " as head — not representable in meme syntax")
-                             {:head head}))
-        (let [n-head (get head-line-args head)]
+      (let [n-head (get head-line-args head)]
           (cond
             ;; Zero args: head()
             (empty? arg-docs)
@@ -149,7 +142,7 @@
              (render/cat
               head-doc (render/text "(")
               (render/nest 2 (render/cat render/line0 (intersperse render/line arg-docs)))
-              (render/text ")")))))))))
+              (render/text ")"))))))))
 
 (defn- collection-doc
   "Build Doc for a delimited collection: [elems], #{elems}, #(body)."

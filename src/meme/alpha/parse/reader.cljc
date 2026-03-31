@@ -240,18 +240,11 @@
          (not (:ws tok)))))
 
 (defn- maybe-call
-  "If next token is ( with no whitespace gap, parse call args and wrap.
-   Rejects nil/true/false as call heads — these are literals, not callable."
+  "If next token is ( with no whitespace gap, parse call args and wrap."
   [p head]
   (if (adjacent-open-paren? p)
-    (do
-      (when (contains? #{nil true false} head)
-        (errors/meme-error
-         (str "Cannot use " (pr-str head) " as a call head \u2014 "
-              (pr-str head) "(\u2026) is not valid meme syntax")
-         (error-data p (select-keys (ppeek p) [:line :col]))))
-      (let [args (parse-call-args p)]
-        (apply list head args)))
+    (let [args (parse-call-args p)]
+      (apply list head args))
     head))
 
 (defn- parse-reader-cond-preserve
@@ -607,13 +600,8 @@
           (errors/meme-error
            (str "Maximum call chain depth (" max-depth ") exceeded")
            (error-data p (select-keys (ppeek p) [:line :col]))))
-        (if (contains? #{nil true false} form)
-          (errors/meme-error
-           (str "Cannot use " (pr-str form) " as a call head — "
-                (pr-str form) "(\u2026) is not valid meme syntax")
-           (error-data p (select-keys (ppeek p) [:line :col])))
-          (let [args (parse-call-args p)]
-            (recur (apply list form args) (inc chain)))))
+        (let [args (parse-call-args p)]
+          (recur (apply list form args) (inc chain))))
       form)))
 
 (defn- parse-form

@@ -756,22 +756,15 @@
      (testing "-3/4 — negative-signed ratio (was already correct)"
        (is (= -3/4 (first (core/meme->forms "-3/4")))))))
 
-;; Bug: nil(x), true(x), false(x) were silently accepted by the reader,
-;; producing forms like (nil x) that the printer can't represent. The error
-;; only surfaced at print time. Now rejected at parse time with a clear message.
-(deftest non-callable-literal-heads
-  (testing "nil(x) rejected at parse time"
-    (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
-                          #"Cannot use nil as a call head"
-                          (core/meme->forms "nil(x)"))))
-  (testing "true(x) rejected at parse time"
-    (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
-                          #"Cannot use true as a call head"
-                          (core/meme->forms "true(x)"))))
-  (testing "false(x) rejected at parse time"
-    (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
-                          #"Cannot use false as a call head"
-                          (core/meme->forms "false(x)"))))
+;; nil(x), true(x), false(x) are valid meme syntax — the rule is purely
+;; syntactic. nil(1 2) → (nil 1 2), a valid Clojure list.
+(deftest literal-heads-parse
+  (testing "nil(x) parses to (nil x)"
+    (is (= ['(nil x)] (core/meme->forms "nil(x)"))))
+  (testing "true(x) parses to (true x)"
+    (is (= ['(true x)] (core/meme->forms "true(x)"))))
+  (testing "false(x) parses to (false x)"
+    (is (= ['(false x)] (core/meme->forms "false(x)"))))
   (testing "nil standalone still parses"
     (is (nil? (first (core/meme->forms "nil")))))
   (testing "nil with space before parens is two forms"
@@ -802,18 +795,14 @@
 ;; conditionals. parse-call-chain had a guard rejecting nil(…), true(…),
 ;; false(…) — but maybe-call (used by parse-reader-cond-eval) did not.
 ;; A reader conditional resolving to nil/true/false followed by ( silently
-;; produced invalid forms like (nil 1 2).
-;; Fix: added the same guard to maybe-call.
+;; nil/true/false as call heads via reader conditional — valid syntax.
 ;; ---------------------------------------------------------------------------
 
 #?(:clj
-   (deftest reader-cond-nil-true-false-call-head
-     (testing "#?(:clj nil)(x) rejects nil as call head"
-       (is (thrown-with-msg? Exception #"Cannot use nil as a call head"
-                             (core/meme->forms "#?(:clj nil)(x)"))))
-     (testing "#?(:clj true)(x) rejects true as call head"
-       (is (thrown-with-msg? Exception #"Cannot use true as a call head"
-                             (core/meme->forms "#?(:clj true)(x)"))))
-     (testing "#?(:clj false)(x) rejects false as call head"
-       (is (thrown-with-msg? Exception #"Cannot use false as a call head"
-                             (core/meme->forms "#?(:clj false)(x)"))))))
+   (deftest reader-cond-literal-call-head
+     (testing "#?(:clj nil)(x) parses to (nil x)"
+       (is (= ['(nil x)] (core/meme->forms "#?(:clj nil)(x)"))))
+     (testing "#?(:clj true)(x) parses to (true x)"
+       (is (= ['(true x)] (core/meme->forms "#?(:clj true)(x)"))))
+     (testing "#?(:clj false)(x) parses to (false x)"
+       (is (= ['(false x)] (core/meme->forms "#?(:clj false)(x)"))))))

@@ -240,9 +240,10 @@
 (defn rewrite-parser
   "Parser that conforms to the pipeline contract: (fn [tokens opts source] → forms).
    Uses the rewrite-based pipeline: tokens → tagged tree → rules → structures.
-   Drop-in replacement for meme.alpha.parse.reader/read-meme-string-from-tokens."
-  [tokens _opts _source]
+   Drop-in replacement for meme.alpha.parse.reader/read-meme-string-from-tokens.
+   Passes opts through to transform-structures (supports :read-cond :preserve)."
+  [tokens opts _source]
   (let [tagged (tokens->tree tokens)]
-    (mapv (comp rules/transform-structures
+    (mapv (comp #(rules/transform-structures % opts)
                 #(rewrite/rewrite rules/tree->s-rules %))
           tagged)))

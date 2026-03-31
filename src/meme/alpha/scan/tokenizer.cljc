@@ -215,7 +215,16 @@
           (cond
             ;; / in symbol (namespace qualifier) — allow once
             (and (= ch \/) (not saw-slash))
-            (do (sadvance! sc) (sb-append! sb ch) (recur true))
+            (do (sadvance! sc) (sb-append! sb ch)
+                ;; ns// — if next char is also / with no further symbol chars,
+                ;; this is the symbol name "/" (e.g. clojure.core//)
+                (let [next-ch (speek sc)
+                      after   (speek sc 1)]
+                  (if (and (= next-ch \/)
+                           (or (nil? after)
+                               (not (symbol-char? after))))
+                    (do (sadvance! sc) (sb-append! sb \/))
+                    (recur true))))
 
             ;; second / terminates the symbol — stop before consuming it
             (= ch \/) nil

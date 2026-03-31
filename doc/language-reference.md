@@ -5,7 +5,7 @@ Complete syntax reference for writing `.meme` code.
 
 ## The Rule
 
-Parentheses **immediately** after a symbol, keyword, or vector form a call.
+Parentheses **immediately** after any form create a call.
 The preceding element becomes the head of a Clojure list.
 
 ```
@@ -14,9 +14,13 @@ f(x y)     →  (f x y)
 ```
 
 **Adjacency required**: `foo(x)` is a call — the head is outside the parens. `foo (x)` is NOT a call — the space makes them separate forms.
-Keywords work too: `:active(m)` → `(:active m)` (keyword-as-function).
-Vectors can be heads: `[x](body)` → `([x] body)` (used for multi-arity clauses).
-Maps and sets can also be heads (they are functions in Clojure): `{:a 1}(:a)` → `({:a 1} :a)`, `#{:a :b}(x)` → `(#{:a :b} x)`.
+
+The rule is purely syntactic — any value can be a head:
+- Symbols: `f(x)` → `(f x)`
+- Keywords: `:active(m)` → `(:active m)`
+- Vectors: `[x](body)` → `([x] body)` (multi-arity clauses)
+- Maps/sets: `{:a 1}(:a)` → `({:a 1} :a)`
+- Literals: `nil(1 2)` → `(nil 1 2)`, `true(:a)` → `(true :a)`
 
 ### Adjacency required
 
@@ -306,7 +310,7 @@ All of these work exactly as in Clojure:
 - Destructuring in all binding positions
 - Commas are whitespace
 - Line comments: `; comment`
-- Quote: `'x` quotes the next meme form. `'f(x y)` produces `(quote (f x y))`. `'()` is `(quote ())`. Note: `'(content)` with content is an error (bare parentheses) — use `list(...)` for list literals
+- Quote: `'x` quotes the next meme form. `'f(x y)` produces `(quote (f x y))`. `'()` is `(quote ())`. `'nil(1 2)` produces `(quote (nil 1 2))`. Note: `'(1 2)` is an error — bare parentheses need a head
 
 
 ## What's Different from Clojure
@@ -320,8 +324,9 @@ All of these work exactly as in Clojure:
 ## Design Boundaries
 
 - **Quote applies to the next meme form.** `'f(x)` produces `(quote (f x))`.
-  `'foo`, `'42`, `':kw`, `'()` all work. `'(content)` with content is an error
-  (bare parentheses) — use `list(...)` for list literals.
+  `'foo`, `'42`, `':kw`, `'()` all work. Any value can be a head inside quote:
+  `'nil(1 2)` produces `(quote (nil 1 2))`. Bare parentheses without a head
+  remain an error: `'(1 2)` fails — write `'list(1 2)` or `list(1 2)` instead.
 
 - **Backtick uses meme syntax inside.** Syntax-quote (`` ` ``) is parsed natively.
   `~` (unquote) and `~@` (unquote-splicing) work as prefix operators.

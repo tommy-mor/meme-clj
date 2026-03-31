@@ -1,0 +1,300 @@
+(ns meme.alpha.benchmark-test
+  "Comparative benchmark: classic vs rewrite vs collapsar pipelines.
+
+   Two benchmark axes:
+     1. meme→clj roundtrip — .meme fixture files through each pipeline
+     2. clj→meme→clj vendor roundtrip — real-world .clj files per-form
+
+   Reports timing, correctness (agreement between pipelines), and
+   roundtrip fidelity (clj→meme→clj identity) for each pipeline."
+  (:require [clojure.test :refer [deftest is testing]]
+            [clojure.java.io :as io]
+            [clojure.string :as str]
+            [meme.alpha.convert :as convert]
+            [meme.alpha.core :as core]
+            [meme.alpha.emit.formatter.flat :as fmt-flat]
+            [meme.alpha.rewrite :as rw]
+            [meme.alpha.rewrite.rules :as rules]
+            [meme.alpha.rewrite.emit :as remit]
+            [meme.alpha.collapsar :as c]
+            [meme.alpha.collapsar.meme :as collapsar]))
+
+;; ============================================================
+;; Timing
+;; ============================================================
+
+(defmacro ^:private timed
+  "Execute body, return [result elapsed-ms]."
+  [& body]
+  `(let [start# (System/nanoTime)
+         result# (do ~@body)
+         elapsed# (/ (double (- (System/nanoTime) start#)) 1e6)]
+     [result# elapsed#]))
+
+;; ============================================================
+;; File discovery
+;; ============================================================
+
+(def ^:private fixture-dir "test/examples/fixtures")
+(def ^:private vendor-dir "test/vendor")
+
+(defn- meme-fixtures []
+  (->> (file-seq (io/file fixture-dir))
+       (filter #(str/ends-with? (.getName %) ".meme"))
+       (sort-by str)))
+
+(defn- vendor-projects []
+  (let [dir (io/file vendor-dir)]
+    (when (.isDirectory dir)
+      (->> (.listFiles dir)
+           (filter #(.isDirectory %))
+           (sort-by str)))))
+
+(defn- find-clj-files [dir]
+  (->> (file-seq (io/file dir))
+       (filter #(.isFile %))
+       (filter #(let [n (.getName %)]
+                  (or (str/ends-with? n ".clj")
+                      (str/ends-with? n ".cljc"))))
+       (sort-by str)))
+
+;; ============================================================
+;; Clojure reader (per-form, with :read-cond :preserve)
+;; ============================================================
+
+(def ^:private eof-sentinel (Object.))
+
+(defn- read-clj-forms [path]
+  (binding [*read-eval* false]
+    (let [rdr (java.io.PushbackReader. (io/reader path))]
+      (loop [forms []]
+        (let [form (try (read {:read-cond :preserve :eof eof-sentinel} rdr)
+                        (catch Exception _ ::read-error))]
+          (cond
+            (= form ::read-error) forms
+            (identical? form eof-sentinel) forms
+            :else (recur (conj forms form))))))))
+
+;; ============================================================
+;; Benchmark 1: meme→clj — fixture files
+;; ============================================================
+
+(defn- bench-meme->clj-file
+  "Convert a .meme file through each pipeline, return timing and agreement."
+  [file]
+  (let [src (slurp file)
+        [classic-result classic-ms] (timed (convert/meme->clj src :classic))
+        [rewrite-result rewrite-ms] (timed (convert/meme->clj src :rewrite))
+        [collapsar-result collapsar-ms] (timed (convert/meme->clj src :collapsar))]
+    {:file (.getName file)
+     :classic-ms classic-ms
+     :rewrite-ms rewrite-ms
+     :collapsar-ms collapsar-ms
+     :classic=rewrite (= classic-result rewrite-result)
+     :classic=collapsar (= classic-result collapsar-result)}))
+
+;; ============================================================
+;; Structural equality — handles regex (Pattern lacks .equals)
+;; ============================================================
+
+(defn- form=
+  "Deep equality that handles types where Object.equals is identity-based.
+   Regex Pattern and ReaderConditional containing regex both fail = after
+   roundtrip because each read creates a new Pattern instance."
+  [a b]
+  (cond
+    (and (instance? java.util.regex.Pattern a)
+         (instance? java.util.regex.Pattern b))
+    (= (.pattern ^java.util.regex.Pattern a)
+       (.pattern ^java.util.regex.Pattern b))
+
+    ;; ReaderConditional — must be before map? (it satisfies map? on some paths)
+    (and (reader-conditional? a) (reader-conditional? b))
+    (and (= (.-splicing ^clojure.lang.ReaderConditional a)
+            (.-splicing ^clojure.lang.ReaderConditional b))
+         (form= (.-form ^clojure.lang.ReaderConditional a)
+                (.-form ^clojure.lang.ReaderConditional b)))
+
+    (and (sequential? a) (sequential? b))
+    (and (= (count a) (count b))
+         (every? true? (map form= a b)))
+
+    (and (map? a) (map? b))
+    (and (= (count a) (count b))
+         ;; Can't use contains?/get when keys have broken .equals (regex in RC keys).
+         ;; Match by pr-str of keys, then form= on values.
+         (let [a-entries (into {} (map (fn [[k v]] [(pr-str k) {:k k :v v}]) a))
+               b-entries (into {} (map (fn [[k v]] [(pr-str k) {:k k :v v}]) b))]
+           (and (= (set (keys a-entries)) (set (keys b-entries)))
+                (every? (fn [[ks ae]]
+                          (let [be (get b-entries ks)]
+                            (and (form= (:k ae) (:k be))
+                                 (form= (:v ae) (:v be)))))
+                        a-entries))))
+
+    (and (set? a) (set? b))
+    (and (= (count a) (count b))
+         (= (set (map pr-str a)) (set (map pr-str b))))
+
+    :else (= a b)))
+
+;; ============================================================
+;; Benchmark 2: clj→meme→clj vendor roundtrip (per-form)
+;; ============================================================
+
+(defn- roundtrip-form
+  "Roundtrip a single Clojure form through clj→meme→clj for a given pipeline.
+   Returns {:ok true} or {:error msg}."
+  [form pipeline-name]
+  (try
+    (let [;; clj→meme: operate on forms directly (no pr-str detour that loses map order)
+          meme-text (case pipeline-name
+                      :classic
+                      (fmt-flat/format-form form)
+                      :rewrite
+                      (let [tagged (rw/rewrite rules/s->m-rules form)
+                            tagged (rules/rewrite-inside-reader-conditionals
+                                     (fn [f] (rw/rewrite rules/s->m-rules f)) tagged)]
+                        (remit/emit tagged))
+                      :collapsar
+                      (c/run-pipeline collapsar/clj->meme-pipeline [form]))
+          ;; meme→clj
+          forms-back (convert/meme->clj meme-text pipeline-name)
+          back-forms (core/clj->forms forms-back)]
+      (if (form= [form] back-forms)
+        {:ok true}
+        {:error "roundtrip mismatch"}))
+    (catch Exception e
+      {:error (.getMessage e)})))
+
+(defn- bench-vendor-project
+  "Roundtrip all forms in a vendor project through each pipeline.
+   Returns per-pipeline summary."
+  [project-dir]
+  (let [project (.getName project-dir)
+        files (find-clj-files project-dir)
+        all-forms (mapcat (fn [f]
+                            (mapv (fn [form] {:form form :file (.getName f)})
+                                  (read-clj-forms f)))
+                          files)
+        n (count all-forms)
+        bench-pipeline (fn [pipeline-name]
+                         (let [[results ms] (timed
+                                              (mapv #(roundtrip-form (:form %) pipeline-name)
+                                                    all-forms))
+                               ok (count (filter :ok results))
+                               errors (count (filter :error results))]
+                           {:pipeline pipeline-name
+                            :forms n
+                            :ok ok
+                            :errors errors
+                            :ms ms}))]
+    {:project project
+     :files (count files)
+     :forms n
+     :classic (bench-pipeline :classic)
+     :rewrite (bench-pipeline :rewrite)
+     :collapsar (bench-pipeline :collapsar)}))
+
+;; ============================================================
+;; Reporting
+;; ============================================================
+
+(defn- format-ms [ms]
+  (if (< ms 1000)
+    (format "%.0fms" ms)
+    (format "%.2fs" (/ ms 1000.0))))
+
+(defn- report-meme->clj [results]
+  (println "\n╔══════════════════════════════════════════════════════════════╗")
+  (println "║              meme→clj Fixture Benchmark                     ║")
+  (println "╠══════════════════════════════════════════════════════════════╣")
+  (println (format "║ %-22s %8s %8s %10s  C=R C=X ║" "file" "classic" "rewrite" "collapsar"))
+  (println "╠══════════════════════════════════════════════════════════════╣")
+  (doseq [{:keys [file classic-ms rewrite-ms collapsar-ms
+                  classic=rewrite classic=collapsar]} results]
+    (println (format "║ %-22s %8s %8s %10s   %s   %s  ║"
+                     (subs file 0 (min 22 (count file)))
+                     (format-ms classic-ms)
+                     (format-ms rewrite-ms)
+                     (format-ms collapsar-ms)
+                     (if classic=rewrite "✓" "✗")
+                     (if classic=collapsar "✓" "✗"))))
+  (let [totals (reduce (fn [acc r]
+                         (-> acc
+                             (update :classic + (:classic-ms r))
+                             (update :rewrite + (:rewrite-ms r))
+                             (update :collapsar + (:collapsar-ms r))
+                             (update :agree-r + (if (:classic=rewrite r) 1 0))
+                             (update :agree-c + (if (:classic=collapsar r) 1 0))))
+                       {:classic 0 :rewrite 0 :collapsar 0 :agree-r 0 :agree-c 0}
+                       results)
+        n (count results)]
+    (println "╠══════════════════════════════════════════════════════════════╣")
+    (println (format "║ %-22s %8s %8s %10s %d/%d %d/%d ║"
+                     "TOTAL"
+                     (format-ms (:classic totals))
+                     (format-ms (:rewrite totals))
+                     (format-ms (:collapsar totals))
+                     (:agree-r totals) n
+                     (:agree-c totals) n)))
+  (println "╚══════════════════════════════════════════════════════════════╝")
+  (println "  C=R: classic agrees with rewrite    C=X: classic agrees with collapsar"))
+
+(defn- report-vendor [results]
+  (println "\n╔════════════════════════════════════════════════════════════════════════════╗")
+  (println "║                  clj→meme→clj Vendor Roundtrip Benchmark                  ║")
+  (println "╠════════════════════════════════════════════════════════════════════════════╣")
+  (println (format "║ %-14s %5s │ %14s │ %14s │ %14s ║"
+                   "project" "forms" "classic" "rewrite" "collapsar"))
+  (println "╠════════════════════════════════════════════════════════════════════════════╣")
+  (doseq [{:keys [project forms classic rewrite collapsar]} results]
+    (let [fmt-p (fn [{:keys [ok errors ms]}]
+                  (format "%4d/%4d %6s" ok (+ ok errors) (format-ms ms)))]
+      (println (format "║ %-14s %5d │ %14s │ %14s │ %14s ║"
+                       project forms
+                       (fmt-p classic) (fmt-p rewrite) (fmt-p collapsar)))))
+  (let [sum (fn [k] (reduce (fn [acc r] (let [p (get r k)]
+                                           (-> acc
+                                               (update :ok + (:ok p))
+                                               (update :errors + (:errors p))
+                                               (update :ms + (:ms p)))))
+                             {:ok 0 :errors 0 :ms 0}
+                             results))
+        total-forms (reduce + (map :forms results))
+        fmt-p (fn [{:keys [ok errors ms]}]
+                (format "%4d/%4d %6s" ok (+ ok errors) (format-ms ms)))]
+    (println "╠════════════════════════════════════════════════════════════════════════════╣")
+    (println (format "║ %-14s %5d │ %14s │ %14s │ %14s ║"
+                     "TOTAL" total-forms
+                     (fmt-p (sum :classic))
+                     (fmt-p (sum :rewrite))
+                     (fmt-p (sum :collapsar)))))
+  (println "╚════════════════════════════════════════════════════════════════════════════╝"))
+
+;; ============================================================
+;; Tests
+;; ============================================================
+
+(deftest benchmark-meme->clj-fixtures
+  (testing "meme→clj conversion across all three pipelines"
+    (let [files (meme-fixtures)
+          results (mapv bench-meme->clj-file files)]
+      (report-meme->clj results)
+      ;; All pipelines should produce valid output (no exceptions)
+      (is (seq results) "Should have fixture files to benchmark"))))
+
+(deftest benchmark-vendor-roundtrip
+  (testing "clj→meme→clj vendor roundtrip across all three pipelines"
+    (let [projects (vendor-projects)]
+      (if (empty? projects)
+        (println "SKIP — vendor submodules not initialized (git submodule update --init)")
+        (let [results (mapv bench-vendor-project projects)]
+          (report-vendor results)
+          ;; Rewrite and collapsar should agree with each other.
+          ;; Classic may be better on reader-conditional-heavy code
+          ;; (it supports :read-cond :preserve; rewrite/collapsar
+          ;; evaluate reader conditionals in the meme→clj direction).
+          (doseq [{:keys [project rewrite collapsar]} results]
+            (is (= (:ok rewrite) (:ok collapsar))
+                (str project " rewrite and collapsar should agree"))))))))
