@@ -284,8 +284,9 @@
     (is (= "{:a 1 :b 2}" (core/meme->clj "{:a 1 :b 2}"))))
   (testing "set"
     (is (= "#{1 2 3}" (core/meme->clj "#{1 2 3}"))))
+  #?(:clj
   (testing "auto-resolve keyword"
-    (is (= "::foo" (core/meme->clj "::foo")))))
+    (is (= "::foo" (core/meme->clj "::foo"))))))
 
 (deftest meme->clj-metadata
   (testing "keyword metadata"
