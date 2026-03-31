@@ -14,6 +14,8 @@
             [meme.alpha.rewrite :as rewrite]
             [meme.alpha.rewrite.rules :as rules]))
 
+(def ^:private discard-sentinel ::discarded)
+
 ;; ============================================================
 ;; Token stream helpers
 ;; ============================================================
@@ -175,7 +177,7 @@
         ;; discard the form, try next
         (if (< new-pos (count tokens))
           (build-tree tokens new-pos)
-          [nil new-pos]))
+          [discard-sentinel new-pos]))
 
       ;; Tagged literals: #tag form
       :tagged-literal
@@ -211,7 +213,7 @@
     (if (>= pos (count tokens))
       forms
       (let [[form new-pos] (build-tree tokens pos)]
-        (recur new-pos (if (some? form) (conj forms form) forms))))))
+        (recur new-pos (if (= form discard-sentinel) forms (conj forms form)))))))
 
 (defn rewrite-parser
   "Parser that conforms to the pipeline contract: (fn [tokens opts source] → forms).
