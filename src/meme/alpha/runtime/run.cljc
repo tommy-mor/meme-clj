@@ -1,7 +1,9 @@
 (ns meme.alpha.runtime.run
   "Run .meme files: read, eval, return last result."
   (:require [clojure.string :as str]
+            [meme.alpha.core :as core]
             [meme.alpha.pipeline :as pipeline]
+            [meme.alpha.platform.registry :as registry]
             #?(:clj [meme.alpha.runtime.resolve :as resolve])))
 
 (defn- step-strip-shebang
@@ -54,10 +56,35 @@
                              pipeline/step-rewrite))]
        (reduce (fn [_ form] (eval-fn form)) nil forms)))))
 
+(defn- resolve-lang-opts
+  "If path matches a registered language, load its prelude/rules and merge into opts."
+  [path opts]
+  #?(:clj
+     (if-let [lang (or (:lang opts) (registry/resolve-lang path))]
+       (let [config (registry/lang-config lang)]
+         (cond-> opts
+           (and (:prelude-file config) (not (:prelude opts)))
+           (assoc :prelude (core/meme->forms (slurp (:prelude-file config))))
+
+           (and (:prelude config) (not (:prelude opts)))
+           (assoc :prelude (:prelude config))
+
+           (and (:rules-file config) (not (:rewrite-rules opts)))
+           (assoc :rewrite-rules (run-string (slurp (:rules-file config))))
+
+           (and (:rules config) (not (:rewrite-rules opts)))
+           (assoc :rewrite-rules (:rules config))))
+       opts)
+     :cljs opts))
+
 (defn run-file
-  "Read and eval a .meme file. Returns the last result.
+  "Read and eval a file. Returns the last result.
+   Auto-detects guest language from file extension via the registry.
    Second arg can be an eval-fn (backward compat) or an opts map."
-  ([path] (run-string (#?(:clj slurp
-                          :cljs (throw (ex-info "run-file requires slurp — not available in ClojureScript" {}))) path)))
-  ([path eval-fn-or-opts] (run-string (#?(:clj slurp
-                                          :cljs (throw (ex-info "run-file requires slurp — not available in ClojureScript" {}))) path) eval-fn-or-opts)))
+  ([path] (run-file path {}))
+  ([path eval-fn-or-opts]
+   (let [opts (if (map? eval-fn-or-opts) eval-fn-or-opts {:eval eval-fn-or-opts})
+         opts (resolve-lang-opts path opts)
+         src #?(:clj (slurp path)
+                :cljs (throw (ex-info "run-file requires slurp — not available in ClojureScript" {})))]
+     (run-string src opts))))
