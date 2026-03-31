@@ -308,3 +308,13 @@ See `examples/languages/` in this repo:
 ;; --- CLI ---
 bb meme run <file> [--prelude p.meme] [--rules r.meme] [--lang name]
 ```
+
+
+## Standalone rewrite examples
+
+`examples/rewrite/` contains self-contained examples of the rewrite engine
+outside the guest language system:
+
+- `simplify.meme` — algebraic simplification rules (+ identity, * identity)
+- `m-call.meme` — bidirectional S-expression ↔ M-expression conversion
+- `guards.meme` — pattern matching with guard conditions

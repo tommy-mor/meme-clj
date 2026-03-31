@@ -30,6 +30,7 @@ Read a meme source string. Returns a vector of Clojure forms. All platforms.
 Options:
 - `:resolve-keyword` — function that resolves auto-resolve keyword strings (`"::foo"`) to keywords at read time. When absent on JVM/Babashka, `::` keywords are deferred to eval time via `(read-string "::foo")`. Required on CLJS (errors without it, since `cljs.reader` cannot resolve `::` in the correct namespace).
 - `:read-cond` — `:preserve` to return `ReaderConditional` objects instead of evaluating reader conditionals. Default: evaluate `#?` for the current platform. Use `:preserve` for lossless `clj->meme->clj` roundtrips of `.cljc` files.
+- `:resolve-symbol` — function that resolves symbols during syntax-quote expansion (e.g., `foo` → `my.ns/foo`). On JVM/Babashka, `run-string`/`run-file`/`start` inject a default that matches Clojure's `SyntaxQuoteReader` (see `meme.alpha.runtime.resolve/default-resolve-symbol`). When calling `meme->forms` directly, symbols in syntax-quote are left unqualified unless this option is provided. On CLJS, no default is available.
 
 ```clojure
 (meme->forms "+(1 2 3)")
@@ -287,6 +288,8 @@ Options:
 - `:resolve-keyword` — function to resolve `::` keywords at read time (default: `clojure.core/read-string` on JVM; required on CLJS for code that uses `::` keywords)
 - `:prelude` — vector of forms to eval before the first user input (e.g., guest language standard library)
 
+On JVM/Babashka, `:resolve-symbol` is automatically injected (matching Clojure's syntax-quote resolution) unless explicitly provided.
+
 ```
 $ bb meme
 meme REPL. Type meme expressions, balanced input to eval. Ctrl-D to exit.
@@ -319,6 +322,8 @@ Options (when passing a map):
 - `:prelude` — vector of forms to eval before user code (e.g., guest language standard library)
 - `:rewrite-rules` — vector of rewrite rules applied to forms after expansion (see `meme.alpha.rewrite`)
 - `:rewrite-max-iters` — max rewrite iterations per form (default: 100)
+
+On JVM/Babashka, `:resolve-symbol` is automatically injected (matching Clojure's syntax-quote resolution) unless explicitly provided.
 
 ```clojure
 (run-string "def(x 42)\n+(x 1)")
