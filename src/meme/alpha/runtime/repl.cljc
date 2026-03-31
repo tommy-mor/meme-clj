@@ -82,8 +82,7 @@
      :read-line       — custom line reader fn (default: read-line; required on CLJS)
      :eval            — custom eval fn (default: eval; required on CLJS)
      :resolve-keyword — fn to resolve :: keywords at read time
-                        (default: clojure.core/read-string on JVM; required on CLJS
-                        for code that uses :: keywords)"
+     :prelude         — vector of forms to eval before the REPL loop starts"
   ([] (start {}))
   ([opts]
    (let [read-line-fn (or (:read-line opts)
@@ -100,6 +99,9 @@
                                  (not (:resolve-symbol opts))
                                  (assoc :resolve-symbol resolve/default-resolve-symbol))
                           :cljs base))]
+     ;; Eval prelude before REPL loop
+     (doseq [form (:prelude opts)]
+       (eval-fn form))
      (let [version #?(:clj (try (some-> (io/resource "meme/version.txt") slurp str/trim)
                                 (catch Exception _ nil))
                       :cljs nil)

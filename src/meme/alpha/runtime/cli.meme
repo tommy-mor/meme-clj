@@ -106,18 +106,28 @@ defn-(process-files
 ;; ---------------------------------------------------------------------------
 ;; Commands — accept a map, work with both -T and babashka.cli
 ;; ---------------------------------------------------------------------------
-defn-(load-rules
-  "Load rewrite rules from a .meme file. The file is eval'd and should
-   return a vector of rules (e.g. via rewrite/ruleset)."
+defn-(load-meme-file
+  "Load and eval a .meme file, returning the last result."
   [path]
   let([src slurp(path)]
     meme-run/run-string(src)))
 
+defn-(load-prelude
+  "Load a prelude file. Returns a vector of forms to eval before user code.
+   The prelude file is eval'd; its last value should be a vector of forms,
+   or nil (in which case the prelude's side effects are the point)."
+  [path]
+  let([src slurp(path)
+       forms core/meme->forms(src)]
+    forms))
+
 defn(run
-  [{:keys [file rules]}]
-  when-not(file binding([*out* *err*] println("Usage: meme run <file.meme> [--rules <rules.meme>]")) System/exit(1))
+  [{:keys [file rules prelude]}]
+  when-not(file binding([*out* *err*] println("Usage: meme run <file.meme> [--rules <rules.meme>] [--prelude <prelude.meme>]")) System/exit(1))
   try(
-    let([opts if(rules {:rewrite-rules load-rules(rules)} {})]
+    let([opts cond->({}
+                     rules assoc(:rewrite-rules load-meme-file(rules))
+                     prelude assoc(:prelude load-prelude(prelude)))]
       meme-run/run-file(file opts))
     catch(Exception e
       let(
@@ -192,7 +202,7 @@ defn(help
   println("meme — M-expressions for Clojure")
   println()
   println("Commands:")
-  println("  meme run <file> [--rules <rules.meme>]  Run with optional rewrite rules")
+  println("  meme run <file> [--prelude p.meme] [--rules r.meme]  Run with prelude/rules")
   println("  meme repl                  Start the meme REPL")
   println(
     "  meme convert <file|dir>    Convert between meme and Clojure (by extension)")
@@ -222,7 +232,7 @@ defn(-main
     ]
     dispatch(
       [
-        {:cmds ["run"] :fn fn([{:keys [opts]}] run(opts)) :args->opts [:file] :spec {:rules {:coerce :string}}}
+        {:cmds ["run"] :fn fn([{:keys [opts]}] run(opts)) :args->opts [:file] :spec {:rules {:coerce :string} :prelude {:coerce :string}}}
         {:cmds ["repl"] :fn fn([_] repl(nil))}
         merge(
           {:cmds ["convert"] :fn fn([m] convert(collect-file-args(m)))}
