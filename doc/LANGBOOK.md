@@ -105,6 +105,11 @@ require('[meme.alpha.rewrite :as rw])
  rw/rule(list('* 0 '?a) 0)]
 ```
 
+> **Important:** The rules file is eval'd with `run-string`, which returns only
+> the **last form's result**. The last expression must evaluate to your rules
+> vector. If the file ends with a side-effecting form (like `println` or `def`),
+> the rules will be lost.
+
 **Register with rules:**
 
 ```
@@ -129,17 +134,16 @@ Rules apply **bottom-up** to **fixed point**:
 2. Rules try in vector order. First match wins at each node.
 3. After one full pass, if anything changed, repeat.
 4. Stop when no rule matches anywhere (fixed point).
-5. If an expression is seen twice, throw (cycle detected).
-6. Hard limit of 100 iterations (configurable).
+5. Hard limit of 100 iterations (configurable) prevents infinite loops.
 
 **A rule that doesn't terminate:**
 
 ```
 rw/rule(list('a) list('b))
-rw/rule(list('b) list('a))    ; oscillates: (a) → (b) → (a) → cycle error
+rw/rule(list('b) list('a))    ; oscillates: (a) → (b) → ... → iteration limit
 ```
 
-The engine detects this and throws immediately. You don't get silent infinite loops.
+The engine hits the iteration limit and throws. You don't get silent infinite loops.
 
 **Making rules terminate:** Each rule should make the expression "simpler" — fewer nodes, lower in some ordering. The engine doesn't prove this; it relies on cycle detection and max iterations as safety nets.
 

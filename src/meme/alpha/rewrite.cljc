@@ -240,17 +240,13 @@
   ([rules expr] (rewrite rules expr 100))
   ([rules expr max-iters]
    (loop [expr expr
-          i 0
-          seen #{}]
+          i 0]
      (when (> i max-iters)
-       (throw (ex-info "Rewrite did not reach fixed point"
+       (throw (ex-info "Rewrite did not reach fixed point (possible cycle)"
                        {:iterations max-iters :expr expr})))
-     (when (contains? seen expr)
-       (throw (ex-info "Rewrite cycle detected"
-                       {:expr expr :iteration i})))
      (let [[changed? result] (rewrite-once rules expr)]
        (if changed?
-         (recur result (inc i) (conj seen expr))
+         (recur result (inc i))
          result)))))
 
 (defn rewrite-top

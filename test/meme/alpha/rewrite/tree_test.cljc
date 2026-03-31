@@ -124,7 +124,7 @@
                         ["meta type" "^String x"]
                         ["syntax-quote" "`x"]
                         ["unquote in sq" "`foo(~x)"]
-                        ["auto-kw" "::foo"]
+                        #?@(:clj [["auto-kw" "::foo"]])
                         ["char" "\\a"]
                         ["char named" "\\newline"]
                         ["interop" ".toString(obj)"]
