@@ -105,9 +105,12 @@ Options:
 
 ```clojure
 (meme.alpha.core/meme->clj meme-src)
+(meme.alpha.core/meme->clj meme-src opts)
 ```
 
-Convert meme source string to Clojure source string. All platforms. Equivalent to `(forms->clj (meme->forms meme-src))`.
+Convert meme source string to Clojure source string. All platforms. Equivalent to `(forms->clj (meme->forms meme-src opts))`.
+
+Options: same as `meme->forms` (`:resolve-keyword`, `:read-cond`).
 
 ```clojure
 (meme->clj "println(\"hello\")")
@@ -256,9 +259,12 @@ Format a sequence of Clojure forms as canonical meme text, separated by blank li
 
 ```clojure
 (meme.alpha.runtime.repl/input-state s)
+(meme.alpha.runtime.repl/input-state s opts)
 ```
 
 Returns the parse state of a meme input string: `:complete` (parsed successfully), `:incomplete` (unclosed delimiter — keep reading), or `:invalid` (malformed, non-recoverable error). Used internally by the REPL for multi-line input handling; also useful for editor integration.
+
+The optional `opts` map is forwarded to `pipeline/run` — useful for callers that need `::` keywords or custom parsers to be resolved during input validation.
 
 ```clojure
 (input-state "+(1 2)")      ;=> :complete
@@ -279,6 +285,7 @@ Options:
 - `:read-line` — custom line reader function (default: `read-line`, required on ClojureScript)
 - `:eval` — custom eval function (default: `eval`, required on ClojureScript)
 - `:resolve-keyword` — function to resolve `::` keywords at read time (default: `clojure.core/read-string` on JVM; required on CLJS for code that uses `::` keywords)
+- `:prelude` — vector of forms to eval before the first user input (e.g., guest language standard library)
 
 ```
 $ bb meme
@@ -309,6 +316,9 @@ Read meme source string, eval each form, return the last result. Strips leading 
 Options (when passing a map):
 - `:eval` — eval function (default: `eval`; required on CLJS)
 - `:resolve-keyword` — function to resolve `::` keywords at read time (default: none — `::` keywords resolve at eval time in the file's declared namespace. Required on CLJS for code that uses `::` keywords)
+- `:prelude` — vector of forms to eval before user code (e.g., guest language standard library)
+- `:rewrite-rules` — vector of rewrite rules applied to forms after expansion (see `meme.alpha.rewrite`)
+- `:rewrite-max-iters` — max rewrite iterations per form (default: 100)
 
 ```clojure
 (run-string "def(x 42)\n+(x 1)")
@@ -324,6 +334,8 @@ Options (when passing a map):
 ```
 
 Read and eval a `.meme` file. Returns the last result. Uses `slurp` internally (JVM/Babashka only). Second argument follows same convention as `run-string`.
+
+Automatically detects guest languages from file extension via `meme.alpha.platform.registry/resolve-lang`. If a registered language matches the extension, its prelude, rules, and/or custom parser are merged into the run options.
 
 ```clojure
 (run-file "test/examples/tests/01_core_rules.meme")
@@ -359,6 +371,16 @@ Parse tokens into Clojure forms. Reads `:tokens`, `:opts`, `:source` from ctx, a
 Expand syntax-quote AST nodes (`MemeSyntaxQuote`) into plain Clojure forms (`seq`/`concat`/`list`). Also unwraps `MemeRaw` values. Only needed before eval — tooling paths work with AST nodes directly.
 
 Note: `run` intentionally omits this stage so tooling can access the unexpanded forms. Runtime paths (`run-string`, `run-file`) include `step-expand-syntax-quotes` in their pipeline.
+
+### step-rewrite
+
+```clojure
+(meme.alpha.pipeline/step-rewrite ctx)
+```
+
+Apply rewrite rules to `:forms`. Rules come from `(get-in ctx [:opts :rewrite-rules])`. No-op if no rules are provided. Each form is rewritten independently, bottom-up to fixpoint (bounded by `:rewrite-max-iters`, default 100).
+
+Used by `run-string` for guest language transforms. Not included in `pipeline/run` (tooling path).
 
 ### run
 
@@ -480,7 +502,7 @@ Entry point: `-main` dispatches via `babashka.cli`. For Clojure JVM, use `-T:mem
 
 ## meme.alpha.parse.resolve
 
-Value resolution. Converts raw token text to Clojure values. Centralizes all host reader delegation (`read-string` calls) with consistent error wrapping and location info.
+Native value resolution. Converts raw token text to Clojure values — no `read-string` delegation. Consistent error wrapping and location info.
 
 ### Resolver functions
 
@@ -570,3 +592,204 @@ Format an exception for display. Produces a multi-line string with:
 5. A hint line (when `:hint` is present in ex-data)
 
 If `source` is `nil`/blank or the exception lacks `:line`/`:col`, only the prefixed message is returned.
+
+
+## meme.alpha.rewrite
+
+Pattern matching and term rewriting engine. Used by `step-rewrite` for guest language transforms. Also usable directly for symbolic computation.
+
+### Pattern matching
+
+```clojure
+(meme.alpha.rewrite/match-pattern pattern expr)
+(meme.alpha.rewrite/match-pattern pattern expr bindings)
+```
+
+Match a pattern against an expression. Returns a bindings map `{symbol value}` on success, `nil` on failure.
+
+Pattern syntax:
+- `?x` — match any single value, bind to `x`
+- `??x` — splice variable, match zero or more elements in a sequence
+- `_` — wildcard, match anything, no binding
+- Literal values — match themselves
+- Lists/vectors — match structurally
+
+```clojure
+(match-pattern '?x 42)           ;=> {x 42}
+(match-pattern '(f ?x) '(f 1))   ;=> {x 1}
+(match-pattern '(+ ??xs) '(+ 1 2 3)) ;=> {xs (1 2 3)}
+```
+
+### substitute
+
+```clojure
+(meme.alpha.rewrite/substitute template bindings)
+```
+
+Replace pattern variables in `template` with values from `bindings`. Splice variables (`??x`) splice their seq into the parent list.
+
+### Rules
+
+```clojure
+(meme.alpha.rewrite/make-rule name pattern replacement)
+(meme.alpha.rewrite/make-rule name pattern replacement guard)
+(meme.alpha.rewrite/rule pattern replacement)
+(meme.alpha.rewrite/rule pattern replacement guard)
+```
+
+Create a rewrite rule. `guard` is an optional `(fn [bindings] bool)`.
+
+```clojure
+(meme.alpha.rewrite/apply-rule rule expr)   ;=> rewritten expr or nil
+(meme.alpha.rewrite/apply-rules rules expr) ;=> first matching rule's result or nil
+```
+
+### Rewriting strategies
+
+```clojure
+(meme.alpha.rewrite/rewrite rules expr)
+(meme.alpha.rewrite/rewrite rules expr max-iters)
+```
+
+Apply rules repeatedly (bottom-up) until fixpoint or `max-iters` (default 100). Returns the final expression.
+
+```clojure
+(meme.alpha.rewrite/rewrite-once rules expr)  ;=> [changed? result]
+(meme.alpha.rewrite/rewrite-top rules expr)    ;=> top-level only, to fixpoint
+```
+
+### DSL macros (JVM/Babashka only)
+
+```clojure
+(meme.alpha.rewrite/defrule identity-plus (+ ?a 0) => ?a)
+(meme.alpha.rewrite/defrule-guard pos-check ?x => :pos (fn [b] (pos? (b 'x))))
+(meme.alpha.rewrite/ruleset
+  (+ ?a 0) => ?a
+  (* ?a 1) => ?a)
+```
+
+
+## meme.alpha.rewrite.rules
+
+Predefined rule sets for S-expression ↔ M-expression transformations.
+
+### s->m-rules
+
+Rules that tag S-expression calls as `m-call` nodes. List patterns only match lists (not vectors).
+
+### m->s-rules
+
+Rules that convert `m-call` nodes back to S-expression lists.
+
+### tree->s-rules
+
+Rules that flatten tagged tree nodes to Clojure forms.
+
+### transform-structures
+
+```clojure
+(meme.alpha.rewrite.rules/transform-structures form)
+```
+
+Walk a tree and convert structural tags to Clojure data/AST nodes.
+
+
+## meme.alpha.rewrite.tree
+
+Token vector → tagged tree builder for the rewrite-based pipeline.
+
+### tokens->tree
+
+```clojure
+(meme.alpha.rewrite.tree/tokens->tree tokens)
+```
+
+Convert a flat token vector to a tagged tree. Returns a vector of top-level forms.
+
+### build-tree
+
+```clojure
+(meme.alpha.rewrite.tree/build-tree tokens pos)
+```
+
+Build a tagged tree node from tokens starting at `pos`. Returns `[node new-pos]`.
+
+### rewrite-parser
+
+```clojure
+(meme.alpha.rewrite.tree/rewrite-parser tokens opts source)
+```
+
+Parser that conforms to the pipeline contract: `(fn [tokens opts source] → forms)`. Uses the rewrite-based pipeline: tokens → tagged tree → rules → structures. Drop-in replacement for `meme.alpha.parse.reader/read-meme-string-from-tokens`.
+
+
+## meme.alpha.rewrite.emit
+
+Serializes m-call tagged trees to meme text.
+
+### emit
+
+```clojure
+(meme.alpha.rewrite.emit/emit form)
+```
+
+Convert a form (with m-call tags) to meme text string.
+
+### emit-forms
+
+```clojure
+(meme.alpha.rewrite.emit/emit-forms forms)
+```
+
+Emit a sequence of top-level forms as meme text, separated by newlines.
+
+
+## meme.alpha.platform.registry
+
+Guest language registration. Maps language names (keywords) to configurations. Used by `run-file` for automatic language dispatch based on file extension.
+
+### register!
+
+```clojure
+(meme.alpha.platform.registry/register! lang-name config)
+```
+
+Register a guest language. `lang-name` is a keyword. Config keys:
+- `:extension` — file extension (e.g. `".calc"`)
+- `:prelude-file` — path to prelude `.meme` file (eval'd before user code)
+- `:rules-file` — path to rules `.meme` file (eval'd, must return rule vector)
+- `:prelude` — prelude forms (alternative to `:prelude-file`)
+- `:rules` — rule vector (alternative to `:rules-file`)
+- `:parser` — custom parser fn: `(fn [tokens opts source] forms-vector)`. If nil, uses the default meme parser.
+
+### resolve-lang
+
+```clojure
+(meme.alpha.platform.registry/resolve-lang path)
+```
+
+Given a file path, determine the guest language from its extension. Returns the language name keyword, or `nil` for unrecognized extensions. `.meme` files return `nil` (default meme, no guest language).
+
+### lang-config
+
+```clojure
+(meme.alpha.platform.registry/lang-config lang-name)
+```
+
+Get the config for a registered language. Returns `nil` if not found.
+
+### registered-langs
+
+```clojure
+(meme.alpha.platform.registry/registered-langs)
+```
+
+List all registered language names (keywords).
+
+### clear!
+
+```clojure
+(meme.alpha.platform.registry/clear!)
+```
+
+Clear all registered languages. For testing.

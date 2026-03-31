@@ -330,3 +330,15 @@ All of these work exactly as in Clojure:
 - **`#()` uses meme syntax inside.** `#(inc(%))` is `(fn [%1] (inc %1))`.
   The call rule applies normally within `#()`. Use `%`, `%1`, `%2` for
   params.
+
+
+## Guest Languages
+
+meme serves as a platform for guest languages. A guest language can define:
+1. **A prelude** — forms eval'd before user code (standard library)
+2. **Rewrite rules** — transforms applied to parsed forms (compile-time macros)
+3. **A custom parser** — optionally replacing the meme parser entirely
+
+Guest languages register via `meme.alpha.platform.registry` and are dispatched
+by file extension. See `doc/LANGBOOK.md` for a cookbook and
+`examples/languages/` for working examples (calc, prefix, superficie).

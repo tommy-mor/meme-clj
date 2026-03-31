@@ -139,10 +139,12 @@ during design iteration. IDs are stable references and are not renumbered.
 .meme file ──→ tokenizer ──→ parser ──→ Clojure forms
                  (scan)       (parse)        │
                     │            │           ▼
-                  source      resolve    expander ──→ eval
+                  source      resolve    expander ──→ rewrite ──→ eval
                (shared line/col                │
                 → offset contract)       printer ──→ .meme text
-                                       formatter ──→ .meme text
+                  pipeline.contract    formatter ──→ .meme text
+               (spec validation at
+                stage boundaries)
 ```
 
 The pipeline has composable stages (composed by `meme.alpha.pipeline`), each a `ctx → ctx` function with a `step-` prefix:
@@ -154,11 +156,18 @@ The pipeline has composable stages (composed by `meme.alpha.pipeline`), each a `
    forms. Value resolution (numbers, strings, chars, regex, keywords, tagged
    literals) is delegated to `meme.alpha.parse.resolve`. Volatile position
    counter for portability. No intermediate AST — forms are emitted as
-   standard Clojure data. No `read-string` delegation.
+   standard Clojure data. No `read-string` delegation. Accepts an optional
+   `:parser` in opts for guest language plug-in parsers.
 4. **step-expand-syntax-quotes** (`meme.alpha.parse.expander`) — syntax-quote AST nodes →
    plain Clojure forms. Only needed before eval, not for tooling.
    `meme.alpha.pipeline/run` intentionally omits this stage, returning AST
    nodes for tooling access.
+5. **step-rewrite** (`meme.alpha.rewrite`) — apply rewrite rules to `:forms`.
+   No-op if no `:rewrite-rules` in opts. Used by `run-string` for guest
+   language transforms.
+
+Stage boundaries are validated by `meme.alpha.pipeline.contract` (clojure.spec)
+when `contract/*validate*` is bound to true.
 
 The printer pattern-matches on form structure to reverse the transformation.
 It detects special forms and produces their meme syntax equivalents.
@@ -188,6 +197,37 @@ meme rules inside. No opaque regions.
   overflow on recursive descent.
 
 
+## Completed work (post-initial release)
+
+- **Syntax highlighting grammars.** TextMate grammar in `vscode-beme/`,
+  Tree-sitter grammar in `tree-sitter-beme/` (both in the `beme-lang` org).
+  Both cover `.beme` and `.meme` extensions.
+
+- **Platform / guest language system.** See `doc/platform-roadmap.md` and
+  `doc/LANGBOOK.md`. Includes:
+  - **Rewrite engine** (`meme.alpha.rewrite`) — pattern matching, rule
+    application, bottom-up rewriting to fixpoint. `defrule`, `ruleset` macros.
+  - **Platform registry** (`meme.alpha.platform.registry`) — `register!` a
+    guest language with `:extension`, `:prelude`, `:rules`, `:parser`.
+    `run-file` auto-detects guest languages from file extension.
+  - **Pipeline integration** — `step-rewrite` stage, pluggable `:parser` in
+    `step-parse`, `:prelude`/`:rewrite-rules`/`:rewrite-max-iters` options
+    in `run-string`.
+  - **Example languages** in `examples/languages/`: calc, prefix, superficie.
+
+### Platform requirements
+
+| ID | Requirement | Status |
+|----|-------------|--------|
+| PL1 | Rewrite engine: pattern matching (`?x`, `??x`), substitution, bottom-up rewriting | Done |
+| PL2 | `defrule`, `defrule-guard`, `ruleset` macros for rule definition (JVM) | Done |
+| PL3 | Language registry: `register!`, `resolve-lang`, `lang-config` | Done |
+| PL4 | `run-file` auto-detects guest language from file extension | Done |
+| PL5 | `run-string` accepts `:prelude`, `:rewrite-rules`, `:rewrite-max-iters` | Done |
+| PL6 | Pluggable parser: `:parser` option in `step-parse` for guest language parsers | Done |
+| PL7 | `step-rewrite` pipeline stage applies rules after expansion | Done |
+| PL8 | Pipeline contract: spec validation at stage boundaries (`pipeline.contract`) | Done |
+
 ## Future work
 
 - Error recovery: partial parsing for editor integration. This would require
@@ -195,5 +235,4 @@ meme rules inside. No opaque regions.
   partial ASTs with error nodes, and add try/catch wrappers in `parse-form`
   that advance to resynchronization points (closing delimiters or newlines).
   This is a significant architectural change and should be its own project.
-- Syntax highlighting grammars (TextMate, Tree-sitter)
 - nREPL middleware

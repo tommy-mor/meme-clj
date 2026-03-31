@@ -17,15 +17,24 @@ The head of a list is written outside the parens: `f(x y)` → `(f x y)`.
 Everything else is Clojure.
 
 
-## Two-stage pipeline (scan → parse)
+## Pipeline stages
 
-The reader pipeline is split into two core stages:
+The reader pipeline has two core stages and two optional stages:
 
 1. **step-scan** (`meme.alpha.scan.tokenizer`) — character scanning → flat token vector.
    Compound forms (reader conditionals, namespaced maps, syntax-quote)
    emit marker tokens.
 2. **step-parse** (`meme.alpha.parse.reader`) — recursive-descent parser → Clojure forms.
-   No `read-string` delegation — all values resolved natively.
+   No `read-string` delegation — all values resolved natively. Accepts an
+   optional `:parser` in opts for guest language plug-in parsers.
+3. **step-expand-syntax-quotes** (`meme.alpha.parse.expander`) — syntax-quote AST
+   nodes → plain Clojure forms. Only needed before eval, not for tooling.
+4. **step-rewrite** (`meme.alpha.rewrite`) — apply rewrite rules to forms.
+   No-op if no `:rewrite-rules` in opts. Used by `run-string` for guest
+   language transforms.
+
+The core `pipeline/run` calls only stages 1–2, returning AST nodes for
+tooling. `runtime/run-string` chains all four stages before eval.
 
 The split makes each stage independently testable and the pipeline extensible.
 The tokenizer handles all character-level concerns (strings, chars, comments
@@ -33,8 +42,10 @@ are individual tokens, so `\)` inside a string is just a `:string` token,
 not a closing paren). The parser handles all structural concerns.
 
 `meme.alpha.pipeline` composes the stages as `ctx → ctx` functions, threading a
-context map with `:source`, `:raw-tokens`, `:tokens`, `:forms`. This makes
-intermediate state visible to tooling via `meme.alpha.core/run-pipeline`.
+context map with `:source`, `:raw-tokens`, `:tokens`, `:forms`. Each stage
+boundary is validated by `meme.alpha.pipeline.contract` when `*validate*` is
+true. This makes intermediate state visible to tooling via
+`meme.alpha.core/run-pipeline`.
 
 
 ## Centralized value resolution (meme.alpha.parse.resolve)
@@ -83,8 +94,9 @@ All special forms use call syntax: `def(x 42)`, `defn(f [x] body)`,
 `(...)` with content must have a head. `()` is the empty list.
 
 This dramatically simplifies both the reader and the printer:
-- The reader has no special-form parsers — all symbols go through the
-  same `maybe-call` path.
+- The reader has no special-form parsers — all non-literal symbols go
+  through the same `maybe-call` path (only `nil`, `true`, `false` are
+  special-cased as literals before `maybe-call`).
 - The printer has no special-form printers — all lists use the generic
   `head(args...)` format.
 - `do`, `catch`, `finally` are regular symbols, not grammar keywords.
@@ -141,9 +153,8 @@ character(s) to form the head of an M-expression:
 - `#inst "..."`, `#uuid "..."` — tagged literals.
 - `#:ns{...}` — namespaced maps.
 
-Reader conditionals parse only the matching platform's branch; non-matching
-branches are skipped without parsing (they may contain platform-specific
-syntax invalid on the current platform).
+Reader conditionals parse all branches but only return the matching
+platform's value — non-matching branches are fully parsed then discarded.
 
 Syntax-quote (`` ` ``) is also parsed natively — its interior uses meme
 syntax with `~` (unquote) and `~@` (unquote-splicing). Macro templates
@@ -224,12 +235,16 @@ behavior to the host platform without depending on its reader.
 
 The codebase is split into three platform tiers:
 
-- **Core translation** (tokenizer, reader, resolve, printer,
-  pipeline, core, errors) — portable `.cljc`, runs on JVM, Babashka,
-  and ClojureScript. These are pure functions with no eval or I/O dependency.
-- **Runtime** (repl, run) — `.cljc` but require `eval` and `read-line`/
-  `slurp`, which are JVM/Babashka by default. ClojureScript callers can
-  inject these via options.
+- **Core translation** (tokenizer, reader, resolve, expander, printer,
+  render, formatter.flat, formatter.canon, pipeline, pipeline.contract,
+  core, errors, forms, source, rewrite, rewrite.rules, rewrite.tree,
+  rewrite.emit, platform.registry) — portable `.cljc`, runs on JVM,
+  Babashka, and ClojureScript. Pure functions with no eval or I/O
+  dependency. `rewrite` macros (`defrule`, `defrule-guard`, `ruleset`)
+  are JVM/Babashka only.
+- **Runtime** (repl, run, runtime.resolve) — `.cljc` but require `eval`
+  and `read-line`/`slurp`, which are JVM/Babashka by default. ClojureScript
+  callers can inject these via options.
 - **Test infrastructure** (test-runner, dogfood-test) — `.clj`, JVM only.
   These use `java.io`, `PushbackReader`, `System/exit`.
 
@@ -238,18 +253,17 @@ prevents the ClojureScript compiler from attempting to compile JVM-only
 code.
 
 
-## `#()` printer shorthand: zero-param and `%&`-only forms
+## `#()` printer shorthand
 
-The printer emits `#(body)` for `(fn [] body)` (zero params) and for
-`(fn [%1 %2] body)` where all numbered `%N` params are used in the body.
-Forms with surplus `%` params (declared but unused in body) fall through
-to `fn(...)` syntax to avoid silently changing arity on roundtrip.
+The printer emits `#(body)` when the form has `:meme/sugar true` metadata —
+set by the reader when it parses `#(...)` source syntax. A user-written
+`fn([%1] body)` lacks this metadata and prints back as `fn(...)`.
 
-`(fn [& %&] body)` (rest-only, no numbered params) also falls through to
-`fn([& %&] body)` because the `&` symbol in the param vector is not a
-`%`-param, preventing the `#()` shorthand heuristic from matching. This is
-intentional — the printer cannot distinguish `fn([& %&] ...)` from a
-user-written named form.
+This is an instance of the syntactic transparency principle: the reader
+tags the notation, the printer reconstructs it. No body inspection or
+surplus-param heuristic is needed — the reader's `build-anon-fn-params`
+already builds the correct parameter vector at read time from the `%`
+params found in the body.
 
 
 ## `maybe-call` on all forms
@@ -337,12 +351,15 @@ formatter with opinions. Every new syntax feature should be checked:
 can two notations produce the same form? If yes, metadata must
 distinguish them.
 
-**Known remaining losses** (as of v0.5.0-alpha):
-- Namespaced maps: `#:ns{:a 1}` expanded to `{:ns/a 1}`.
+**Known remaining losses:**
 - Commas: treated as whitespace, not preserved.
 - `#_` discarded forms: gone by design.
-- Chained metadata annotations: merged, order and count lost.
-- Set element ordering: hash-determined.
-- `#()` vs `fn()`: `anon-fn-shorthand?` heuristic normalizes.
+
+**Previously fixed** (these were losses in earlier versions, now preserved
+via metadata):
+- Namespaced maps: preserved via `:meme/ns` metadata on the map.
+- Chained metadata annotations: preserved via `:meme/meta-chain`.
+- Set element ordering: preserved via `:meme/order` (insertion order).
+- `#()` vs `fn()`: preserved via `:meme/sugar` (see above section).
 
 
