@@ -151,8 +151,7 @@ The two models compose naturally because the token vocabulary is shared.
 source → scan (shared) → [guest parser | meme parser] → forms → [prelude] → eval
 ```
 
-The grouper slot (currently pass-through) may become the plug point,
-or the parser stage itself becomes dispatch-aware.
+The parser stage itself becomes dispatch-aware.
 
 **Scope:** `pipeline.cljc` refactored to accept parser as parameter.
 `parse/reader.cljc` exposes entry points for delegation. New namespace

@@ -32,13 +32,6 @@ The tokenizer handles all character-level concerns (strings, chars, comments
 are individual tokens, so `\)` inside a string is just a `:string` token,
 not a closing paren). The parser handles all structural concerns.
 
-A grouper stage previously existed between scan and parse, collapsing
-"opaque regions" (reader conditionals, namespaced maps, syntax-quote) into
-single grouped tokens. As the parser gained native support for each of
-these forms, the grouper became a pass-through and was removed from the
-pipeline. `meme.alpha.scan.grouper` is retained as a vestigial identity
-function for backward compatibility.
-
 `meme.alpha.pipeline` composes the stages as `ctx → ctx` functions, threading a
 context map with `:source`, `:raw-tokens`, `:tokens`, `:forms`. This makes
 intermediate state visible to tooling via `meme.alpha.core/run-pipeline`.
@@ -291,10 +284,7 @@ mapping can't diverge. The alternative — each stage carrying its own
 offset logic — was the source of a previous bug where whitespace
 attachment disagreed after a newline.
 
-Note: the grouper previously used `extract-source-range` to capture raw
-text for opaque regions, but all forms are now parsed natively and the
-grouper has been removed from the pipeline. The shared contract remains
-important for the tokenizer's whitespace attachment.
+The shared contract is important for the tokenizer's whitespace attachment.
 
 
 ## Centralized error infrastructure (meme.alpha.errors)

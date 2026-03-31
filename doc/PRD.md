@@ -11,54 +11,44 @@ semantic ones — imposed by syntax that demands manual bracket management.
 
 ## Solution
 
-meme is a thin syntactic lens over Clojure. One rule replaces
-S-expression nesting with readable, familiar syntax:
+meme is a complete Clojure frontend. One rule replaces S-expression
+nesting with readable, familiar syntax:
 
 `f(x y)` — call. Head of a list written outside the parens, adjacent to `(` (spacing significant).
 
-Everything else is unchanged from Clojure. meme is a reader, not a language.
-It emits standard Clojure forms that run on Babashka, Clojure JVM, or
-ClojureScript without modification.
+Everything else is unchanged from Clojure. Programs run on Babashka,
+Clojure JVM, or ClojureScript without modification. The platform
+includes a reader, printer, formatter, REPL, file runner, and CLI —
+the CLI itself is written in `.meme`.
 
 
 ## Goals
 
 - **Human-readable Clojure.** The syntax should be immediately legible to
-  anyone who knows Clojure, Python, Ruby, or JavaScript. No paredit, no
-  training required.
-
-- **Eliminate paren-matching errors.** The syntax makes it structurally
-  impossible to produce the most common classes of S-expression errors.
-
-- **Zero runtime cost.** meme is a compile-time (read-time) transformation.
-  The output is standard Clojure forms. No runtime library, no overhead.
+  anyone who knows Clojure, Python, Ruby, or JavaScript.
 
 - **Full Clojure compatibility.** Every valid Clojure program has a meme
   equivalent. Every meme program produces valid Clojure forms. Data literals,
-  destructuring, reader macros, metadata — all work unchanged.
+  destructuring, reader macros, macros, metadata — all work unchanged.
+
+- **Self-hosting.** meme code should be able to build meme itself. The CLI
+  is the first component written in `.meme`.
 
 - **Roundtrippable.** meme text → Clojure forms → meme text should produce
   equivalent output. This enables tooling: formatters, linters, editors.
 
-- **Portable.** The reader and printer run on Clojure JVM, ClojureScript,
-  and Babashka. Single codebase, `.cljc` files, no platform-specific code.
+- **Portable.** Core pipeline runs on Clojure JVM, ClojureScript, and
+  Babashka. Single codebase, `.cljc` files.
+
+- **Platform for guest languages.** The tokenizer, pipeline, and FullForm
+  representation are designed as a foundation for languages beyond Clojure.
+  See `doc/platform-roadmap.md`.
 
 
 ## Non-goals
 
 - **Replacing Clojure syntax.** meme is an alternative surface syntax.
-  Developers who prefer paredit and S-expressions should keep using them.
-
-- **New semantics.** meme adds no language features. No new data types, no
-  new evaluation rules, no new special forms. If it doesn't exist in
-  Clojure, it doesn't exist in meme.
-
-- **IDE integration.** Not in scope for v1. The REPL and file-based
-  workflow are sufficient.
-
-- **Performance optimization.** The reader should be fast enough for
-  interactive use. It does not need to compete with Clojure's reader on
-  throughput for large codebases.
+  Developers who prefer S-expressions should keep using them.
 
 - **Error recovery.** The reader fails fast on invalid input. Partial
   parsing and error recovery are future work.
