@@ -836,3 +836,18 @@
     (is (= "#'foo" (core/meme->clj "#'foo"))))
   (testing "meme var(x) → clj (var x)"
     (is (= "(var foo)" (core/meme->clj "var(foo)")))))
+
+;; ---------------------------------------------------------------------------
+;; fn without sugar: structural divergence (documented, not a bug)
+;; ---------------------------------------------------------------------------
+
+(deftest roundtrip-fn-no-sugar
+  (testing "fn([] body) roundtrips correctly"
+    (let [[f1 f2 _] (roundtrip-forms "fn([] rand())")]
+      (is (= f1 f2) "zero-arg fn roundtrips")))
+  (testing "fn([x] body) roundtrips correctly"
+    (let [[f1 f2 _] (roundtrip-forms "fn([x] +(x 1))")]
+      (is (= f1 f2) "fn with args roundtrips")))
+  (testing "multi-arity fn roundtrips correctly"
+    (let [[f1 f2 _] (roundtrip-forms "fn([x](inc(x)) [x y](+(x y)))")]
+      (is (= f1 f2) "multi-arity fn roundtrips"))))

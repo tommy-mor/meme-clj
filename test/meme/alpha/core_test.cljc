@@ -253,6 +253,57 @@
       (is (re-find #"\n" narrow))
       (is (not (re-find #"\n" wide))))))
 
+;; ---------------------------------------------------------------------------
+;; :clj mode coverage for complex forms
+;; ---------------------------------------------------------------------------
+
+(deftest meme->clj-sugar-forms
+  (testing "quote sugar"
+    (is (= "'foo" (core/meme->clj "'foo"))))
+  (testing "deref sugar"
+    (is (= "@foo" (core/meme->clj "@foo"))))
+  (testing "var sugar"
+    (is (= "#'foo" (core/meme->clj "#'foo"))))
+  (testing "anon-fn sugar"
+    (is (= "#(inc %1)" (core/meme->clj "#(inc(%))")))))
+
+(deftest meme->clj-nested-forms
+  (testing "nested let + arithmetic"
+    (is (= "(defn f [x] (let [a (+ x 1)] (* a 2)))"
+           (core/meme->clj "defn(f [x] let([a +(x 1)] *(a 2)))"))))
+  (testing "threading macro"
+    (is (= "(-> x inc str)" (core/meme->clj "->(x inc str)"))))
+  (testing "try/catch"
+    (is (= "(try (do x) (catch Exception e (handle e)))"
+           (core/meme->clj "try(do(x) catch(Exception e handle(e)))")))))
+
+(deftest meme->clj-data-literals
+  (testing "vector"
+    (is (= "[1 2 3]" (core/meme->clj "[1 2 3]"))))
+  (testing "map"
+    (is (= "{:a 1 :b 2}" (core/meme->clj "{:a 1 :b 2}"))))
+  (testing "set"
+    (is (= "#{1 2 3}" (core/meme->clj "#{1 2 3}"))))
+  (testing "auto-resolve keyword"
+    (is (= "::foo" (core/meme->clj "::foo")))))
+
+(deftest meme->clj-metadata
+  (testing "keyword metadata"
+    (is (= "^:private (def x 1)" (core/meme->clj "^:private def(x 1)"))))
+  (testing "type metadata"
+    (is (= "^String x" (core/meme->clj "^String x")))))
+
+#?(:clj
+(deftest meme->clj-reader-conditionals
+  (testing "reader conditional preserves through meme->clj"
+    (let [result (core/meme->clj "#?(:clj 1 :cljs 2)" {:read-cond :preserve})]
+      (is (= "#?(:clj 1 :cljs 2)" result))))))
+
+#?(:clj
+(deftest meme->clj-namespaced-map
+  (testing "namespaced map"
+    (is (= "#:user{:a 1 :b 2}" (core/meme->clj "#:user{:a 1 :b 2}"))))))
+
 (deftest format-forms-rejects-string-input
   (testing "forms->meme rejects a string"
     (is (thrown? #?(:clj clojure.lang.ExceptionInfo :cljs ExceptionInfo)

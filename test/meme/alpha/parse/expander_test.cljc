@@ -283,3 +283,34 @@
           "inner x# should be a gensym")
       (is (not= outer-sym inner-sym)
           "outer and inner x# must be different gensyms")))))
+
+;; ---------------------------------------------------------------------------
+;; :resolve-symbol option
+;; ---------------------------------------------------------------------------
+
+(deftest expand-syntax-quote-with-resolve-symbol
+  (testing "resolver namespace-qualifies symbols in syntax-quote"
+    (let [resolver (fn [sym] (symbol "my.ns" (name sym)))
+          expanded (first (expander/expand-forms
+                            (core/meme->forms "`foo(x)")
+                            {:resolve-symbol resolver}))
+          ;; (seq (concat (list (quote my.ns/foo)) (list (quote my.ns/x))))
+          concat-form (second expanded)
+          args (vec (rest concat-form))]
+      (is (= '(clojure.core/list (quote my.ns/foo)) (nth args 0)))
+      (is (= '(clojure.core/list (quote my.ns/x)) (nth args 1)))))
+  (testing "without resolver, symbols are not namespace-qualified (documented deviation)"
+    (let [expanded (first (expander/expand-forms (core/meme->forms "`foo")))]
+      (is (= '(quote foo) expanded)
+          "without resolver, `foo stays as foo, not current-ns/foo")))
+  (testing "resolver does not affect gensyms"
+    (let [resolver (fn [sym] (symbol "my.ns" (name sym)))
+          expanded (first (expander/expand-forms
+                            (core/meme->forms "`x#")
+                            {:resolve-symbol resolver}))]
+      ;; x# should be gensym'd, THEN namespace-qualified by resolver
+      ;; Actually: sq-gensym is called on the result of sq-resolve-symbol
+      ;; Wait — sq-resolve-symbol is called first, then sq-gensym.
+      ;; resolver(x#) → my.ns/x# → sq-gensym checks if name ends in # → yes → gensym
+      (is (re-find #"__auto__$" (name (second expanded)))
+          "gensym should still work with a resolver"))))

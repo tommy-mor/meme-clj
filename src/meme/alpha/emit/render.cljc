@@ -65,8 +65,11 @@
 (defn- sb-str [sb]
   #?(:clj (.toString sb) :cljs (.join sb "")))
 
-(defn- indent-str [n]
-  (apply str (repeat n \space)))
+(let [cache (mapv #(apply str (repeat % \space)) (range 64))]
+  (defn- indent-str [n]
+    (if (< n (count cache))
+      (nth cache n)
+      (apply str (repeat n \space)))))
 
 ;; ---------------------------------------------------------------------------
 ;; Layout engine — Lindig's format algorithm
