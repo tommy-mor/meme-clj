@@ -5,6 +5,8 @@ ns(meme.alpha.runtime.cli
   :require(
     [meme.alpha.core :as core]
     [meme.alpha.errors :as errors]
+    [meme.alpha.rewrite :as rewrite]
+    [meme.alpha.platform.registry :as registry]
     [meme.alpha.runtime.run :as meme-run]
     [meme.alpha.runtime.repl :as repl]
     [clojure.java.io :as io]
@@ -105,11 +107,30 @@ defn-(process-files
 ;; ---------------------------------------------------------------------------
 ;; Commands — accept a map, work with both -T and babashka.cli
 ;; ---------------------------------------------------------------------------
+defn-(load-meme-file
+  "Load and eval a .meme file, returning the last result."
+  [path]
+  let([src slurp(path)]
+    meme-run/run-string(src)))
+
+defn-(load-prelude
+  "Load a prelude file. Returns a vector of parsed forms to eval before user code.
+   Forms are parsed but not expanded — expansion happens in run-string/start
+   before eval, matching the user-code path."
+  [path]
+  let([src slurp(path)
+       forms core/meme->forms(src)]
+    forms))
+
 defn(run
-  [{:keys [file]}]
-  when-not(file binding([*out* *err*] println("Usage: meme run <file.meme>")) System/exit(1))
+  [{:keys [file rules prelude lang]}]
+  when-not(file binding([*out* *err*] println("Usage: meme run <file> [--lang name] [--prelude p.meme] [--rules r.meme]")) System/exit(1))
   try(
-    meme-run/run-file(file)
+    let([opts cond->({}
+                     rules assoc(:rewrite-rules load-meme-file(rules))
+                     prelude assoc(:prelude load-prelude(prelude))
+                     lang assoc(:lang keyword(lang)))]
+      meme-run/run-file(file opts))
     catch(Exception e
       let(
         [src try(slurp(file) catch(Exception _ nil))]
@@ -183,7 +204,7 @@ defn(help
   println("meme — M-expressions for Clojure")
   println()
   println("Commands:")
-  println("  meme run <file>            Run a .meme file")
+  println("  meme run <file> [--prelude p.meme] [--rules r.meme]  Run with prelude/rules")
   println("  meme repl                  Start the meme REPL")
   println(
     "  meme convert <file|dir>    Convert between meme and Clojure (by extension)")
@@ -213,7 +234,7 @@ defn(-main
     ]
     dispatch(
       [
-        {:cmds ["run"] :fn fn([{:keys [opts]}] run(opts)) :args->opts [:file]}
+        {:cmds ["run"] :fn fn([{:keys [opts]}] run(opts)) :args->opts [:file] :spec {:rules {:coerce :string} :prelude {:coerce :string} :lang {:coerce :string}}}
         {:cmds ["repl"] :fn fn([_] repl(nil))}
         merge(
           {:cmds ["convert"] :fn fn([m] convert(collect-file-args(m)))}

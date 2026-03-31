@@ -43,7 +43,7 @@ Add to `deps.edn`:
 
 <!-- Update version below when releasing — source of truth is src/meme/version.txt -->
 ```clojure
-io.github.beme-lang/meme-clj {:mvn/version "0.9.0"}
+io.github.beme-lang/meme-clj {:mvn/version "0.10.0"}
 ```
 
 Or clone and use directly:
@@ -105,6 +105,6 @@ Tree-sitter grammar: [tree-sitter-meme](https://github.com/beme-lang/tree-sitter
 
 - [Language Reference](doc/language-reference.md) — complete syntax guide
 - [API Reference](doc/api.md) — public functions
-- [Development](doc/development.md) — testing, architecture
+- [Development](CLAUDE.md) — testing, architecture
 - [Design Decisions](doc/design-decisions.md) — rationale behind each choice
 - [Product Requirements](doc/PRD.md) — requirements and known limitations

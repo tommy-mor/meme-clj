@@ -13,11 +13,10 @@
 
 (deftest auto-resolve-keyword-is-opaque
   #?(:clj
-     (testing "::foo emits a deferred read-string call on JVM"
+     (testing "::foo emits a MemeAutoKeyword on JVM"
        (let [form (first (core/meme->forms "::local"))]
-         (is (seq? form))
-         (is (= 'clojure.core/read-string (first form)))
-         (is (= "::local" (second form)))))
+         (is (forms/deferred-auto-keyword? form))
+         (is (= "::local" (forms/deferred-auto-keyword-raw form)))))
      :cljs
      (testing "::foo without :resolve-keyword errors on CLJS"
        (is (thrown-with-msg? js/Error #"resolve-keyword"
@@ -27,8 +26,8 @@
        (let [form (first (core/meme->forms "{::key 42}"))]
          (is (map? form))
          (let [[k v] (first form)]
-           (is (seq? k))
-           (is (= "::key" (second k)))
+           (is (forms/deferred-auto-keyword? k))
+           (is (= "::key" (forms/deferred-auto-keyword-raw k)))
            (is (= 42 v))))))
   #?(:clj
      (testing "printer round-trips ::foo"
@@ -797,3 +796,24 @@
     (let [forms (core/meme->forms "#?(:clj x :cljs y)" {:read-cond :preserve})]
       (is (= 1 (count forms)))
       (is (forms/meme-reader-conditional? (first forms))))))
+
+;; ---------------------------------------------------------------------------
+;; Bug: maybe-call allowed nil/true/false as call heads from reader
+;; conditionals. parse-call-chain had a guard rejecting nil(…), true(…),
+;; false(…) — but maybe-call (used by parse-reader-cond-eval) did not.
+;; A reader conditional resolving to nil/true/false followed by ( silently
+;; produced invalid forms like (nil 1 2).
+;; Fix: added the same guard to maybe-call.
+;; ---------------------------------------------------------------------------
+
+#?(:clj
+   (deftest reader-cond-nil-true-false-call-head
+     (testing "#?(:clj nil)(x) rejects nil as call head"
+       (is (thrown-with-msg? Exception #"Cannot use nil as a call head"
+                             (core/meme->forms "#?(:clj nil)(x)"))))
+     (testing "#?(:clj true)(x) rejects true as call head"
+       (is (thrown-with-msg? Exception #"Cannot use true as a call head"
+                             (core/meme->forms "#?(:clj true)(x)"))))
+     (testing "#?(:clj false)(x) rejects false as call head"
+       (is (thrown-with-msg? Exception #"Cannot use false as a call head"
+                             (core/meme->forms "#?(:clj false)(x)"))))))

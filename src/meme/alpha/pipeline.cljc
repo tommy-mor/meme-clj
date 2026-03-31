@@ -26,9 +26,11 @@
    the context map at each stage boundary. Enable runtime validation with:
      (binding [meme.alpha.pipeline.contract/*validate* true]
        (pipeline/run source))"
-  (:require [meme.alpha.scan.tokenizer :as tokenizer]
+  (:require [meme.alpha.forms :as forms]
+            [meme.alpha.scan.tokenizer :as tokenizer]
             [meme.alpha.parse.reader :as reader]
             [meme.alpha.parse.expander :as expander]
+            [meme.alpha.rewrite :as rewrite]
             [meme.alpha.pipeline.contract :as contract]))
 
 ;; ---------------------------------------------------------------------------
@@ -51,27 +53,66 @@
       result)))
 
 (defn step-parse
-  "Parse tokens into Clojure forms."
+  "Parse tokens into Clojure forms.
+   If :parser is set in :opts, uses that function instead of the default
+   meme parser. A custom parser has the signature:
+     (fn [tokens opts source] -> forms-vector)"
   [ctx]
   (contract/validate! :parse :input ctx)
   (when-not (:tokens ctx)
     (throw (ex-info "Pipeline :tokens missing — run scan before parse" {})))
-  (let [result (assoc ctx :forms (reader/read-meme-string-from-tokens
-                                  (:tokens ctx) (:opts ctx) (:source ctx)))]
+  (let [parse-fn (or (get-in ctx [:opts :parser])
+                     reader/read-meme-string-from-tokens)
+        result (assoc ctx :forms (parse-fn (:tokens ctx) (:opts ctx) (:source ctx)))]
     (contract/validate! :parse :output result)
     result))
 
+(defn- expand-auto-keywords
+  "Walk a form tree and expand MemeAutoKeyword records into eval-able
+   (clojure.core/read-string \"::foo\") list forms. Called after syntax-quote
+   expansion so the printer never sees the list encoding."
+  [form]
+  (cond
+    (forms/deferred-auto-keyword? form)
+    (forms/deferred-auto-keyword->form form)
+
+    (seq? form)
+    (with-meta (apply list (map expand-auto-keywords form)) (meta form))
+
+    (vector? form)
+    (with-meta (mapv expand-auto-keywords form) (meta form))
+
+    (map? form)
+    (with-meta (into {} (map (fn [[k v]] [(expand-auto-keywords k) (expand-auto-keywords v)]) form))
+      (meta form))
+
+    (set? form)
+    (with-meta (set (map expand-auto-keywords form)) (meta form))
+
+    :else form))
+
 (defn step-expand-syntax-quotes
-  "Expand syntax-quote AST nodes and unwrap MemeRaw values in :forms.
+  "Expand syntax-quote AST nodes, unwrap MemeRaw values, and convert
+   MemeAutoKeyword records to eval-able (read-string ...) forms in :forms.
    Produces plain Clojure forms ready for eval.
    Not needed for tooling that works with AST nodes directly."
   [ctx]
   (contract/validate! :expand :input ctx)
   (when-not (:forms ctx)
     (throw (ex-info "Pipeline :forms missing — run parse before expand" {})))
-  (let [result (assoc ctx :forms (expander/expand-forms (:forms ctx) (:opts ctx)))]
+  (let [expanded (expander/expand-forms (:forms ctx) (:opts ctx))
+        result (assoc ctx :forms (mapv expand-auto-keywords expanded))]
     (contract/validate! :expand :output result)
     result))
+
+(defn step-rewrite
+  "Apply rewrite rules to :forms. Rules come from :rewrite-rules in :opts.
+   No-op if no rules are provided. Each form is rewritten independently."
+  [ctx]
+  (if-let [rules (get-in ctx [:opts :rewrite-rules])]
+    (let [max-iters (or (get-in ctx [:opts :rewrite-max-iters]) 100)]
+      (assoc ctx :forms (mapv #(rewrite/rewrite rules % max-iters) (:forms ctx))))
+    ctx))
 
 ;; ---------------------------------------------------------------------------
 ;; Pipeline composition
