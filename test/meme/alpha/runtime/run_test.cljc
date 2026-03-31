@@ -142,3 +142,19 @@
        (let [result (run/run-string "`x#")]
          (is (re-find #"__auto__$" (name result))
              "gensym should still produce auto-gensym")))))
+
+;; ---------------------------------------------------------------------------
+;; Scar tissue: unregistered guest language must error
+;; ---------------------------------------------------------------------------
+;; run-file with :lang pointing to an unregistered language silently ran
+;; with default meme parser — no error, no warning.
+;; Fix: validate that (registry/lang-config lang) is non-nil when :lang
+;; is explicitly specified.
+;; ---------------------------------------------------------------------------
+
+#?(:clj
+   (deftest run-file-unregistered-lang-throws
+     (testing "explicit :lang with unregistered name throws"
+       (is (thrown-with-msg? clojure.lang.ExceptionInfo
+                             #"Unknown language.*not registered"
+                             (run/run-file "/tmp/test.meme" {:lang :nonexistent}))))))

@@ -444,3 +444,53 @@
     (let [form (with-meta '(fn [%1] (+ %1 1)) {:meme/sugar true})]
       (is (= "#(+(%1 1))" (fmt-flat/format-forms [form]))
           "#() in meme mode should use call syntax"))))
+
+;; ---------------------------------------------------------------------------
+;; Scar tissue: #() with non-list body in :clj mode
+;; ---------------------------------------------------------------------------
+;; (fn [] 42) was emitted as #(42) in :clj mode, but in Clojure #(42) means
+;; (fn [] (42)) — calling 42 as a function. Semantic corruption during
+;; meme->clj conversion. Fix: reject #() shorthand for non-list bodies in
+;; :clj mode; fall through to (fn ...) form.
+;; ---------------------------------------------------------------------------
+
+(deftest anon-fn-clj-mode-non-list-body
+  (testing "(fn [] 42) must not become #(42) in :clj mode"
+    (let [form (with-meta '(fn [] 42) {:meme/sugar true})]
+      (is (= "(fn [] 42)" (fmt-flat/format-clj [form])))))
+  (testing "(fn [] identity) must not become #(identity) in :clj mode"
+    (let [form (with-meta '(fn [] identity) {:meme/sugar true})]
+      (is (= "(fn [] identity)" (fmt-flat/format-clj [form])))))
+  (testing "(fn [] :foo) must not become #(:foo) in :clj mode"
+    (let [form (with-meta '(fn [] :foo) {:meme/sugar true})]
+      (is (= "(fn [] :foo)" (fmt-flat/format-clj [form])))))
+  (testing "list body still uses #() shorthand in :clj mode"
+    (let [form (with-meta '(fn [%1] (+ %1 1)) {:meme/sugar true})]
+      (is (= "#(+ %1 1)" (fmt-flat/format-clj [form])))))
+  (testing "meme->clj roundtrip for #(42)"
+    (is (= "(fn [] 42)" (core/meme->clj "#(42)"))))
+  (testing "meme->clj roundtrip for #(identity)"
+    (is (= "(fn [] identity)" (core/meme->clj "#(identity)")))))
+
+;; ---------------------------------------------------------------------------
+;; Scar tissue: metadata stripping loses notation metadata
+;; ---------------------------------------------------------------------------
+;; When a form has both user metadata (^:foo) and internal notation metadata
+;; (:meme/ns, :meme/order, :meme/sugar), the printer stripped ALL metadata
+;; via (with-meta form nil). This lost the notation keys, causing #:ns{} maps
+;; to print with fully-qualified keys, sets to lose insertion order, and
+;; quote sugar to be lost.
+;; Fix: preserve forms/notation-meta-keys when stripping user metadata.
+;; ---------------------------------------------------------------------------
+
+(deftest metadata-stripping-preserves-notation
+  (testing "^:validated #:user{} preserves namespaced-map notation"
+    (let [src "^:validated #:user{:name \"x\"}"
+          printed (core/forms->meme (core/meme->forms src))]
+      (is (str/includes? printed "#:user{")
+          "namespaced-map notation must survive metadata stripping")))
+  (testing "quote sugar preserved with user metadata"
+    (let [src "^:foo 'x"
+          printed (core/forms->meme (core/meme->forms src))]
+      (is (str/includes? printed "'x")
+          "quote sugar must survive metadata stripping"))))

@@ -80,7 +80,9 @@
 
       :else
       (let [[item new-pos] (build-tree tokens pos)]
-        (recur new-pos (conj items item))))))
+        (if (= item discard-sentinel)
+          (recur new-pos items)
+          (recur new-pos (conj items item)))))))
 
 (defn- build-call-or-atom
   "After building an atom, check if the next token is an adjacent open-paren.
@@ -188,7 +190,9 @@
         :discard
         (let [[_ new-pos] (build-tree tokens (inc pos))]
           ;; discard the form, try next
-          (if (< new-pos (count tokens))
+          (if (and (< new-pos (count tokens))
+                   (not (#{:close-paren :close-bracket :close-brace}
+                          (tok-type tokens new-pos))))
             (build-tree tokens new-pos)
             [discard-sentinel new-pos]))
 

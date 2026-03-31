@@ -227,6 +227,10 @@ meme rules inside. No opaque regions.
 | PL6 | Pluggable parser: `:parser` option in `step-parse` for guest language parsers | Done |
 | PL7 | `step-rewrite` pipeline stage applies rules after expansion | Done |
 | PL8 | Pipeline contract: spec validation at stage boundaries (`pipeline.contract`) | Done |
+| PL9 | Collapsar engine: declarative rewrite with phases, pipelines, termination verification | Done |
+| PL10 | Three conversion pipelines: classic, rewrite, collapsar (`meme.alpha.convert`) | Done |
+| PL11 | `meme convert --pipeline` CLI selector and `meme inspect` command | Done |
+| PL12 | Comparative benchmark across all three pipelines | Done |
 
 ## Future work
 

@@ -134,6 +134,12 @@
    Excluded when checking for user-visible metadata."
   #{:line :col :column :file :ws :meme/sugar :meme/order :meme/ns :meme/meta-chain})
 
+(def notation-meta-keys
+  "Internal metadata keys that encode the user's notation choices.
+   Must survive metadata stripping so the printer can reconstruct
+   the original syntax (e.g. #:ns{} maps, set insertion order, quote sugar)."
+  #{:meme/ns :meme/order :meme/sugar})
+
 (defn strip-internal-meta
   "Remove internal meme metadata keys, returning only user-visible metadata."
   [m]

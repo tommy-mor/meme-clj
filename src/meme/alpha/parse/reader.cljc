@@ -587,7 +587,7 @@
   "After parsing a form, check for chained call openers: f(x)(y) → ((f x) y).
    Handles arbitrary depth: f(x)(y)(z) → (((f x) y) z).
    Skipped for discard sentinels and splice results. Requires adjacent ( (no whitespace).
-   Rejects nil/true/false as call heads — these are literals, not callable.
+   Any value can be a call head — nil(x), true(x), false(x) produce (nil x), (true x), (false x).
    Chain length is capped at max-depth to prevent unbounded recursion."
   [p form]
   (loop [form form

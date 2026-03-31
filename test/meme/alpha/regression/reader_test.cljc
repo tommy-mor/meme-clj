@@ -2,6 +2,7 @@
   "Scar tissue: parser/reader regression tests.
    Every test here prevents a specific bug from recurring."
   (:require [clojure.test :refer [deftest is testing]]
+            [meme.alpha.convert :as convert]
             [meme.alpha.core :as core]
             [meme.alpha.emit.formatter.flat :as fmt-flat]
             [meme.alpha.forms :as forms]
@@ -806,3 +807,29 @@
        (is (= ['(true x)] (core/meme->forms "#?(:clj true)(x)"))))
      (testing "#?(:clj false)(x) parses to (false x)"
        (is (= ['(false x)] (core/meme->forms "#?(:clj false)(x)"))))))
+
+;; ---------------------------------------------------------------------------
+;; Scar tissue: build-tree #_ before closing delimiter
+;; ---------------------------------------------------------------------------
+;; build-tree's :discard handler recursed into closing delimiters, crashing
+;; with "Unexpected token type: :close-bracket" (and paren/brace variants).
+;; build-collection also didn't filter discard-sentinel from results.
+;; Affects :rewrite and :collapsar pipelines; classic pipeline was unaffected.
+;; ---------------------------------------------------------------------------
+
+#?(:clj
+   (deftest build-tree-discard-before-closer
+     (testing "#_ as last discarded form in vector"
+       (is (= "[1 2]" (convert/meme->clj "[1 2 #_ 3]" :rewrite)))
+       (is (= "[1 2]" (convert/meme->clj "[1 2 #_ 3]" :collapsar))))
+     (testing "#_ as last discarded form in call"
+       (is (= "(f)" (convert/meme->clj "f(#_ x)" :rewrite)))
+       (is (= "(f)" (convert/meme->clj "f(#_ x)" :collapsar))))
+     (testing "#_ as last discarded form in set"
+       (is (= "#{}" (convert/meme->clj "#{#_ 1}" :rewrite)))
+       (is (= "#{}" (convert/meme->clj "#{#_ 1}" :collapsar))))
+     (testing "#_ discards one of two map pairs"
+       (is (= "{:a 1}" (convert/meme->clj "{:a 1 #_ :b #_ 2}" :rewrite)))
+       (is (= "{:a 1}" (convert/meme->clj "{:a 1 #_ :b #_ 2}" :collapsar))))
+     (testing "double #_ at top level"
+       (is (= "c" (convert/meme->clj "#_ #_ a b c" :rewrite))))))

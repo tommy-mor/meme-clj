@@ -92,9 +92,7 @@
          (keyword? (key (first m)))
          (true? (val (first m))))
     (let [kw (key (first m))]
-      (if (= mode :clj)
-        (str "^" (pr-str kw))
-        (str "^" (pr-str kw))))
+      (str "^" (pr-str kw)))
     (and (= 1 (count m))
          (contains? m :tag)
          (symbol? (:tag m)))
@@ -184,7 +182,7 @@
          (some? (meta form))
          (seq (forms/strip-internal-meta (meta form))))
     (let [chain (:meme/meta-chain (meta form))
-          stripped (with-meta form nil)
+          stripped (with-meta form (select-keys (meta form) forms/notation-meta-keys))
           prefixes (if chain
                      (mapv #(emit-meta-prefix % mode) (reverse chain))
                      [(emit-meta-prefix (forms/strip-internal-meta (meta form)) mode)])]
@@ -208,7 +206,10 @@
     (render/text "()")
 
     ;; Anon-fn shorthand #()
-    (anon-fn-shorthand? form)
+    ;; In :clj mode, only use #() when the body is a list (call).
+    ;; #(42) in Clojure means (fn [] (42)) — calling 42 — not (fn [] 42).
+    (and (anon-fn-shorthand? form)
+         (or (not= mode :clj) (seq? (nth form 2))))
     (if (and (= mode :clj) (seq? (nth form 2)))
       ;; :clj mode: unwrap body list to avoid double parens.
       ;; (fn [%1] (+ %1 1)) → #(+ %1 1), not #((+ %1 1))

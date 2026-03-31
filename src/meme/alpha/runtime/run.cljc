@@ -66,6 +66,10 @@
   #?(:clj
      (if-let [lang (or (:lang opts) (registry/resolve-lang path))]
        (let [config (registry/lang-config lang)]
+         (when (and (:lang opts) (nil? config))
+           (throw (ex-info (str "Unknown language: " (name lang)
+                                " — not registered. Use register! to add it.")
+                           {:lang lang})))
          (cond-> opts
            (and (:prelude-file config) (not (:prelude opts)))
            (assoc :prelude (core/meme->forms (slurp (:prelude-file config))))
