@@ -1,21 +1,16 @@
 (ns meme.alpha.rewrite.rules
   "Rewrite rule sets for S→M and M→S transformations.
    Each direction is a vector of rules for meme.alpha.rewrite/rewrite."
-  (:require [meme.alpha.rewrite :as rw]))
+  (:require [clojure.string :as str]
+            [meme.alpha.rewrite :as rw]
+            [meme.alpha.forms :as forms]))
 
 ;; ============================================================
 ;; S→M: Clojure forms → M-expression tagged tree
-;;
-;; Input:  (defn foo [x] (+ x 1))
-;; Output: (m-call defn foo [x] (m-call + x 1))
-;;
-;; The m-call tag marks "this was a list with a callable head."
-;; Vectors, maps, sets pass through unchanged.
 ;; ============================================================
 
 (def s->m-rules
   "Rules that tag S-expression calls as m-call nodes.
-   Apply bottom-up so inner calls are tagged before outer ones.
    List patterns only match lists (not vectors) — the engine distinguishes them."
   [(rw/rule '(?f ??args) '(m-call ?f ??args)
             (fn [bindings]
@@ -25,9 +20,6 @@
 
 ;; ============================================================
 ;; M→S: M-expression tagged tree → Clojure forms
-;;
-;; Input:  (m-call defn foo [x] (m-call + x 1))
-;; Output: (defn foo [x] (+ x 1))
 ;; ============================================================
 
 (def m->s-rules
@@ -35,46 +27,120 @@
   [(rw/rule '(m-call ?f ??args) '(?f ??args))])
 
 ;; ============================================================
+;; Helpers for anon-fn transformation
+;; ============================================================
+
+(defn- normalize-bare-percent
+  "Replace bare % with %1 in a form tree."
+  [form]
+  (cond
+    (= form '%) '%1
+    (seq? form) (apply list (map normalize-bare-percent form))
+    (vector? form) (mapv normalize-bare-percent form)
+    (map? form) (into {} (map (fn [[k v]] [(normalize-bare-percent k)
+                                            (normalize-bare-percent v)]) form))
+    (set? form) (set (map normalize-bare-percent form))
+    :else form))
+
+(defn- find-percent-params
+  "Walk form collecting % param types."
+  [form]
+  (cond
+    (symbol? form) (if-let [p (forms/percent-param-type form)] #{p} #{})
+    (sequential? form) (reduce into #{} (map find-percent-params form))
+    (set? form) (reduce into #{} (map find-percent-params form))
+    (map? form) (reduce into #{} (mapcat (fn [[k v]] [(find-percent-params k) (find-percent-params v)]) form))
+    :else #{}))
+
+(defn- build-anon-fn-params
+  "Build the param vector for an anonymous fn from collected param types."
+  [param-set]
+  (let [has-bare? (contains? param-set :bare)
+        has-rest? (contains? param-set :rest)
+        nums (filter number? param-set)
+        max-n (if (seq nums) (apply max nums) (if has-bare? 1 0))]
+    (cond-> (mapv #(symbol (str "%" %)) (range 1 (inc max-n)))
+      has-rest? (into ['& (symbol "%&")]))))
+
+;; ============================================================
 ;; Tree→S: tagged tree (from tree-builder) → Clojure forms
 ;;
-;; Input:  (m-call defn foo (bracket x) (m-call + x 1))
-;; Output: (defn foo [x] (+ x 1))
-;;
-;; Handles: m-call, bracket, brace, set-lit, paren, anon-fn,
-;;          meme/quote, meme/deref, meme/var, meme/meta
-;;
-;; Note: bracket→vector, brace→map, set-lit→set cannot be expressed
-;; as pure rules because substitute only produces lists. These are
-;; handled by transform-structures after rule application.
+;; Two-phase: rules flatten calls/parens, then transform-structures
+;; handles types the engine can't produce (vectors, maps, sets,
+;; metadata, AST nodes).
 ;; ============================================================
 
 (def tree->s-rules
-  "Rules that flatten tagged tree nodes to Clojure forms.
-   Apply bottom-up. Data structure rules (bracket, brace, set-lit) are
-   handled by transform-structures — the engine can't produce non-list types."
-  [;; calls
-   (rw/rule '(m-call ?f ??args) '(?f ??args))
-   ;; bare parens → plain list
-   (rw/rule '(paren ??items) '(??items))
-   ;; prefix sugar
-   (rw/rule '(meme/quote ?x) '(quote ?x))
-   (rw/rule '(meme/deref ?x) '(clojure.core/deref ?x))
-   (rw/rule '(meme/var ?x) '(var ?x))])
+  "Rules that flatten tagged tree nodes to Clojure forms."
+  [(rw/rule '(m-call ?f ??args) '(?f ??args))
+   (rw/rule '(paren ??items) '(??items))])
 
 (defn transform-structures
-  "Walk a tree and convert structural tags to Clojure data.
-   Called after tree->s-rules to handle types rules can't produce."
+  "Walk a tree and convert structural tags to Clojure data/AST nodes."
   [form]
   (cond
     (and (seq? form) (seq form))
     (let [head (first form)
-          children (map transform-structures (rest form))]
+          children (mapv transform-structures (rest form))]
       (case head
-        bracket (vec children)
-        brace (apply hash-map children)
-        set-lit (set children)
-        ;; default: recurse into list
-        (apply list (transform-structures head) children)))
+        bracket    (vec children)
+        brace      (apply hash-map children)
+        set-lit    (set children)
+
+        meme/quote
+        (with-meta (list 'quote (first children)) {:meme/sugar true})
+
+        meme/deref
+        (with-meta (list 'clojure.core/deref (first children)) {:meme/sugar true})
+
+        meme/var
+        (with-meta (list 'var (first children)) {:meme/sugar true})
+
+        meme/meta
+        (let [m (first children)
+              target (second children)
+              meta-map (cond
+                         (keyword? m) {m true}
+                         (symbol? m) {:tag m}
+                         (map? m) m
+                         :else {m true})]
+          (vary-meta target merge meta-map))
+
+        meme/syntax-quote   (forms/->MemeSyntaxQuote (first children))
+        meme/unquote        (forms/->MemeUnquote (first children))
+        meme/unquote-splicing (forms/->MemeUnquoteSplicing (first children))
+
+        anon-fn
+        (let [body (first children)
+              body (normalize-bare-percent body)
+              params (find-percent-params body)
+              param-vec (build-anon-fn-params params)]
+          (with-meta (list 'fn param-vec body) {:meme/sugar true}))
+
+        meme/tagged
+        #?(:clj  (tagged-literal (first children) (second children))
+           :cljs (first children))
+
+        meme/reader-cond          (forms/make-reader-conditional (vec children) false)
+        meme/reader-cond-splicing (forms/make-reader-conditional (vec children) true)
+
+        meme/ns-map
+        (let [ns-sym (first children)
+              ns-str (let [s (name ns-sym)]
+                       (if (str/starts-with? s "#:") (subs s 2) s))
+              kvs (rest children)
+              pairs (partition 2 kvs)]
+          (with-meta
+            (into {} (map (fn [[k v]]
+                            [(if (and (keyword? k) (nil? (namespace k)))
+                               (keyword ns-str (name k))
+                               k)
+                             v])
+                          pairs))
+            {:meme/ns ns-str}))
+
+        ;; Default: recurse into list
+        (apply list (transform-structures head) (seq children))))
 
     (vector? form) (mapv transform-structures form)
     (map? form) (into {} (map (fn [[k v]] [(transform-structures k)

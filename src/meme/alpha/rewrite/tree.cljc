@@ -8,7 +8,9 @@
    The existing parser (meme.alpha.parse.reader) does tree-building and
    M→S transformation in one pass. This module separates them: build a
    raw tagged tree here, then let rewrite rules handle the rest."
-  (:require [meme.alpha.parse.resolve :as resolve]))
+  (:require [clojure.string :as str]
+            [meme.alpha.forms :as forms]
+            [meme.alpha.parse.resolve :as resolve]))
 
 ;; ============================================================
 ;; Token stream helpers
@@ -17,9 +19,6 @@
 (defn- tok-type [tokens pos]
   (when (< pos (count tokens))
     (:type (nth tokens pos))))
-
-(defn- tok-val [tokens pos]
-  (:value (nth tokens pos)))
 
 (defn- adjacent?
   "Is the token at pos adjacent to the previous token (no whitespace)?"
@@ -46,7 +45,11 @@
                 "false" false
                 "nil" nil
                 (symbol (:value token)))
-      :keyword (keyword (subs (:value token) 1))
+      :keyword (let [raw (:value token)]
+                 (if (str/starts-with? raw "::")
+                   ;; Auto-resolve keyword — use deferred encoding like the parser
+                   (forms/deferred-auto-keyword raw)
+                   (keyword (subs raw 1))))
       :number (resolve/resolve-number (:value token) loc)
       :string (resolve/resolve-string (:value token) loc)
       :char (resolve/resolve-char (:value token) loc)
@@ -181,12 +184,16 @@
       ;; Reader conditionals and namespaced maps — pass through as markers
       :reader-cond-start
       (let [splicing? (= "#?@" (:value token))
-            [items new-pos] (build-collection tokens (inc pos) :close-paren)]
+            ;; skip the :open-paren that follows :reader-cond-start
+            paren-pos (inc pos)
+            [items new-pos] (build-collection tokens (inc paren-pos) :close-paren)]
         [(apply list (if splicing? 'meme/reader-cond-splicing 'meme/reader-cond) items) new-pos])
 
       :namespaced-map-start
       (let [ns-prefix (:value token)
-            [items new-pos] (build-collection tokens (inc pos) :close-brace)]
+            ;; skip the :open-brace that follows :namespaced-map-start
+            brace-pos (inc pos)
+            [items new-pos] (build-collection tokens (inc brace-pos) :close-brace)]
         [(apply list 'meme/ns-map (symbol ns-prefix) items) new-pos])
 
       ;; Fallback
