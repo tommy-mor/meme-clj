@@ -174,11 +174,11 @@
 
 (deftest dogfood-semantic-equivalence
   (doseq [path ["src/meme/alpha/core.cljc" "src/meme/alpha/runtime/run.cljc"
-                 "src/meme/alpha/runtime/repl.cljc" "test/meme/alpha/test_runner.clj"
-                 "src/meme/alpha/parse/reader.cljc" "src/meme/alpha/emit/printer.cljc"
-                 "src/meme/alpha/scan/tokenizer.cljc"
-                 "src/meme/alpha/parse/resolve.cljc" "src/meme/alpha/pipeline.cljc"
-                 "src/meme/alpha/errors.cljc"]]
+                "src/meme/alpha/runtime/repl.cljc" "test/meme/alpha/test_runner.clj"
+                "src/meme/alpha/parse/reader.cljc" "src/meme/alpha/emit/printer.cljc"
+                "src/meme/alpha/scan/tokenizer.cljc"
+                "src/meme/alpha/parse/resolve.cljc" "src/meme/alpha/pipeline.cljc"
+                "src/meme/alpha/errors.cljc"]]
     (testing (str path " roundtripped vars match original")
       (let [original (kondo-var-defs path)
             tmp (roundtrip-to-tmp path)

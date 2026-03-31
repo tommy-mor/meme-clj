@@ -45,7 +45,7 @@
 (deftest parse-defn-multi-arity
   ;; Vector-as-head: [args](body) → ([args] body)
   (let [result (first (core/meme->forms
-                        "defn(greet [name](str(\"Hello \" name \"!\")) [name punct](str(\"Hello \" name punct)))"))]
+                       "defn(greet [name](str(\"Hello \" name \"!\")) [name punct](str(\"Hello \" name punct)))"))]
     (is (= 'defn (first result)))
     (is (= 'greet (second result)))
     (is (seq? (nth result 2)))
@@ -252,7 +252,7 @@
 
 (deftest parse-defrecord-with-impls
   (let [result (first (core/meme->forms
-                        "defrecord(Circle [center radius] Shape area([this] *(Math/PI :radius(this) :radius(this))))"))]
+                       "defrecord(Circle [center radius] Shape area([this] *(Math/PI :radius(this) :radius(this))))"))]
     (is (= 'defrecord (first result)))
     (is (= 'Circle (second result)))
     (is (= '[center radius] (nth result 2)))

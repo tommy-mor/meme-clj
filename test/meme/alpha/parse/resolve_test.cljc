@@ -14,23 +14,23 @@
   (is (= 3.14 (resolve/resolve-number "3.14" {:line 1 :col 1}))))
 
 #?(:clj
-(deftest resolve-number-formats
-  (testing "hex wraps in MemeRaw"
-    (let [r (resolve/resolve-number "0xFF" {:line 1 :col 1})]
-      (is (forms/raw? r))
-      (is (= 255 (:value r)))
-      (is (= "0xFF" (:raw r)))))
-  (is (= 42N (resolve/resolve-number "42N" {:line 1 :col 1})))
-  (is (= 42N (resolve/resolve-number "+42N" {:line 1 :col 1})))
-  (is (= -42N (resolve/resolve-number "-42N" {:line 1 :col 1})))
-  (is (= 1.5M (resolve/resolve-number "1.5M" {:line 1 :col 1})))
-  (is (= 1/2 (resolve/resolve-number "1/2" {:line 1 :col 1})))
-  (is (= 3/4 (resolve/resolve-number "+3/4" {:line 1 :col 1})))
-  (is (= -3/4 (resolve/resolve-number "-3/4" {:line 1 :col 1})))))
+   (deftest resolve-number-formats
+     (testing "hex wraps in MemeRaw"
+       (let [r (resolve/resolve-number "0xFF" {:line 1 :col 1})]
+         (is (forms/raw? r))
+         (is (= 255 (:value r)))
+         (is (= "0xFF" (:raw r)))))
+     (is (= 42N (resolve/resolve-number "42N" {:line 1 :col 1})))
+     (is (= 42N (resolve/resolve-number "+42N" {:line 1 :col 1})))
+     (is (= -42N (resolve/resolve-number "-42N" {:line 1 :col 1})))
+     (is (= 1.5M (resolve/resolve-number "1.5M" {:line 1 :col 1})))
+     (is (= 1/2 (resolve/resolve-number "1/2" {:line 1 :col 1})))
+     (is (= 3/4 (resolve/resolve-number "+3/4" {:line 1 :col 1})))
+     (is (= -3/4 (resolve/resolve-number "-3/4" {:line 1 :col 1})))))
 
 (deftest resolve-number-invalid
   (is (thrown? #?(:clj Exception :cljs :default)
-              (resolve/resolve-number "1/" {:line 1 :col 1}))))
+               (resolve/resolve-number "1/" {:line 1 :col 1}))))
 
 ;; ---------------------------------------------------------------------------
 ;; Strings
@@ -60,7 +60,7 @@
 
 (deftest resolve-regex-invalid
   (is (thrown? #?(:clj Exception :cljs :default)
-              (resolve/resolve-regex "#\"[unclosed\"" {:line 1 :col 1}))))
+               (resolve/resolve-regex "#\"[unclosed\"" {:line 1 :col 1}))))
 
 ;; ---------------------------------------------------------------------------
 ;; Auto-resolve keywords
@@ -76,26 +76,26 @@
      :cljs
      (testing "without resolver, errors on CLJS"
        (is (thrown-with-msg? js/Error #"resolve-keyword"
-             (resolve/resolve-auto-keyword "::foo" {:line 1 :col 1} nil))))))
+                             (resolve/resolve-auto-keyword "::foo" {:line 1 :col 1} nil))))))
 
 #?(:clj
-(deftest resolve-auto-keyword-with-resolver
-  (testing "with resolver, resolves at read time"
-    (let [kw (resolve/resolve-auto-keyword "::foo" {:line 1 :col 1}
-               #(clojure.core/read-string %))]
-      (is (keyword? kw))
-      (is (= :user/foo kw))))))
+   (deftest resolve-auto-keyword-with-resolver
+     (testing "with resolver, resolves at read time"
+       (let [kw (resolve/resolve-auto-keyword "::foo" {:line 1 :col 1}
+                                              #(clojure.core/read-string %))]
+         (is (keyword? kw))
+         (is (= :user/foo kw))))))
 
 ;; ---------------------------------------------------------------------------
 ;; Tagged literals (JVM only)
 ;; ---------------------------------------------------------------------------
 
 #?(:clj
-(deftest resolve-tagged-literal-basic
-  (let [tl (resolve/resolve-tagged-literal 'mytag "data" {:line 1 :col 1})]
-    (is (tagged-literal? tl))
-    (is (= 'mytag (.-tag tl)))
-    (is (= "data" (.-form tl))))))
+   (deftest resolve-tagged-literal-basic
+     (let [tl (resolve/resolve-tagged-literal 'mytag "data" {:line 1 :col 1})]
+       (is (tagged-literal? tl))
+       (is (= 'mytag (.-tag tl)))
+       (is (= "data" (.-form tl))))))
 
 ;; ---------------------------------------------------------------------------
 ;; Error location wrapping
@@ -110,13 +110,13 @@
       (is (= 5 (:line (ex-data e))))
       (is (= 10 (:col (ex-data e))))))
   #?(:clj
-  (testing "invalid char literal error includes line/col"
-    (let [e (try (resolve/resolve-char "\\zzz" {:line 3 :col 7})
-                 nil
-                 (catch Exception e e))]
-      (is (some? e))
-      (is (= 3 (:line (ex-data e))))
-      (is (= 7 (:col (ex-data e)))))))
+     (testing "invalid char literal error includes line/col"
+       (let [e (try (resolve/resolve-char "\\zzz" {:line 3 :col 7})
+                    nil
+                    (catch Exception e e))]
+         (is (some? e))
+         (is (= 3 (:line (ex-data e))))
+         (is (= 7 (:col (ex-data e)))))))
   (testing "invalid regex error includes line/col"
     (let [e (try (resolve/resolve-regex "#\"[unclosed\"" {:line 2 :col 4})
                  nil

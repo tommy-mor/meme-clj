@@ -10,19 +10,19 @@
 
 (deftest parse-unterminated-string
   (is (thrown? #?(:clj Exception :cljs js/Error)
-              (core/meme->forms "\"unterminated"))))
+               (core/meme->forms "\"unterminated"))))
 
 (deftest parse-mismatched-paren
   (is (thrown? #?(:clj Exception :cljs js/Error)
-              (core/meme->forms "foo(bar"))))
+               (core/meme->forms "foo(bar"))))
 
 (deftest parse-unexpected-close-paren
   (is (thrown? #?(:clj Exception :cljs js/Error)
-              (core/meme->forms ")"))))
+               (core/meme->forms ")"))))
 
 (deftest parse-odd-count-map
   (is (thrown? #?(:clj Exception :cljs js/Error)
-              (core/meme->forms "{:a 1 :b}")))
+               (core/meme->forms "{:a 1 :b}")))
   (let [e (try (core/meme->forms "{:a 1 :b}")
                nil
                (catch #?(:clj Exception :cljs js/Error) e e))]
@@ -32,13 +32,13 @@
 (deftest parse-mismatched-bracket-types
   (testing "closing paren where bracket expected"
     (is (thrown? #?(:clj Exception :cljs js/Error)
-                (core/meme->forms "[1 2)"))))
+                 (core/meme->forms "[1 2)"))))
   (testing "closing bracket where brace expected"
     (is (thrown? #?(:clj Exception :cljs js/Error)
-                (core/meme->forms "{:a 1]"))))
+                 (core/meme->forms "{:a 1]"))))
   (testing "closing bracket where paren expected in call"
     (is (thrown? #?(:clj Exception :cljs js/Error)
-                (core/meme->forms "foo(1 2]")))))
+                 (core/meme->forms "foo(1 2]")))))
 
 ;; ---------------------------------------------------------------------------
 ;; Syntax-quote is opaque passthrough (JVM), rejected on CLJS.

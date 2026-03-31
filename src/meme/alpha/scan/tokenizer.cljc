@@ -153,14 +153,14 @@
       (when (< consumed 4)
         (if (and (pos? consumed) (seof? sc))
           (errors/meme-error
-            (str "Incomplete unicode escape: expected 4 hex digits after \\u, got " consumed)
-            (assoc loc :incomplete true))
+           (str "Incomplete unicode escape: expected 4 hex digits after \\u, got " consumed)
+           (assoc loc :incomplete true))
           (when (and (not (seof? sc))
                      (not (whitespace? (speek sc)))
                      (not (#{\( \) \[ \] \{ \} \;} (speek sc))))
             (errors/meme-error
-              (str "Invalid unicode escape: expected 4 hex digits after \\u, got " consumed)
-              loc)))))
+             (str "Invalid unicode escape: expected 4 hex digits after \\u, got " consumed)
+             loc)))))
     ;; \oXXX — octal escape: up to 3 octal digits required, at least 1
     (= ch \o)
     (let [consumed (loop [n 0]
@@ -171,8 +171,8 @@
                  (not (whitespace? (speek sc)))
                  (not (#{\( \) \[ \] \{ \} \;} (speek sc))))
         (errors/meme-error
-          "Invalid octal escape: expected octal digits after \\o"
-          loc)))
+         "Invalid octal escape: expected octal digits after \\o"
+         loc)))
     ;; named chars: \newline, \space, etc.
     (letter? ch)
     (loop []
@@ -198,8 +198,8 @@
       (when-not (seof? sc)
         (let [ch (speek sc)]
           (when (or (digit? ch)
-                     (letter? ch)
-                     (#{\. \/ \+ \-} ch))
+                    (letter? ch)
+                    (#{\. \/ \+ \-} ch))
             (sadvance! sc)
             (sb-append! sb ch)
             (recur)))))

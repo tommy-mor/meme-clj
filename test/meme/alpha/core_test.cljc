@@ -36,13 +36,13 @@
            (core/forms->clj ['(def x 42) '(println x)])))))
 
 #?(:clj
-(deftest clj->forms-test
-  (testing "single form"
-    (is (= '[(defn f [x] (+ x 1))]
-           (core/clj->forms "(defn f [x] (+ x 1))"))))
-  (testing "multiple forms"
-    (is (= '[(def x 42) (println x)]
-           (core/clj->forms "(def x 42)\n(println x)"))))))
+   (deftest clj->forms-test
+     (testing "single form"
+       (is (= '[(defn f [x] (+ x 1))]
+              (core/clj->forms "(defn f [x] (+ x 1))"))))
+     (testing "multiple forms"
+       (is (= '[(def x 42) (println x)]
+              (core/clj->forms "(def x 42)\n(println x)"))))))
 
 ;; ---------------------------------------------------------------------------
 ;; Text-to-text track
@@ -56,13 +56,13 @@
            (core/meme->clj "def(x 42)\nprintln(x)")))))
 
 #?(:clj
-(deftest clj->meme-test
-  (testing "converts Clojure source to meme"
-    (is (= "defn(f [x] +(x 1))"
-           (core/clj->meme "(defn f [x] (+ x 1))"))))
-  (testing "multiple forms"
-    (is (= "def(x 42)\n\nprintln(x)"
-           (core/clj->meme "(def x 42)\n(println x)"))))))
+   (deftest clj->meme-test
+     (testing "converts Clojure source to meme"
+       (is (= "defn(f [x] +(x 1))"
+              (core/clj->meme "(defn f [x] (+ x 1))"))))
+     (testing "multiple forms"
+       (is (= "def(x 42)\n\nprintln(x)"
+              (core/clj->meme "(def x 42)\n(println x)"))))))
 
 ;; ---------------------------------------------------------------------------
 ;; Composition identities
@@ -74,49 +74,47 @@
       (is (= (core/meme->clj src)
              (core/forms->clj (core/meme->forms src))))))
   #?(:clj
-  (testing "clj->meme = forms->meme . clj->forms"
-    (let [src "(def x 42)\n(println x)"]
-      (is (= (core/clj->meme src)
-             (core/forms->meme (core/clj->forms src))))))))
+     (testing "clj->meme = forms->meme . clj->forms"
+       (let [src "(def x 42)\n(println x)"]
+         (is (= (core/clj->meme src)
+                (core/forms->meme (core/clj->forms src))))))))
 
 ;; ---------------------------------------------------------------------------
 ;; Options
 ;; ---------------------------------------------------------------------------
 
 #?(:clj
-(deftest meme->forms-with-resolve-keyword
-  (testing ":resolve-keyword option resolves :: keywords at read time"
-    (let [forms (core/meme->forms "::foo"
-                  {:resolve-keyword #(clojure.core/read-string %)})]
-      (is (= [:user/foo] forms))))))
-
-
+   (deftest meme->forms-with-resolve-keyword
+     (testing ":resolve-keyword option resolves :: keywords at read time"
+       (let [forms (core/meme->forms "::foo"
+                                     {:resolve-keyword #(clojure.core/read-string %)})]
+         (is (= [:user/foo] forms))))))
 
 #?(:clj
-(deftest clj->forms-empty
-  (testing "empty string produces empty vector"
-    (is (= [] (core/clj->forms ""))))))
+   (deftest clj->forms-empty
+     (testing "empty string produces empty vector"
+       (is (= [] (core/clj->forms ""))))))
 
 #?(:clj
-(deftest clj->forms-reader-conditional
-  (testing "reader conditional parses as single form"
-    (let [forms (core/clj->forms "#?(:clj 1 :cljs 2)")]
-      (is (= 1 (count forms)))
-      (is (reader-conditional? (first forms)))))))
+   (deftest clj->forms-reader-conditional
+     (testing "reader conditional parses as single form"
+       (let [forms (core/clj->forms "#?(:clj 1 :cljs 2)")]
+         (is (= 1 (count forms)))
+         (is (reader-conditional? (first forms)))))))
 
 #?(:clj
-(deftest clj->forms-eof-sentinel-no-collision
-  (testing ":meme.alpha.core/eof as top-level form does not truncate output"
-    (is (= [:meme.alpha.core/eof '(def y 2)]
-           (core/clj->forms ":meme.alpha.core/eof (def y 2)"))))
-  (testing ":meme.alpha.core/eof inside a form is preserved"
-    (is (= '[(def x :meme.alpha.core/eof)]
-           (core/clj->forms "(def x :meme.alpha.core/eof)"))))))
+   (deftest clj->forms-eof-sentinel-no-collision
+     (testing ":meme.alpha.core/eof as top-level form does not truncate output"
+       (is (= [:meme.alpha.core/eof '(def y 2)]
+              (core/clj->forms ":meme.alpha.core/eof (def y 2)"))))
+     (testing ":meme.alpha.core/eof inside a form is preserved"
+       (is (= '[(def x :meme.alpha.core/eof)]
+              (core/clj->forms "(def x :meme.alpha.core/eof)"))))))
 
 #?(:clj
-(deftest meme->clj-with-opts
-  (testing "basic meme->clj conversion"
-    (is (= "(+ 1 2)" (core/meme->clj "+(1 2)"))))))
+   (deftest meme->clj-with-opts
+     (testing "basic meme->clj conversion"
+       (is (= "(+ 1 2)" (core/meme->clj "+(1 2)"))))))
 
 ;; ---------------------------------------------------------------------------
 ;; Error propagation
@@ -206,14 +204,14 @@
       (is (= "\n\n" (:ws (second (:raw-tokens ctx))))))))
 
 #?(:clj
-(deftest run-pipeline-jvm-test
-  (testing "raw-tokens and tokens are identical"
-    (let [ctx (core/run-pipeline "`foo")]
-      (is (= (:raw-tokens ctx) (:tokens ctx)))))
-  (testing "opts pass through"
-    (let [ctx (core/run-pipeline "::foo"
-                {:resolve-keyword #(clojure.core/read-string %)})]
-      (is (= [:user/foo] (:forms ctx)))))))
+   (deftest run-pipeline-jvm-test
+     (testing "raw-tokens and tokens are identical"
+       (let [ctx (core/run-pipeline "`foo")]
+         (is (= (:raw-tokens ctx) (:tokens ctx)))))
+     (testing "opts pass through"
+       (let [ctx (core/run-pipeline "::foo"
+                                    {:resolve-keyword #(clojure.core/read-string %)})]
+         (is (= [:user/foo] (:forms ctx)))))))
 
 ;; ---------------------------------------------------------------------------
 ;; AST node accessors (MemeRaw)
@@ -285,8 +283,8 @@
   (testing "set"
     (is (= "#{1 2 3}" (core/meme->clj "#{1 2 3}"))))
   #?(:clj
-  (testing "auto-resolve keyword"
-    (is (= "::foo" (core/meme->clj "::foo"))))))
+     (testing "auto-resolve keyword"
+       (is (= "::foo" (core/meme->clj "::foo"))))))
 
 (deftest meme->clj-metadata
   (testing "keyword metadata"
@@ -295,15 +293,15 @@
     (is (= "^String x" (core/meme->clj "^String x")))))
 
 #?(:clj
-(deftest meme->clj-reader-conditionals
-  (testing "reader conditional preserves through meme->clj"
-    (let [result (core/meme->clj "#?(:clj 1 :cljs 2)" {:read-cond :preserve})]
-      (is (= "#?(:clj 1 :cljs 2)" result))))))
+   (deftest meme->clj-reader-conditionals
+     (testing "reader conditional preserves through meme->clj"
+       (let [result (core/meme->clj "#?(:clj 1 :cljs 2)" {:read-cond :preserve})]
+         (is (= "#?(:clj 1 :cljs 2)" result))))))
 
 #?(:clj
-(deftest meme->clj-namespaced-map
-  (testing "namespaced map"
-    (is (= "#:user{:a 1 :b 2}" (core/meme->clj "#:user{:a 1 :b 2}"))))))
+   (deftest meme->clj-namespaced-map
+     (testing "namespaced map"
+       (is (= "#:user{:a 1 :b 2}" (core/meme->clj "#:user{:a 1 :b 2}"))))))
 
 (deftest format-forms-rejects-string-input
   (testing "forms->meme rejects a string"

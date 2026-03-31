@@ -159,8 +159,8 @@
 
      (map? form)
      (with-meta (into {} (map (fn [[k v]] [(expand-syntax-quotes k opts)
-                                            (expand-syntax-quotes v opts)]) form))
-                (meta form))
+                                           (expand-syntax-quotes v opts)]) form))
+       (meta form))
 
      (set? form)
      (with-meta (set (map #(expand-syntax-quotes % opts) form)) (meta form))

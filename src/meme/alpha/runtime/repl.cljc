@@ -87,22 +87,22 @@
   ([] (start {}))
   ([opts]
    (let [read-line-fn (or (:read-line opts)
-                         #?(:clj read-line
-                            :cljs (throw (ex-info "REPL requires :read-line option in ClojureScript" {}))))
+                          #?(:clj read-line
+                             :cljs (throw (ex-info "REPL requires :read-line option in ClojureScript" {}))))
          eval-fn (or (:eval opts)
                      #?(:clj eval
                         :cljs (throw (ex-info "REPL requires :eval option in ClojureScript" {}))))
          reader-opts (let [rk (or (:resolve-keyword opts)
                                   #?(:clj #(clojure.core/read-string %)
                                      :cljs nil))
-                          base (if rk {:resolve-keyword rk} {})]
+                           base (if rk {:resolve-keyword rk} {})]
                        #?(:clj (cond-> base
                                  (not (:resolve-symbol opts))
                                  (assoc :resolve-symbol resolve/default-resolve-symbol))
                           :cljs base))]
      (let [version #?(:clj (try (some-> (io/resource "meme/version.txt") slurp str/trim)
-                               (catch Exception _ nil))
-                       :cljs nil)
+                                (catch Exception _ nil))
+                      :cljs nil)
            banner (if version
                     (str "meme " version " REPL. Type meme expressions, balanced input to eval. Ctrl-D to exit.")
                     "meme REPL. Type meme expressions, balanced input to eval. Ctrl-D to exit.")]

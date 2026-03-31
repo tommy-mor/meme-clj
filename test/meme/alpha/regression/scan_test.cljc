@@ -89,9 +89,9 @@
     (let [tokens (tokenize "#:user{:ch \\}}")]
       (is (= :namespaced-map-start (:type (first tokens))))))
   #?(:clj
-  (testing "#? with bracket char literals parses to matched value"
-    (is (= \) (first (core/meme->forms "#?(:clj \\) :cljs nil)"))))
-    (is (= \( (first (core/meme->forms "#?(:clj \\( :cljs nil)")))))))
+     (testing "#? with bracket char literals parses to matched value"
+       (is (= \) (first (core/meme->forms "#?(:clj \\) :cljs nil)"))))
+       (is (= \( (first (core/meme->forms "#?(:clj \\( :cljs nil)")))))))
 
 ;; ---------------------------------------------------------------------------
 ;; Bug: `~(expr) produced truncated token and confusing "Bare parentheses"
@@ -138,20 +138,20 @@
 ;; ---------------------------------------------------------------------------
 
 #?(:clj
-(deftest radix-numbers-high-bases
-  (testing "36rZ — base-36, value preserved in MemeRaw"
-    (let [form (first (core/meme->forms "36rZ"))]
-      (is (= 35 (:value form)))
-      (is (= "36rZ" (:raw form)))))
-  (testing "16rFF — hex via radix notation"
-    (let [form (first (core/meme->forms "16rFF"))]
-      (is (= 255 (:value form)))))
-  (testing "2r1010 — binary"
-    (let [form (first (core/meme->forms "2r1010"))]
-      (is (= 10 (:value form)))))
-  (testing "36rHelloWorld — large base-36 number"
-    (let [form (first (core/meme->forms "36rHelloWorld"))]
-      (is (= 1767707668033969 (:value form)))))))
+   (deftest radix-numbers-high-bases
+     (testing "36rZ — base-36, value preserved in MemeRaw"
+       (let [form (first (core/meme->forms "36rZ"))]
+         (is (= 35 (:value form)))
+         (is (= "36rZ" (:raw form)))))
+     (testing "16rFF — hex via radix notation"
+       (let [form (first (core/meme->forms "16rFF"))]
+         (is (= 255 (:value form)))))
+     (testing "2r1010 — binary"
+       (let [form (first (core/meme->forms "2r1010"))]
+         (is (= 10 (:value form)))))
+     (testing "36rHelloWorld — large base-36 number"
+       (let [form (first (core/meme->forms "36rHelloWorld"))]
+         (is (= 1767707668033969 (:value form)))))))
 
 ;; ---------------------------------------------------------------------------
 ;; Scar tissue: backslash terminates symbol — foo\a is symbol + char literal.
@@ -167,8 +167,8 @@
       (is (= :char (:type (second tokens))))
       (is (= "\\a" (:value (second tokens))))))
   #?(:clj
-  (testing "[foo\\a] reads as two-element vector"
-    (is (= '[[foo \a]] (core/meme->forms "[foo\\a]"))))))
+     (testing "[foo\\a] reads as two-element vector"
+       (is (= '[[foo \a]] (core/meme->forms "[foo\\a]"))))))
 
 ;; ---------------------------------------------------------------------------
 ;; B2: syntax-quote + unquote + string literal.
@@ -202,10 +202,10 @@
       (is (= :char (:type (first tokens))))
       (is (= "\\o101" (:value (first tokens))))))
   #?(:clj
-  (testing "\\u0041 resolves to char A, preserves raw notation"
-    (let [form (first (core/meme->forms "\\u0041"))]
-      (is (= \A (:value form)))
-      (is (= "\\u0041" (:raw form)))))))
+     (testing "\\u0041 resolves to char A, preserves raw notation"
+       (let [form (first (core/meme->forms "\\u0041"))]
+         (is (= \A (:value form)))
+         (is (= "\\u0041" (:raw form)))))))
 
 ;; ---------------------------------------------------------------------------
 ;; Bug: \u00g1 tokenized as \u00 + g1 instead of erroring.
@@ -215,16 +215,16 @@
 (deftest unicode-escape-invalid-digit-errors
   (testing "\\u00g1 — non-hex digit errors at tokenizer level"
     (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
-          #"expected 4 hex digits"
-          (core/meme->forms "\\u00g1"))))
+                          #"expected 4 hex digits"
+                          (core/meme->forms "\\u00g1"))))
   (testing "\\uXYZW — non-hex immediately after \\u"
     (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
-          #"expected 4 hex digits"
-          (core/meme->forms "\\uXYZW"))))
+                          #"expected 4 hex digits"
+                          (core/meme->forms "\\uXYZW"))))
   (testing "\\og — no octal digits after \\o"
     (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
-          #"expected octal digits"
-          (core/meme->forms "\\og"))))
+                          #"expected octal digits"
+                          (core/meme->forms "\\og"))))
   (testing "valid \\u0041 still works"
     (is (= 1 (count (tokenize "\\u0041"))))
     (is (= :char (:type (first (tokenize "\\u0041"))))))
@@ -292,10 +292,10 @@
 (deftest hash-digit-error
   (testing "#3 throws clear error"
     (is (thrown-with-msg? #?(:clj Exception :cljs js/Error) #"Invalid dispatch: #3"
-          (core/meme->forms "#3"))))
+                          (core/meme->forms "#3"))))
   (testing "#0 throws clear error"
     (is (thrown-with-msg? #?(:clj Exception :cljs js/Error) #"Invalid dispatch: #0"
-          (core/meme->forms "#0")))))
+                          (core/meme->forms "#0")))))
 
 ;; ---------------------------------------------------------------------------
 ;; B9: # followed by non-symbol char (], ), ~, @, ^, \, ;, }, `).
@@ -307,11 +307,11 @@
 
 (deftest hash-non-symbol-char-error
   (doseq [[input desc] [["#)" "#)"] ["#]" "#]"] ["#~" "#~"]
-                         ["#@" "#@"] ["#^" "#^"] ["#}" "#}"]
-                         ["#`" "#`"] ["#;" "#;"]]]
+                        ["#@" "#@"] ["#^" "#^"] ["#}" "#}"]
+                        ["#`" "#`"] ["#;" "#;"]]]
     (testing (str desc " throws clear Invalid dispatch error")
       (is (thrown-with-msg? #?(:clj Exception :cljs js/Error) #"Invalid dispatch"
-            (core/meme->forms input))))))
+                            (core/meme->forms input))))))
 
 ;; ---------------------------------------------------------------------------
 ;; Bug: #() inside compound dispatch forms desynchronized bracket depth
@@ -323,8 +323,8 @@
     (let [tokens (tokenize "#?(:clj #(inc(%)) :cljs identity)")]
       (is (= :reader-cond-start (:type (first tokens))))))
   #?(:clj
-  (testing "#?(:clj #(inc(%)) :cljs identity) parses without error"
-    (is (some? (core/meme->forms "#?(:clj #(inc(%)) :cljs identity)")))))
+     (testing "#?(:clj #(inc(%)) :cljs identity) parses without error"
+       (is (some? (core/meme->forms "#?(:clj #(inc(%)) :cljs identity)")))))
   (testing "#?@(:clj [#(+(%1 %2))] :cljs [identity]) starts with reader-cond-start"
     (let [tokens (tokenize "#?@(:clj [#(+(%1 %2))] :cljs [identity])")]
       (is (= :reader-cond-start (:type (first tokens)))))))
@@ -337,12 +337,12 @@
     (is (some? (core/meme->forms "`#(inc(%))")))))
 
 #?(:clj
-(deftest anon-fn-inside-namespaced-map
-  (testing "#:user{:f #(inc(%))} tokenizes with namespaced-map-start"
-    (let [tokens (tokenize "#:user{:f #(inc(%))}")]
-      (is (= :namespaced-map-start (:type (first tokens))))))
-  (testing "#:user{:f #(inc(%))} parses without error"
-    (is (some? (core/meme->forms "#:user{:f #(inc(%))}"))))))
+   (deftest anon-fn-inside-namespaced-map
+     (testing "#:user{:f #(inc(%))} tokenizes with namespaced-map-start"
+       (let [tokens (tokenize "#:user{:f #(inc(%))}")]
+         (is (= :namespaced-map-start (:type (first tokens))))))
+     (testing "#:user{:f #(inc(%))} parses without error"
+       (is (some? (core/meme->forms "#:user{:f #(inc(%))}"))))))
 
 ;; ---------------------------------------------------------------------------
 ;; Bug: unclosed compound dispatch forms returned :invalid instead of :incomplete.
@@ -454,25 +454,25 @@
       (is (= "42" (:value (second tokens)))))))
 
 #?(:clj
-(deftest symbolic-value-parsing
-  (testing "##Inf parses to positive infinity"
-    (is (= ##Inf (first (core/meme->forms "##Inf")))))
-  (testing "##-Inf parses to negative infinity"
-    (is (= ##-Inf (first (core/meme->forms "##-Inf")))))
-  (testing "##NaN parses to NaN"
-    (is (Double/isNaN (first (core/meme->forms "##NaN")))))
-  (testing "##Inf roundtrips through print → re-read"
-    (let [forms (core/meme->forms "##Inf")
-          printed (fmt-flat/format-forms forms)
-          re-read (core/meme->forms printed)]
-      (is (= "##Inf" printed))
-      (is (= forms re-read))))
-  (testing "##-Inf roundtrips"
-    (let [forms (core/meme->forms "##-Inf")
-          printed (fmt-flat/format-forms forms)]
-      (is (= "##-Inf" printed))))
-  (testing "##NaN prints as ##NaN"
-    (is (= "##NaN" (fmt-flat/format-forms (core/meme->forms "##NaN")))))))
+   (deftest symbolic-value-parsing
+     (testing "##Inf parses to positive infinity"
+       (is (= ##Inf (first (core/meme->forms "##Inf")))))
+     (testing "##-Inf parses to negative infinity"
+       (is (= ##-Inf (first (core/meme->forms "##-Inf")))))
+     (testing "##NaN parses to NaN"
+       (is (Double/isNaN (first (core/meme->forms "##NaN")))))
+     (testing "##Inf roundtrips through print → re-read"
+       (let [forms (core/meme->forms "##Inf")
+             printed (fmt-flat/format-forms forms)
+             re-read (core/meme->forms printed)]
+         (is (= "##Inf" printed))
+         (is (= forms re-read))))
+     (testing "##-Inf roundtrips"
+       (let [forms (core/meme->forms "##-Inf")
+             printed (fmt-flat/format-forms forms)]
+         (is (= "##-Inf" printed))))
+     (testing "##NaN prints as ##NaN"
+       (is (= "##NaN" (fmt-flat/format-forms (core/meme->forms "##NaN")))))))
 
 ;; ---------------------------------------------------------------------------
 ;; The group stage was collapsed into scan (it was a pass-through).

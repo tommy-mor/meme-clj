@@ -48,19 +48,19 @@
 ;; ---------------------------------------------------------------------------
 
 #?(:clj
-(deftest run-file-basic
-  (testing "runs a .meme file and returns last result"
-    (let [tmp (java.io.File/createTempFile "meme-test" ".meme")]
-      (try
-        (spit tmp "def(x 42)\nx")
-        (is (= 42 (run/run-file (str tmp))))
-        (finally
-          (.delete tmp)))))))
+   (deftest run-file-basic
+     (testing "runs a .meme file and returns last result"
+       (let [tmp (java.io.File/createTempFile "meme-test" ".meme")]
+         (try
+           (spit tmp "def(x 42)\nx")
+           (is (= 42 (run/run-file (str tmp))))
+           (finally
+             (.delete tmp)))))))
 
 #?(:clj
-(deftest run-file-not-found
-  (testing "non-existent file throws"
-    (is (thrown? Exception (run/run-file "/tmp/nonexistent-meme-file-12345.meme"))))))
+   (deftest run-file-not-found
+     (testing "non-existent file throws"
+       (is (thrown? Exception (run/run-file "/tmp/nonexistent-meme-file-12345.meme"))))))
 
 ;; ---------------------------------------------------------------------------
 ;; Shebang support
@@ -84,39 +84,39 @@
 ;; ---------------------------------------------------------------------------
 
 #?(:clj
-(deftest run-string-auto-keyword-resolves-in-declared-ns
-  (testing "::foo resolves in the file's declared namespace, not the caller's"
-    (let [result (binding [*ns* *ns*]
-                   (run/run-string "ns(my.meme.test.ns.kw)\n::foo"))]
-      (is (= :my.meme.test.ns.kw/foo result))))
-  (testing "::foo without ns declaration resolves in current namespace"
-    (is (= (keyword (str (ns-name *ns*)) "bar")
-           (run/run-string "::bar"))))))
+   (deftest run-string-auto-keyword-resolves-in-declared-ns
+     (testing "::foo resolves in the file's declared namespace, not the caller's"
+       (let [result (binding [*ns* *ns*]
+                      (run/run-string "ns(my.meme.test.ns.kw)\n::foo"))]
+         (is (= :my.meme.test.ns.kw/foo result))))
+     (testing "::foo without ns declaration resolves in current namespace"
+       (is (= (keyword (str (ns-name *ns*)) "bar")
+              (run/run-string "::bar"))))))
 
 ;; ---------------------------------------------------------------------------
 ;; Syntax-quote symbol resolution
 ;; ---------------------------------------------------------------------------
 
 #?(:clj
-(deftest run-string-syntax-quote-resolves-symbols
-  (testing "`map resolves to clojure.core/map"
-    (is (= 'clojure.core/map (run/run-string "`map"))))
-  (testing "`if stays unqualified (special form)"
-    (is (= 'if (run/run-string "`if"))))
-  (testing "`do stays unqualified (special form)"
-    (is (= 'do (run/run-string "`do"))))
-  (testing "already-qualified symbol stays as-is"
-    (is (= 'clojure.string/join (run/run-string "`clojure.string/join"))))
-  (testing "interop .method stays unqualified"
-    (is (= '.toString (run/run-string "`.toString"))))
-  (testing "unresolved symbol gets current-ns qualification"
-    (let [result (run/run-string "`nonexistent-sym")]
-      (is (= (name (ns-name *ns*)) (namespace result))
-          "unresolved symbol should be qualified with current ns")
-      (is (= "nonexistent-sym" (name result)))))
-  (testing "class resolves to full name"
-    (is (= 'java.lang.String (run/run-string "`String"))))
-  (testing "gensym still works with resolution"
-    (let [result (run/run-string "`x#")]
-      (is (re-find #"__auto__$" (name result))
-          "gensym should still produce auto-gensym")))))
+   (deftest run-string-syntax-quote-resolves-symbols
+     (testing "`map resolves to clojure.core/map"
+       (is (= 'clojure.core/map (run/run-string "`map"))))
+     (testing "`if stays unqualified (special form)"
+       (is (= 'if (run/run-string "`if"))))
+     (testing "`do stays unqualified (special form)"
+       (is (= 'do (run/run-string "`do"))))
+     (testing "already-qualified symbol stays as-is"
+       (is (= 'clojure.string/join (run/run-string "`clojure.string/join"))))
+     (testing "interop .method stays unqualified"
+       (is (= '.toString (run/run-string "`.toString"))))
+     (testing "unresolved symbol gets current-ns qualification"
+       (let [result (run/run-string "`nonexistent-sym")]
+         (is (= (name (ns-name *ns*)) (namespace result))
+             "unresolved symbol should be qualified with current ns")
+         (is (= "nonexistent-sym" (name result)))))
+     (testing "class resolves to full name"
+       (is (= 'java.lang.String (run/run-string "`String"))))
+     (testing "gensym still works with resolution"
+       (let [result (run/run-string "`x#")]
+         (is (re-find #"__auto__$" (name result))
+             "gensym should still produce auto-gensym")))))

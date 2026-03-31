@@ -57,7 +57,7 @@
   (when-not (:tokens ctx)
     (throw (ex-info "Pipeline :tokens missing — run scan before parse" {})))
   (let [result (assoc ctx :forms (reader/read-meme-string-from-tokens
-                                   (:tokens ctx) (:opts ctx) (:source ctx)))]
+                                  (:tokens ctx) (:opts ctx) (:source ctx)))]
     (contract/validate! :parse :output result)
     result))
 

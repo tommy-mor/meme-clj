@@ -31,17 +31,17 @@
 
 (deftest token-snapshot-simple-call
   (is (= [{:type :symbol :value "foo" :line 1 :col 1}
-           {:type :open-paren :value "(" :line 1 :col 4}
-           {:type :symbol :value "x" :line 1 :col 5}
-           {:type :close-paren :value ")" :line 1 :col 6}]
+          {:type :open-paren :value "(" :line 1 :col 4}
+          {:type :symbol :value "x" :line 1 :col 5}
+          {:type :close-paren :value ")" :line 1 :col 6}]
          (tokens-for "foo(x)"))))
 
 (deftest token-snapshot-operator-call
   (is (= [{:type :symbol :value "+" :line 1 :col 1}
-           {:type :open-paren :value "(" :line 1 :col 2}
-           {:type :number :value "1" :line 1 :col 3}
-           {:type :number :value "2" :line 1 :col 5}
-           {:type :close-paren :value ")" :line 1 :col 6}]
+          {:type :open-paren :value "(" :line 1 :col 2}
+          {:type :number :value "1" :line 1 :col 3}
+          {:type :number :value "2" :line 1 :col 5}
+          {:type :close-paren :value ")" :line 1 :col 6}]
          (tokens-for "+(1 2)"))))
 
 (deftest token-snapshot-keyword
@@ -83,16 +83,16 @@
 
 (deftest token-snapshot-delimiters
   (is (= [{:type :open-paren :value "(" :line 1 :col 1}
-           {:type :close-paren :value ")" :line 1 :col 2}]
+          {:type :close-paren :value ")" :line 1 :col 2}]
          (tokens-for "()")))
   (is (= [{:type :open-bracket :value "[" :line 1 :col 1}
-           {:type :close-bracket :value "]" :line 1 :col 2}]
+          {:type :close-bracket :value "]" :line 1 :col 2}]
          (tokens-for "[]")))
   (is (= [{:type :open-brace :value "{" :line 1 :col 1}
-           {:type :close-brace :value "}" :line 1 :col 2}]
+          {:type :close-brace :value "}" :line 1 :col 2}]
          (tokens-for "{}")))
   (is (= [{:type :open-set :value "#{" :line 1 :col 1}
-           {:type :close-brace :value "}" :line 1 :col 3}]
+          {:type :close-brace :value "}" :line 1 :col 3}]
          (tokens-for "#{}"))))
 
 (deftest token-snapshot-prefix-operators
@@ -100,25 +100,25 @@
   (is (= [{:type :meta :value "^" :line 1 :col 1}] (tokens-for "^")))
   (is (= [{:type :quote :value "'" :line 1 :col 1}] (tokens-for "'")))
   (is (= [{:type :unquote :value "~" :line 1 :col 1}
-           {:type :symbol :value "x" :line 1 :col 2}]
+          {:type :symbol :value "x" :line 1 :col 2}]
          (tokens-for "~x")))
   (is (= [{:type :unquote-splicing :value "~@" :line 1 :col 1}
-           {:type :symbol :value "xs" :line 1 :col 3}]
+          {:type :symbol :value "xs" :line 1 :col 3}]
          (tokens-for "~@xs"))))
 
 (deftest token-snapshot-dispatch-forms
   (is (= [{:type :var-quote :value "#'" :line 1 :col 1}
-           {:type :symbol :value "foo" :line 1 :col 3}]
+          {:type :symbol :value "foo" :line 1 :col 3}]
          (tokens-for "#'foo")))
   (is (= [{:type :discard :value "#_" :line 1 :col 1}
-           {:type :symbol :value "foo" :line 1 :col 3}]
+          {:type :symbol :value "foo" :line 1 :col 3}]
          (tokens-for "#_foo")))
   (is (= [{:type :open-anon-fn :value "#(" :line 1 :col 1}
-           {:type :symbol :value "inc" :line 1 :col 3}
-           {:type :open-paren :value "(" :line 1 :col 6}
-           {:type :symbol :value "%" :line 1 :col 7}
-           {:type :close-paren :value ")" :line 1 :col 8}
-           {:type :close-paren :value ")" :line 1 :col 9}]
+          {:type :symbol :value "inc" :line 1 :col 3}
+          {:type :open-paren :value "(" :line 1 :col 6}
+          {:type :symbol :value "%" :line 1 :col 7}
+          {:type :close-paren :value ")" :line 1 :col 8}
+          {:type :close-paren :value ")" :line 1 :col 9}]
          (tokens-for "#(inc(%))"))))
 
 (deftest token-snapshot-tagged-literal
@@ -145,13 +145,13 @@
 
 (deftest token-snapshot-multi-line
   (is (= [{:type :symbol :value "foo" :line 1 :col 1}
-           {:type :symbol :value "bar" :line 2 :col 1}]
+          {:type :symbol :value "bar" :line 2 :col 1}]
          (tokens-for "foo\nbar"))))
 
 (deftest token-snapshot-commas-as-whitespace
   (is (= [{:type :symbol :value "a" :line 1 :col 1}
-           {:type :symbol :value "b" :line 1 :col 3}
-           {:type :symbol :value "c" :line 1 :col 5}]
+          {:type :symbol :value "b" :line 1 :col 3}
+          {:type :symbol :value "c" :line 1 :col 5}]
          (tokens-for "a,b,c"))))
 
 (deftest token-snapshot-comment-stripped
@@ -170,15 +170,15 @@
            (tokens-for "-1"))))
   (testing "-(1) is symbol then paren"
     (is (= [{:type :symbol :value "-" :line 1 :col 1}
-             {:type :open-paren :value "(" :line 1 :col 2}
-             {:type :number :value "1" :line 1 :col 3}
-             {:type :close-paren :value ")" :line 1 :col 4}]
+            {:type :open-paren :value "(" :line 1 :col 2}
+            {:type :number :value "1" :line 1 :col 3}
+            {:type :close-paren :value ")" :line 1 :col 4}]
            (tokens-for "-(1)")))))
 
 (deftest token-snapshot-constructor
   (is (= [{:type :symbol :value "java.util.Date." :line 1 :col 1}
-           {:type :open-paren :value "(" :line 1 :col 16}
-           {:type :close-paren :value ")" :line 1 :col 17}]
+          {:type :open-paren :value "(" :line 1 :col 16}
+          {:type :close-paren :value ")" :line 1 :col 17}]
          (tokens-for "java.util.Date.()"))))
 
 (deftest token-snapshot-namespace-qualified-symbol
@@ -217,15 +217,15 @@
 (deftest token-snapshot-complex-call
   (testing "defn with multi-arity"
     (is (= [{:type :symbol :value "defn" :line 1 :col 1}
-             {:type :open-paren :value "(" :line 1 :col 5}
-             {:type :symbol :value "f" :line 1 :col 6}
-             {:type :open-bracket :value "[" :line 1 :col 8}
-             {:type :symbol :value "x" :line 1 :col 9}
-             {:type :close-bracket :value "]" :line 1 :col 10}
-             {:type :open-paren :value "(" :line 1 :col 11}
-             {:type :symbol :value "x" :line 1 :col 12}
-             {:type :close-paren :value ")" :line 1 :col 13}
-             {:type :close-paren :value ")" :line 1 :col 14}]
+            {:type :open-paren :value "(" :line 1 :col 5}
+            {:type :symbol :value "f" :line 1 :col 6}
+            {:type :open-bracket :value "[" :line 1 :col 8}
+            {:type :symbol :value "x" :line 1 :col 9}
+            {:type :close-bracket :value "]" :line 1 :col 10}
+            {:type :open-paren :value "(" :line 1 :col 11}
+            {:type :symbol :value "x" :line 1 :col 12}
+            {:type :close-paren :value ")" :line 1 :col 13}
+            {:type :close-paren :value ")" :line 1 :col 14}]
            (tokens-for "defn(f [x](x))")))))
 
 ;; ---------------------------------------------------------------------------
@@ -326,7 +326,7 @@
             (first (forms-for "::local"))))
      :cljs
      (is (thrown-with-msg? js/Error #"resolve-keyword"
-           (forms-for "::local")))))
+                           (forms-for "::local")))))
 
 (deftest form-snapshot-char
   (is (= [\a] (forms-for "\\a")))
@@ -366,39 +366,39 @@
 ;; ---------------------------------------------------------------------------
 
 #?(:clj
-(deftest form-snapshot-tagged-literal
-  (let [form (first (forms-for "#uuid \"550e8400-e29b-41d4-a716-446655440000\""))]
-    (is (tagged-literal? form)))))
+   (deftest form-snapshot-tagged-literal
+     (let [form (first (forms-for "#uuid \"550e8400-e29b-41d4-a716-446655440000\""))]
+       (is (tagged-literal? form)))))
 
 (deftest form-snapshot-reader-conditional
   (testing "reader conditional returns matching platform value"
     (is (= #?(:clj 1 :cljs 2) (first (forms-for "#?(:clj 1 :cljs 2)"))))))
 
 #?(:clj
-(deftest form-snapshot-namespaced-map
-  (let [form (first (forms-for "#:user{:name \"x\" :age 1}"))]
-    (is (= "x" (:user/name form)))
-    (is (= 1 (:user/age form))))))
+   (deftest form-snapshot-namespaced-map
+     (let [form (first (forms-for "#:user{:name \"x\" :age 1}"))]
+       (is (= "x" (:user/name form)))
+       (is (= 1 (:user/age form))))))
 
 (deftest form-snapshot-syntax-quote
   (is (some? (first (forms-for "`foo"))))
   (is (some? (first (forms-for "`a(b c)")))))
 
 #?(:clj
-(deftest form-snapshot-regex
-  (let [form (first (forms-for "#\"pattern\""))]
-    (is (instance? java.util.regex.Pattern form))
-    (is (= "pattern" (.pattern ^java.util.regex.Pattern form))))))
+   (deftest form-snapshot-regex
+     (let [form (first (forms-for "#\"pattern\""))]
+       (is (instance? java.util.regex.Pattern form))
+       (is (= "pattern" (.pattern ^java.util.regex.Pattern form))))))
 
 #?(:clj
-(deftest form-snapshot-ratio
-  (is (= 1/2 (first (forms-for "1/2"))))))
+   (deftest form-snapshot-ratio
+     (is (= 1/2 (first (forms-for "1/2"))))))
 
 #?(:clj
-(deftest form-snapshot-bigint
-  (is (= 42N (first (forms-for "42N"))))))
+   (deftest form-snapshot-bigint
+     (is (= 42N (first (forms-for "42N"))))))
 
 #?(:clj
-(deftest form-snapshot-bigdecimal
-  (is (= 1.5M (first (forms-for "1.5M"))))))
+   (deftest form-snapshot-bigdecimal
+     (is (= 1.5M (first (forms-for "1.5M"))))))
 

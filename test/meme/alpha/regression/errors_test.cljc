@@ -27,8 +27,8 @@
   (testing "gutter width accommodates secondary line numbers wider than primary"
     (let [source (str/join "\n" (concat (repeat 999 "x") ["error-line"]))
           e (ex-info "test error"
-              {:line 5 :col 1
-               :secondary [{:line 1000 :col 1 :label "related"}]})
+                     {:line 5 :col 1
+                      :secondary [{:line 1000 :col 1 :label "related"}]})
           result (meme.alpha.errors/format-error e source)]
       (is (re-find #"   5 \|" result) "primary line padded to 4-wide gutter")
       (is (re-find #"1000 \|" result) "secondary line fits in gutter"))))
@@ -38,22 +38,22 @@
 ;; ---------------------------------------------------------------------------
 
 #?(:clj
-(deftest read-string-errors-include-location
-  (testing "malformed number includes location"
-    (let [e (try (core/meme->forms "1/")
-                 nil
-                 (catch Exception e e))]
-      (is (some? e))
-      (is (= 1 (:line (ex-data e))))
-      (is (= 1 (:col (ex-data e))))
-      (is (re-find #"Invalid number" (ex-message e)))))
-  (testing "malformed regex includes location"
-    (let [e (try (core/meme->forms "#\"[unclosed\"")
-                 nil
-                 (catch Exception e e))]
-      (is (some? e))
-      (is (= 1 (:line (ex-data e))))
-      (is (re-find #"Invalid regex" (ex-message e)))))))
+   (deftest read-string-errors-include-location
+     (testing "malformed number includes location"
+       (let [e (try (core/meme->forms "1/")
+                    nil
+                    (catch Exception e e))]
+         (is (some? e))
+         (is (= 1 (:line (ex-data e))))
+         (is (= 1 (:col (ex-data e))))
+         (is (re-find #"Invalid number" (ex-message e)))))
+     (testing "malformed regex includes location"
+       (let [e (try (core/meme->forms "#\"[unclosed\"")
+                    nil
+                    (catch Exception e e))]
+         (is (some? e))
+         (is (= 1 (:line (ex-data e))))
+         (is (re-find #"Invalid regex" (ex-message e)))))))
 
 ;; ---------------------------------------------------------------------------
 ;; Opaque-form read-string errors must include meme source location.
@@ -82,13 +82,13 @@
 ;; ---------------------------------------------------------------------------
 
 #?(:clj
-(deftest read-eval-blocked-in-opaque-forms
-  (testing "#=() blocked in syntax-quote"
-    (is (thrown? Exception (core/meme->forms "`(#=(+ 1 2))"))))
-  (testing "#=() blocked in namespaced map"
-    (is (thrown? Exception (core/meme->forms "#:ns{:k #=(+ 1 2)}"))))
-  (testing "#=() blocked in reader conditional"
-    (is (thrown? Exception (core/meme->forms "#?(:clj #=(+ 1 2))"))))))
+   (deftest read-eval-blocked-in-opaque-forms
+     (testing "#=() blocked in syntax-quote"
+       (is (thrown? Exception (core/meme->forms "`(#=(+ 1 2))"))))
+     (testing "#=() blocked in namespaced map"
+       (is (thrown? Exception (core/meme->forms "#:ns{:k #=(+ 1 2)}"))))
+     (testing "#=() blocked in reader conditional"
+       (is (thrown? Exception (core/meme->forms "#?(:clj #=(+ 1 2))"))))))
 
 ;; ---------------------------------------------------------------------------
 ;; S1: clj->forms executed #=() at read time — no *read-eval* binding.
@@ -97,11 +97,11 @@
 ;; ---------------------------------------------------------------------------
 
 #?(:clj
-(deftest read-eval-blocked-in-clj->forms
-  (testing "#=() blocked in clj->forms"
-    (is (thrown? Exception (core/clj->forms "#=(+ 1 2)"))))
-  (testing "normal Clojure still reads fine"
-    (is (= '[(+ 1 2)] (core/clj->forms "(+ 1 2)"))))))
+   (deftest read-eval-blocked-in-clj->forms
+     (testing "#=() blocked in clj->forms"
+       (is (thrown? Exception (core/clj->forms "#=(+ 1 2)"))))
+     (testing "normal Clojure still reads fine"
+       (is (= '[(+ 1 2)] (core/clj->forms "(+ 1 2)"))))))
 
 ;; ---------------------------------------------------------------------------
 ;; Scanner vs display line model: CRLF bridge in format-error.
@@ -137,29 +137,29 @@
       (is (re-find #"~~~" result)))))
 
 #?(:cljs
-(deftest tagged-literal-cljs-error
-  (testing "#uuid on CLJS throws meme error, not ReferenceError"
-    (is (thrown-with-msg? js/Error #"not supported in ClojureScript"
-          (core/meme->forms "#uuid \"550e8400-e29b-41d4-a716-446655440000\""))))))
+   (deftest tagged-literal-cljs-error
+     (testing "#uuid on CLJS throws meme error, not ReferenceError"
+       (is (thrown-with-msg? js/Error #"not supported in ClojureScript"
+                             (core/meme->forms "#uuid \"550e8400-e29b-41d4-a716-446655440000\""))))))
 
 ;; ---------------------------------------------------------------------------
 ;; CLJS-only: unsupported number formats must error, not silently truncate.
 ;; ---------------------------------------------------------------------------
 
 #?(:cljs
-(deftest cljs-unsupported-number-formats
-  (testing "BigInt N suffix"
-    (is (thrown-with-msg? js/Error #"BigInt" (core/meme->forms "42N"))))
-  (testing "BigDecimal M suffix"
-    (is (thrown-with-msg? js/Error #"BigDecimal" (core/meme->forms "42M"))))
-  (testing "Ratio"
-    (is (thrown-with-msg? js/Error #"Ratio" (core/meme->forms "1/2"))))
-  (testing "Hex"
-    (is (thrown-with-msg? js/Error #"Hex" (core/meme->forms "0xFF"))))
-  (testing "Radix"
-    (is (thrown-with-msg? js/Error #"Radix" (core/meme->forms "2r1010"))))
-  (testing "Octal"
-    (is (thrown-with-msg? js/Error #"Octal" (core/meme->forms "010"))))))
+   (deftest cljs-unsupported-number-formats
+     (testing "BigInt N suffix"
+       (is (thrown-with-msg? js/Error #"BigInt" (core/meme->forms "42N"))))
+     (testing "BigDecimal M suffix"
+       (is (thrown-with-msg? js/Error #"BigDecimal" (core/meme->forms "42M"))))
+     (testing "Ratio"
+       (is (thrown-with-msg? js/Error #"Ratio" (core/meme->forms "1/2"))))
+     (testing "Hex"
+       (is (thrown-with-msg? js/Error #"Hex" (core/meme->forms "0xFF"))))
+     (testing "Radix"
+       (is (thrown-with-msg? js/Error #"Radix" (core/meme->forms "2r1010"))))
+     (testing "Octal"
+       (is (thrown-with-msg? js/Error #"Octal" (core/meme->forms "010"))))))
 
 ;; ---------------------------------------------------------------------------
 ;; Scar tissue: error message quality improvements
@@ -225,10 +225,10 @@
           "should have secondary pointing at #( opener"))))
 
 #?(:clj
-(deftest unicode-escape-in-string-reports-count
-  (testing "truncated \\u in string includes digit count"
-    (let [e (try (core/meme->forms "\"\\u41\"")
-                 nil
-                 (catch Exception e e))]
-      (is (re-find #"got 2" (ex-message e))
-          "should report how many hex digits were found")))))
+   (deftest unicode-escape-in-string-reports-count
+     (testing "truncated \\u in string includes digit count"
+       (let [e (try (core/meme->forms "\"\\u41\"")
+                    nil
+                    (catch Exception e e))]
+         (is (re-find #"got 2" (ex-message e))
+             "should report how many hex digits were found")))))

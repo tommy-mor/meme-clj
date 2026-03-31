@@ -21,7 +21,7 @@
      :cljs
      (testing "::foo without :resolve-keyword errors on CLJS"
        (is (thrown-with-msg? js/Error #"resolve-keyword"
-             (core/meme->forms "::local")))))
+                             (core/meme->forms "::local")))))
   #?(:clj
      (testing "::foo in a map key"
        (let [form (first (core/meme->forms "{::key 42}"))]
@@ -41,14 +41,14 @@
 ;; ---------------------------------------------------------------------------
 
 #?(:clj
-(deftest ratio-literals
-  (testing "1/2 — ratio literal works"
-    (is (= 1/2 (first (core/meme->forms "1/2")))))
-  (testing "3/4 — ratio literal works"
-    (is (= 3/4 (first (core/meme->forms "3/4")))))
-  (testing "large ratio components exceeding Long.MAX_VALUE"
-    (is (= (/ 99999999999999999999N 3) (first (core/meme->forms "99999999999999999999/3"))))
-    (is (= (/ 1 99999999999999999999N) (first (core/meme->forms "1/99999999999999999999")))))))
+   (deftest ratio-literals
+     (testing "1/2 — ratio literal works"
+       (is (= 1/2 (first (core/meme->forms "1/2")))))
+     (testing "3/4 — ratio literal works"
+       (is (= 3/4 (first (core/meme->forms "3/4")))))
+     (testing "large ratio components exceeding Long.MAX_VALUE"
+       (is (= (/ 99999999999999999999N 3) (first (core/meme->forms "99999999999999999999/3"))))
+       (is (= (/ 1 99999999999999999999N) (first (core/meme->forms "1/99999999999999999999")))))))
 
 ;; ---------------------------------------------------------------------------
 ;; #_ discard at end of stream or before closing delimiters.
@@ -57,8 +57,8 @@
 (deftest discard-bare-at-eof
   (testing "#_ at bare EOF gives targeted error, not generic"
     (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
-          #"Missing form after #_"
-          (core/meme->forms "#_"))))
+                          #"Missing form after #_"
+                          (core/meme->forms "#_"))))
   (testing "#_ at bare EOF is :incomplete for REPL continuation"
     (let [e (try (core/meme->forms "#_")
                  nil
@@ -79,8 +79,7 @@
   (testing "#_ before closing paren in list"
     (is (= '[(foo 1)] (core/meme->forms "foo(1 #_2)"))))
   (testing "#_ only form in collection"
-    (is (= [[]] (core/meme->forms "[#_1]"))))
-)
+    (is (= [[]] (core/meme->forms "[#_1]")))))
 
 ;; ---------------------------------------------------------------------------
 ;; Scar tissue: discard-sentinel must not leak into :meta or :tagged-literal.
@@ -95,22 +94,22 @@
     (is (true? (:key (meta (first (core/meme->forms "^:key foo"))))))))
 
 #?(:clj
-(deftest discard-sentinel-in-tagged-literal
-  (testing "#mytag #_foo throws — tagged literal value discarded"
-    (is (thrown? Exception (core/meme->forms "#mytag #_foo"))))
-  (testing "#mytag bar works when not discarded"
-    (is (tagged-literal? (first (core/meme->forms "#mytag bar")))))))
+   (deftest discard-sentinel-in-tagged-literal
+     (testing "#mytag #_foo throws — tagged literal value discarded"
+       (is (thrown? Exception (core/meme->forms "#mytag #_foo"))))
+     (testing "#mytag bar works when not discarded"
+       (is (tagged-literal? (first (core/meme->forms "#mytag bar")))))))
 
 ;; ---------------------------------------------------------------------------
 ;; Scar tissue: % params inside tagged literals in #() must be found.
 ;; ---------------------------------------------------------------------------
 
 #?(:clj
-(deftest percent-params-in-tagged-literals
-  (testing "#(#mytag %) finds percent param"
-    (let [form (first (core/meme->forms "#(#mytag %)"))]
-      (is (= 'fn (first form)))
-      (is (= '[%1] (second form)))))))
+   (deftest percent-params-in-tagged-literals
+     (testing "#(#mytag %) finds percent param"
+       (let [form (first (core/meme->forms "#(#mytag %)"))]
+         (is (= 'fn (first form)))
+         (is (= '[%1] (second form)))))))
 
 ;; ---------------------------------------------------------------------------
 ;; Scar tissue: js/parseInt without radix parses leading-zero as octal.
@@ -146,10 +145,10 @@
   (testing "bare symbol without parens is just a symbol"
     (is (= '[f] (core/meme->forms "f"))))
   #?(:clj
-  (testing "this IS live Clojure syntax — known, documented trade-off"
-    (let [clj-forms (with-open [r (java.io.PushbackReader. (java.io.StringReader. "f(x)"))]
-                      [(read r) (read r)])]
-      (is (= ['f '(x)] clj-forms) "Clojure reads f(x) as two forms")))))
+     (testing "this IS live Clojure syntax — known, documented trade-off"
+       (let [clj-forms (with-open [r (java.io.PushbackReader. (java.io.StringReader. "f(x)"))]
+                         [(read r) (read r)])]
+         (is (= ['f '(x)] clj-forms) "Clojure reads f(x) as two forms")))))
 
 ;; ---------------------------------------------------------------------------
 ;; Scar tissue: spacing between head and ( is significant (adjacency required).
@@ -160,24 +159,24 @@
     (is (= '[(f x)] (core/meme->forms "f(x)"))))
   (testing "space prevents call — f (x) is bare paren error"
     (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
-          #"Bare parentheses"
-          (core/meme->forms "f (x)"))))
+                          #"Bare parentheses"
+                          (core/meme->forms "f (x)"))))
   (testing "tab prevents call"
     (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
-          #"Bare parentheses"
-          (core/meme->forms "f\t(x)"))))
+                          #"Bare parentheses"
+                          (core/meme->forms "f\t(x)"))))
   (testing "newline prevents call"
     (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
-          #"Bare parentheses"
-          (core/meme->forms "f\n(x)"))))
+                          #"Bare parentheses"
+                          (core/meme->forms "f\n(x)"))))
   (testing "keyword adjacency required"
     (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
-          #"Bare parentheses"
-          (core/meme->forms ":k (x)"))))
+                          #"Bare parentheses"
+                          (core/meme->forms ":k (x)"))))
   (testing "vector adjacency required"
     (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
-          #"Bare parentheses"
-          (core/meme->forms "[x] (1)")))))
+                          #"Bare parentheses"
+                          (core/meme->forms "[x] (1)")))))
 
 ;; ---------------------------------------------------------------------------
 ;; Scar tissue: bare (...) without a head is a parse error.
@@ -210,8 +209,8 @@
       (is (= forms forms2))))
   (testing "vector-as-head requires adjacency — space prevents call"
     (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
-          #"Bare parentheses"
-          (core/meme->forms "[a b] (+(a b))"))))
+                          #"Bare parentheses"
+                          (core/meme->forms "[a b] (+(a b))"))))
   (testing "vector-as-head adjacent works"
     (is (= '([a b] (+ a b)) (first (core/meme->forms "[a b](+(a b))"))))))
 
@@ -252,13 +251,13 @@
 (deftest prefix-operator-depth-limit
   (testing "deep @ chain hits depth limit"
     (is (thrown-with-msg? #?(:clj Exception :cljs js/Error) #"depth"
-          (core/meme->forms (str (apply str (repeat 600 "@")) "x")))))
+                          (core/meme->forms (str (apply str (repeat 600 "@")) "x")))))
   (testing "deep ' chain hits depth limit"
     (is (thrown-with-msg? #?(:clj Exception :cljs js/Error) #"depth"
-          (core/meme->forms (str (apply str (repeat 600 "'")) "x")))))
+                          (core/meme->forms (str (apply str (repeat 600 "'")) "x")))))
   (testing "deep #' chain hits depth limit"
     (is (thrown-with-msg? #?(:clj Exception :cljs js/Error) #"depth"
-          (core/meme->forms (str (apply str (repeat 600 "#'")) "foo")))))
+                          (core/meme->forms (str (apply str (repeat 600 "#'")) "foo")))))
   (testing "moderate depth succeeds"
     (is (some? (core/meme->forms (str (apply str (repeat 50 "@")) "x"))))))
 
@@ -269,13 +268,13 @@
 (deftest discard-sentinel-in-prefix-operators
   (testing "@#_foo at EOF throws"
     (is (thrown? #?(:clj Exception :cljs js/Error)
-          (core/meme->forms "@#_foo"))))
+                 (core/meme->forms "@#_foo"))))
   (testing "'#_foo at EOF throws"
     (is (thrown? #?(:clj Exception :cljs js/Error)
-          (core/meme->forms "'#_foo"))))
+                 (core/meme->forms "'#_foo"))))
   (testing "#'#_foo at EOF throws"
     (is (thrown? #?(:clj Exception :cljs js/Error)
-          (core/meme->forms "#'#_foo"))))
+                 (core/meme->forms "#'#_foo"))))
   (testing "@#_foo bar applies deref to bar"
     (is (= '[(clojure.core/deref bar)]
            (core/meme->forms "@#_foo bar"))))
@@ -303,16 +302,16 @@
 (deftest invalid-metadata-type-error
   (testing "^42 x throws meme error, not ClassCastException"
     (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
-          #"[Mm]etadata must be"
-          (core/meme->forms "^42 x"))))
+                          #"[Mm]etadata must be"
+                          (core/meme->forms "^42 x"))))
   (testing "^\"str\" x throws meme error"
     (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
-          #"[Mm]etadata must be"
-          (core/meme->forms "^\"str\" x"))))
+                          #"[Mm]etadata must be"
+                          (core/meme->forms "^\"str\" x"))))
   (testing "^[1 2] x throws meme error"
     (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
-          #"[Mm]etadata must be"
-          (core/meme->forms "^[1 2] x"))))
+                          #"[Mm]etadata must be"
+                          (core/meme->forms "^[1 2] x"))))
   (testing "valid metadata still works"
     (is (= {:private true} (dissoc (meta (first (core/meme->forms "^:private x"))) :ws :meme/meta-chain)))
     (is (= {:tag 'String} (dissoc (meta (first (core/meme->forms "^String x"))) :ws :meme/meta-chain)))
@@ -334,12 +333,12 @@
 (deftest percent-zero-rejected-in-anon-fn
   (testing "#(inc(%0)) — %0 is not a valid param, must error"
     (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
-          #"%0 is not a valid parameter"
-          (core/meme->forms "#(inc(%0))"))))
+                          #"%0 is not a valid parameter"
+                          (core/meme->forms "#(inc(%0))"))))
   (testing "#(+(%0 %1)) — %0 mixed with valid params, must error"
     (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
-          #"%0 is not a valid parameter"
-          (core/meme->forms "#(+(%0 %1))"))))
+                          #"%0 is not a valid parameter"
+                          (core/meme->forms "#(+(%0 %1))"))))
   (testing "%1 and higher still work"
     (is (= '[(fn [%1] (inc %1))] (core/meme->forms "#(inc(%1))")))))
 
@@ -373,16 +372,16 @@
 (deftest duplicate-set-element-error
   (testing "#{1 1} throws duplicate error"
     (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
-          #"[Dd]uplicate"
-          (core/meme->forms "#{1 1}"))))
+                          #"[Dd]uplicate"
+                          (core/meme->forms "#{1 1}"))))
   (testing "#{1 2 3} is fine"
     (is (= #{1 2 3} (first (core/meme->forms "#{1 2 3}"))))))
 
 (deftest duplicate-map-key-error
   (testing "{:a 1 :a 2} throws duplicate error"
     (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
-          #"[Dd]uplicate"
-          (core/meme->forms "{:a 1 :a 2}"))))
+                          #"[Dd]uplicate"
+                          (core/meme->forms "{:a 1 :a 2}"))))
   (testing "{:a 1 :b 2} is fine"
     (is (= {:a 1 :b 2} (first (core/meme->forms "{:a 1 :b 2}"))))))
 
@@ -394,7 +393,7 @@
 
 (deftest chained-call-roundtrip
   (testing "f(x)(y) → ((f x) y)"
-    (is (= '[(( f x) y)] (core/meme->forms "f(x)(y)"))))
+    (is (= '[((f x) y)] (core/meme->forms "f(x)(y)"))))
   (testing "f(x)(y)(z) → (((f x) y) z)"
     (is (= '[(((f x) y) z)] (core/meme->forms "f(x)(y)(z)"))))
   (testing "printer output roundtrips"
@@ -550,12 +549,12 @@
 (deftest duplicate-map-keys-rejected
   (testing "duplicate keyword keys are rejected"
     (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
-          #"Duplicate key"
-          (core/meme->forms "{:p a :p a}"))))
+                          #"Duplicate key"
+                          (core/meme->forms "{:p a :p a}"))))
   (testing "duplicate symbol keys are rejected"
     (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
-          #"Duplicate key"
-          (core/meme->forms "{x 1 x 2}"))))
+                          #"Duplicate key"
+                          (core/meme->forms "{x 1 x 2}"))))
   (testing "unique keys roundtrip fine"
     (let [forms (core/meme->forms "{:a 1 :b 2}")
           printed (fmt-flat/format-forms forms)
@@ -570,21 +569,21 @@
 ;; ---------------------------------------------------------------------------
 
 #?(:clj
-(deftest meme-raw-in-syntax-quote-expands-correctly
-  (testing "hex number inside syntax-quote expands to its value, not a map"
-    (let [forms (core/meme->forms "`[0xFF]")
-          expanded (expander/expand-forms forms)]
+   (deftest meme-raw-in-syntax-quote-expands-correctly
+     (testing "hex number inside syntax-quote expands to its value, not a map"
+       (let [forms (core/meme->forms "`[0xFF]")
+             expanded (expander/expand-forms forms)]
       ;; The expanded form should contain the number 255, not {:value 255 :raw "0xFF"}
-      (is (not (some #(and (map? %) (contains? % :value)) (flatten (map seq expanded))))
-          "MemeRaw must not leak as a map into expanded forms")))
-  (testing "scientific notation inside syntax-quote"
-    (let [forms (core/meme->forms "`1e2")
-          expanded (expander/expand-forms forms)]
-      (is (= [100.0] expanded))))
-  (testing "char literal inside syntax-quote"
-    (let [forms (core/meme->forms "`\\a")
-          expanded (expander/expand-forms forms)]
-      (is (= [\a] expanded))))))
+         (is (not (some #(and (map? %) (contains? % :value)) (flatten (map seq expanded))))
+             "MemeRaw must not leak as a map into expanded forms")))
+     (testing "scientific notation inside syntax-quote"
+       (let [forms (core/meme->forms "`1e2")
+             expanded (expander/expand-forms forms)]
+         (is (= [100.0] expanded))))
+     (testing "char literal inside syntax-quote"
+       (let [forms (core/meme->forms "`\\a")
+             expanded (expander/expand-forms forms)]
+         (is (= [\a] expanded))))))
 
 ;; ---------------------------------------------------------------------------
 ;; Scar tissue: nested MemeSyntaxQuote inside expand-sq was treated as a map.
@@ -594,19 +593,19 @@
 ;; ---------------------------------------------------------------------------
 
 #?(:clj
-(deftest nested-syntax-quote-expands-without-error
-  (testing "nested backtick does not crash or produce map output"
-    (let [forms (core/meme->forms "``x")
-          expanded (expander/expand-forms forms)]
-      (is (seq? (first expanded)) "nested syntax-quote should expand to a seq form")))
-  (testing "nested backtick produces double-quoting, not direct expansion"
+   (deftest nested-syntax-quote-expands-without-error
+     (testing "nested backtick does not crash or produce map output"
+       (let [forms (core/meme->forms "``x")
+             expanded (expander/expand-forms forms)]
+         (is (seq? (first expanded)) "nested syntax-quote should expand to a seq form")))
+     (testing "nested backtick produces double-quoting, not direct expansion"
     ;; Bug: expand-sq returned the inner expansion directly instead of
     ;; quoting it. ``x produced (quote x) instead of code that generates
     ;; (quote x). Fix: re-expand the inner result through expand-sq.
-    (let [expanded (first (expander/expand-forms (core/meme->forms "``x")))]
+       (let [expanded (first (expander/expand-forms (core/meme->forms "``x")))]
       ;; eval of ``x should yield (quote x), not just x
-      (is (= '(quote x) (eval expanded))
-          "eval of nested syntax-quote should produce the inner expansion as data")))))
+         (is (= '(quote x) (eval expanded))
+             "eval of nested syntax-quote should produce the inner expansion as data")))))
 
 ;; ---------------------------------------------------------------------------
 ;; Scar tissue: lazy map in expand-sq caused nested syntax-quote gensyms to
@@ -616,16 +615,16 @@
 ;; ---------------------------------------------------------------------------
 
 #?(:clj
-(deftest nested-syntax-quote-gensym-independence
-  (testing "x# in outer and inner backtick produce different gensyms"
-    (let [expanded (first (expander/expand-forms (core/meme->forms "`list(x# `list(x#))")))
-          s (pr-str expanded)
-          gensyms (re-seq #"\w+__auto__" s)
-          distinct-gs (set gensyms)]
-      (is (= 2 (count gensyms))
-          "expected exactly two gensym occurrences")
-      (is (= 2 (count distinct-gs))
-          "outer and inner x# must produce different gensyms")))))
+   (deftest nested-syntax-quote-gensym-independence
+     (testing "x# in outer and inner backtick produce different gensyms"
+       (let [expanded (first (expander/expand-forms (core/meme->forms "`list(x# `list(x#))")))
+             s (pr-str expanded)
+             gensyms (re-seq #"\w+__auto__" s)
+             distinct-gs (set gensyms)]
+         (is (= 2 (count gensyms))
+             "expected exactly two gensym occurrences")
+         (is (= 2 (count distinct-gs))
+             "outer and inner x# must produce different gensyms")))))
 
 ;; ---------------------------------------------------------------------------
 ;; Scar tissue: MemeRaw inside #() body was corrupted by normalize-bare-percent.
@@ -637,16 +636,16 @@
 ;; ---------------------------------------------------------------------------
 
 #?(:clj
-(deftest meme-raw-in-anon-fn-survives-normalization
-  (testing "hex literal inside #() preserves its value through expansion"
-    (let [forms (core/meme->forms "#(+(% 0xFF))")
-          expanded (expander/expand-forms forms)
-          f (first expanded)]
-      (is (seq? f) "should be (fn [%1] ...)")
-      (is (= 'fn (first f)))
+   (deftest meme-raw-in-anon-fn-survives-normalization
+     (testing "hex literal inside #() preserves its value through expansion"
+       (let [forms (core/meme->forms "#(+(% 0xFF))")
+             expanded (expander/expand-forms forms)
+             f (first expanded)]
+         (is (seq? f) "should be (fn [%1] ...)")
+         (is (= 'fn (first f)))
       ;; The 0xFF should resolve to 255, not to {:value 255 :raw "0xFF"}
-      (is (some #(= 255 %) (flatten (map #(if (seq? %) (seq %) [%]) (rest f))))
-          "0xFF must be resolved to 255, not leaked as a MemeRaw map")))))
+         (is (some #(= 255 %) (flatten (map #(if (seq? %) (seq %) [%]) (rest f))))
+             "0xFF must be resolved to 255, not leaked as a MemeRaw map")))))
 
 ;; ---------------------------------------------------------------------------
 ;; Scar tissue: #?@(:clj [2 3]) inside a collection did not splice.
@@ -679,9 +678,9 @@
         "non-matching #?@ should contribute no elements"))
   (testing "#?@ with non-sequential value errors"
     (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
-          #"Splicing reader conditional value must be"
-          (core/meme->forms #?(:clj  "[#?@(:clj 42)]"
-                                :cljs "[#?@(:cljs 42)]"))))))
+                          #"Splicing reader conditional value must be"
+                          (core/meme->forms #?(:clj  "[#?@(:clj 42)]"
+                                               :cljs "[#?@(:cljs 42)]"))))))
 
 ;; ---------------------------------------------------------------------------
 ;; Scar tissue: missing value for a platform keyword in reader conditional must
@@ -694,17 +693,17 @@
 (deftest reader-conditional-missing-value-error
   (testing "missing value for matching platform"
     (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
-          #"Missing value for"
-          (core/meme->forms #?(:clj  "#?(:clj)"
-                                :cljs "#?(:cljs)")))))
+                          #"Missing value for"
+                          (core/meme->forms #?(:clj  "#?(:clj)"
+                                               :cljs "#?(:cljs)")))))
   (testing "missing value for first (unmatched) platform"
     (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
-          #"Missing value for"
-          (core/meme->forms #?(:clj  "#?(:cljs)"
-                                :cljs "#?(:clj)")))))
+                          #"Missing value for"
+                          (core/meme->forms #?(:clj  "#?(:cljs)"
+                                               :cljs "#?(:clj)")))))
   (testing "incomplete input is marked :incomplete"
     (let [e (try (core/meme->forms #?(:clj  "#?(:clj"
-                                       :cljs "#?(:cljs"))
+                                      :cljs "#?(:cljs"))
                  nil
                  (catch #?(:clj Exception :cljs :default) e e))]
       (is (some? e))
@@ -718,45 +717,45 @@
 ;; ---------------------------------------------------------------------------
 
 #?(:clj
-(deftest large-hex-octal-radix-promote-to-bigint
-  (testing "hex at Long.MAX_VALUE stays Long"
-    (let [r (first (core/meme->forms "0x7FFFFFFFFFFFFFFF"))]
-      (is (forms/raw? r))
-      (is (= Long/MAX_VALUE (:value r)))))
-  (testing "hex above Long.MAX_VALUE promotes to BigInt"
-    (let [r (first (core/meme->forms "0x8000000000000000"))]
-      (is (forms/raw? r))
-      (is (= 9223372036854775808N (:value r)))))
-  (testing "hex 0xFFFFFFFFFFFFFFFF promotes to BigInt"
-    (let [r (first (core/meme->forms "0xFFFFFFFFFFFFFFFF"))]
-      (is (forms/raw? r))
-      (is (= 18446744073709551615N (:value r)))))
-  (testing "negative hex at Long.MIN_VALUE stays Long"
-    (let [r (first (core/meme->forms "-0x8000000000000000"))]
-      (is (forms/raw? r))
-      (is (= Long/MIN_VALUE (:value r)))))
-  (testing "large octal promotes to BigInt"
-    (let [r (first (core/meme->forms "01777777777777777777777"))]
-      (is (forms/raw? r))
-      (is (= 18446744073709551615N (:value r)))))
-  (testing "large radix promotes to BigInt"
-    (let [r (first (core/meme->forms "36rZZZZZZZZZZZZZ"))]
-      (is (forms/raw? r))
-      (is (= 170581728179578208255N (:value r)))))))
+   (deftest large-hex-octal-radix-promote-to-bigint
+     (testing "hex at Long.MAX_VALUE stays Long"
+       (let [r (first (core/meme->forms "0x7FFFFFFFFFFFFFFF"))]
+         (is (forms/raw? r))
+         (is (= Long/MAX_VALUE (:value r)))))
+     (testing "hex above Long.MAX_VALUE promotes to BigInt"
+       (let [r (first (core/meme->forms "0x8000000000000000"))]
+         (is (forms/raw? r))
+         (is (= 9223372036854775808N (:value r)))))
+     (testing "hex 0xFFFFFFFFFFFFFFFF promotes to BigInt"
+       (let [r (first (core/meme->forms "0xFFFFFFFFFFFFFFFF"))]
+         (is (forms/raw? r))
+         (is (= 18446744073709551615N (:value r)))))
+     (testing "negative hex at Long.MIN_VALUE stays Long"
+       (let [r (first (core/meme->forms "-0x8000000000000000"))]
+         (is (forms/raw? r))
+         (is (= Long/MIN_VALUE (:value r)))))
+     (testing "large octal promotes to BigInt"
+       (let [r (first (core/meme->forms "01777777777777777777777"))]
+         (is (forms/raw? r))
+         (is (= 18446744073709551615N (:value r)))))
+     (testing "large radix promotes to BigInt"
+       (let [r (first (core/meme->forms "36rZZZZZZZZZZZZZ"))]
+         (is (forms/raw? r))
+         (is (= 170581728179578208255N (:value r)))))))
 
 ;; Bug: +42N and +3/4 failed to parse because java.math.BigInteger rejects
 ;; leading '+' sign. The tokenizer correctly produced "+42N" but resolve-number
 ;; passed the raw string (with '+') to BigInteger constructor.
 #?(:clj
-(deftest positive-sign-bigint-and-ratio
-  (testing "+42N — positive-signed BigInt"
-    (is (= 42N (first (core/meme->forms "+42N")))))
-  (testing "-42N — negative-signed BigInt (was already correct)"
-    (is (= -42N (first (core/meme->forms "-42N")))))
-  (testing "+3/4 — positive-signed ratio"
-    (is (= 3/4 (first (core/meme->forms "+3/4")))))
-  (testing "-3/4 — negative-signed ratio (was already correct)"
-    (is (= -3/4 (first (core/meme->forms "-3/4")))))))
+   (deftest positive-sign-bigint-and-ratio
+     (testing "+42N — positive-signed BigInt"
+       (is (= 42N (first (core/meme->forms "+42N")))))
+     (testing "-42N — negative-signed BigInt (was already correct)"
+       (is (= -42N (first (core/meme->forms "-42N")))))
+     (testing "+3/4 — positive-signed ratio"
+       (is (= 3/4 (first (core/meme->forms "+3/4")))))
+     (testing "-3/4 — negative-signed ratio (was already correct)"
+       (is (= -3/4 (first (core/meme->forms "-3/4")))))))
 
 ;; Bug: nil(x), true(x), false(x) were silently accepted by the reader,
 ;; producing forms like (nil x) that the printer can't represent. The error
@@ -764,16 +763,16 @@
 (deftest non-callable-literal-heads
   (testing "nil(x) rejected at parse time"
     (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
-          #"Cannot use nil as a call head"
-          (core/meme->forms "nil(x)"))))
+                          #"Cannot use nil as a call head"
+                          (core/meme->forms "nil(x)"))))
   (testing "true(x) rejected at parse time"
     (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
-          #"Cannot use true as a call head"
-          (core/meme->forms "true(x)"))))
+                          #"Cannot use true as a call head"
+                          (core/meme->forms "true(x)"))))
   (testing "false(x) rejected at parse time"
     (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
-          #"Cannot use false as a call head"
-          (core/meme->forms "false(x)"))))
+                          #"Cannot use false as a call head"
+                          (core/meme->forms "false(x)"))))
   (testing "nil standalone still parses"
     (is (nil? (first (core/meme->forms "nil")))))
   (testing "nil with space before parens is two forms"
@@ -789,11 +788,11 @@
 (deftest discard-sentinel-in-reader-cond-preserve
   (testing "#_ discarding a branch value in :read-cond :preserve throws"
     (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
-          #"discarded by #_"
-          (core/meme->forms "#?(:clj #_x)" {:read-cond :preserve}))))
+                          #"discarded by #_"
+                          (core/meme->forms "#?(:clj #_x)" {:read-cond :preserve}))))
   (testing "#_ in multi-branch preserve causes structural error"
     (is (thrown? #?(:clj Exception :cljs js/Error)
-          (core/meme->forms "#?(:clj #_x :cljs y)" {:read-cond :preserve}))))
+                 (core/meme->forms "#?(:clj #_x :cljs y)" {:read-cond :preserve}))))
   (testing "normal :read-cond :preserve still works"
     (let [forms (core/meme->forms "#?(:clj x :cljs y)" {:read-cond :preserve})]
       (is (= 1 (count forms)))

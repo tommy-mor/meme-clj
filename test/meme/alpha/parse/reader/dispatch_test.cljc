@@ -139,16 +139,16 @@
            (core/meme->forms "#(rand())"))))
   (testing "#() with multiple forms throws clear error"
     (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
-          #"single expression"
-          (core/meme->forms "#(a() b())"))))
+                          #"single expression"
+                          (core/meme->forms "#(a() b())"))))
   (testing "#( unterminated gives unterminated error, not single-expression"
     (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
-          #"Unterminated #\(\)"
-          (core/meme->forms "#(inc"))))
+                          #"Unterminated #\(\)"
+                          (core/meme->forms "#(inc"))))
   (testing "#() with only discarded body throws"
     (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
-          #"body was discarded"
-          (core/meme->forms "#(#_x)")))))
+                          #"body was discarded"
+                          (core/meme->forms "#(#_x)")))))
 
 ;; ---------------------------------------------------------------------------
 ;; Tagged literals, namespaced maps, reader conditionals (JVM-only)
@@ -222,43 +222,43 @@
 ;; ---------------------------------------------------------------------------
 
 #?(:clj
-(deftest maybe-call-on-namespaced-map
-  (testing "#:ns{} followed by ( is a call"
-    (let [form (first (core/meme->forms "#:user{:name \"x\"}(:user/name)"))]
-      (is (seq? form))
-      (is (map? (first form)))
-      (is (= :user/name (second form)))))))
+   (deftest maybe-call-on-namespaced-map
+     (testing "#:ns{} followed by ( is a call"
+       (let [form (first (core/meme->forms "#:user{:name \"x\"}(:user/name)"))]
+         (is (seq? form))
+         (is (map? (first form)))
+         (is (= :user/name (second form)))))))
 
 #?(:clj
-(deftest maybe-call-on-reader-conditional
-  (testing "#?(...) followed by ( is a call"
-    (let [form (first (core/meme->forms "#?(:clj inc :cljs identity)(42)"))]
-      (is (seq? form))
-      (is (= 42 (second form)))))))
+   (deftest maybe-call-on-reader-conditional
+     (testing "#?(...) followed by ( is a call"
+       (let [form (first (core/meme->forms "#?(:clj inc :cljs identity)(42)"))]
+         (is (seq? form))
+         (is (= 42 (second form)))))))
 
 ;; ---------------------------------------------------------------------------
 ;; CLJS-specific: opaque form tokenization and reader paths
 ;; ---------------------------------------------------------------------------
 
 #?(:cljs
-(deftest cljs-form-tokenization
-  (testing "tokenizer handles reader conditionals on CLJS"
-    (let [tokens (tokenize "#?(:clj x :cljs y)")]
-      (is (= :reader-cond-start (:type (first tokens))))))
-  (testing "tokenizer handles namespaced maps on CLJS"
-    (let [tokens (tokenize "#:user{:name \"x\"}")]
-      (is (= :namespaced-map-start (:type (first tokens))))))))
+   (deftest cljs-form-tokenization
+     (testing "tokenizer handles reader conditionals on CLJS"
+       (let [tokens (tokenize "#?(:clj x :cljs y)")]
+         (is (= :reader-cond-start (:type (first tokens))))))
+     (testing "tokenizer handles namespaced maps on CLJS"
+       (let [tokens (tokenize "#:user{:name \"x\"}")]
+         (is (= :namespaced-map-start (:type (first tokens))))))))
 
 #?(:cljs
-(deftest cljs-reader-paths
-  (testing "discard sentinel filters correctly on CLJS"
-    (is (= [] (core/meme->forms "#_foo"))))
-  (testing "regex parsing works through CLJS path"
-    (let [forms (core/meme->forms "#\"abc\"")]
-      (is (= 1 (count forms)))
-      (is (instance? js/RegExp (first forms)))))
-  (testing "string parsing works through CLJS reader"
-    (is (= ["hello"] (core/meme->forms "\"hello\""))))
-  (testing "number parsing works through CLJS reader"
-    (is (= [42] (core/meme->forms "42")))
-    (is (= [3.14] (core/meme->forms "3.14"))))))
+   (deftest cljs-reader-paths
+     (testing "discard sentinel filters correctly on CLJS"
+       (is (= [] (core/meme->forms "#_foo"))))
+     (testing "regex parsing works through CLJS path"
+       (let [forms (core/meme->forms "#\"abc\"")]
+         (is (= 1 (count forms)))
+         (is (instance? js/RegExp (first forms)))))
+     (testing "string parsing works through CLJS reader"
+       (is (= ["hello"] (core/meme->forms "\"hello\""))))
+     (testing "number parsing works through CLJS reader"
+       (is (= [42] (core/meme->forms "42")))
+       (is (= [3.14] (core/meme->forms "3.14"))))))

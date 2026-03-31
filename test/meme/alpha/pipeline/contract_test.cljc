@@ -12,28 +12,28 @@
 (deftest token-spec-accepts-valid
   (testing "minimal token"
     (is (s/valid? ::contract/token
-          {:type :symbol :value "foo" :line 1 :col 1 :offset 0})))
+                  {:type :symbol :value "foo" :line 1 :col 1 :offset 0})))
   (testing "token with all optional fields"
     (is (s/valid? ::contract/token
-          {:type :string :value "\"hello\"" :line 1 :col 1 :offset 0
-           :end-line 1 :end-col 8 :end-offset 7 :ws "  "}))))
+                  {:type :string :value "\"hello\"" :line 1 :col 1 :offset 0
+                   :end-line 1 :end-col 8 :end-offset 7 :ws "  "}))))
 
 (deftest token-spec-rejects-invalid
   (testing "missing :type"
     (is (not (s/valid? ::contract/token
-               {:value "foo" :line 1 :col 1 :offset 0}))))
+                       {:value "foo" :line 1 :col 1 :offset 0}))))
   (testing "unknown :type"
     (is (not (s/valid? ::contract/token
-               {:type :bogus :value "foo" :line 1 :col 1 :offset 0}))))
+                       {:type :bogus :value "foo" :line 1 :col 1 :offset 0}))))
   (testing "non-string :value"
     (is (not (s/valid? ::contract/token
-               {:type :symbol :value 42 :line 1 :col 1 :offset 0}))))
+                       {:type :symbol :value 42 :line 1 :col 1 :offset 0}))))
   (testing ":line must be pos-int (not zero)"
     (is (not (s/valid? ::contract/token
-               {:type :symbol :value "x" :line 0 :col 1 :offset 0}))))
+                       {:type :symbol :value "x" :line 0 :col 1 :offset 0}))))
   (testing ":offset must be nat-int (not negative)"
     (is (not (s/valid? ::contract/token
-               {:type :symbol :value "x" :line 1 :col 1 :offset -1})))))
+                       {:type :symbol :value "x" :line 1 :col 1 :offset -1})))))
 
 ;; ---------------------------------------------------------------------------
 ;; Opts spec
@@ -108,15 +108,15 @@
   (testing "bad :source type caught when *validate* is true"
     (binding [contract/*validate* true]
       (is (thrown-with-msg?
-            #?(:clj clojure.lang.ExceptionInfo :cljs ExceptionInfo)
-            #"Pipeline contract violation"
-            (contract/validate! :scan :input {:source 42})))))
+           #?(:clj clojure.lang.ExceptionInfo :cljs ExceptionInfo)
+           #"Pipeline contract violation"
+           (contract/validate! :scan :input {:source 42})))))
   (testing "missing :source caught"
     (binding [contract/*validate* true]
       (is (thrown-with-msg?
-            #?(:clj clojure.lang.ExceptionInfo :cljs ExceptionInfo)
-            #"Pipeline contract violation"
-            (contract/validate! :scan :input {}))))))
+           #?(:clj clojure.lang.ExceptionInfo :cljs ExceptionInfo)
+           #"Pipeline contract violation"
+           (contract/validate! :scan :input {}))))))
 
 (deftest validate-ex-data-has-stage-and-phase
   (testing "ex-data includes :stage, :phase, :problems"

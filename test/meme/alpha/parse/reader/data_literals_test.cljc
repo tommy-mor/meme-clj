@@ -35,7 +35,7 @@
             (first (core/meme->forms "::local"))))
      :cljs
      (is (thrown-with-msg? js/Error #"resolve-keyword"
-           (core/meme->forms "::local")))))
+                           (core/meme->forms "::local")))))
 
 (deftest parse-namespaced-keyword
   (is (= :foo/bar (first (core/meme->forms ":foo/bar")))))

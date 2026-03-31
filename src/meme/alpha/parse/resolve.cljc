@@ -89,14 +89,14 @@
         (forms/->MemeRaw (char code) raw))
 
       #?@(:clj [(and (str/starts-with? name-part "o")
-                      (<= 2 (count name-part) 4))
-                 (let [oct (subs name-part 1)
-                       code (try (Integer/parseInt oct 8)
-                                 (catch Exception _
-                                   (errors/meme-error (str "Invalid octal character \\" name-part) loc)))]
-                   (when (> code 0377)
-                     (errors/meme-error (str "Octal character out of range: \\" name-part) loc))
-                   (forms/->MemeRaw (char code) raw))])
+                     (<= 2 (count name-part) 4))
+                (let [oct (subs name-part 1)
+                      code (try (Integer/parseInt oct 8)
+                                (catch Exception _
+                                  (errors/meme-error (str "Invalid octal character \\" name-part) loc)))]
+                  (when (> code 0377)
+                    (errors/meme-error (str "Octal character out of range: \\" name-part) loc))
+                  (forms/->MemeRaw (char code) raw))])
 
       :else
       (errors/meme-error (str "Invalid character literal: " raw) loc))))
@@ -261,8 +261,8 @@
              (errors/meme-error detail (assoc loc :cause e)))))
     #?(:clj (forms/deferred-auto-keyword raw)
        :cljs (errors/meme-error
-               (str "Auto-resolve keywords (" raw ") require the :resolve-keyword option in ClojureScript")
-               (assoc loc :hint "Pass :resolve-keyword (fn [kw] ...) in the opts map to meme->forms")))))
+              (str "Auto-resolve keywords (" raw ") require the :resolve-keyword option in ClojureScript")
+              (assoc loc :hint "Pass :resolve-keyword (fn [kw] ...) in the opts map to meme->forms")))))
 
 ;; ---------------------------------------------------------------------------
 ;; Tagged literals
@@ -273,5 +273,5 @@
   [tag data loc]
   #?(:clj (tagged-literal tag data)
      :cljs (errors/meme-error
-             (str "Tagged literals (#" tag ") are not supported in ClojureScript meme reader.")
-             loc)))
+            (str "Tagged literals (#" tag ") are not supported in ClojureScript meme reader.")
+            loc)))

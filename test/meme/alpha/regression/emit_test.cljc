@@ -111,33 +111,33 @@
 ;; ---------------------------------------------------------------------------
 
 #?(:clj
-(deftest canon-head-line-args-respect-width
-  (testing "long if-condition falls back to body when it exceeds width"
-    (let [form '(if (and (> x 100) (< y 200) (not= z 0) (pos? w)) (body1) (body2))
-          result (fmt-canon/format-form form {:width 40})]
-      (is (not (re-find #"if\(and" result))
-          "long condition should not stay on head line")
-      (doseq [line (str/split-lines result)]
-        (is (<= (count line) 42)
-            (str "line exceeds width: " (pr-str line))))))
-  (testing "short if-condition stays on head line when multi-line needed"
-    (let [form '(if (> x 0) (do-something-with x) (do-something-else y))
-          result (fmt-canon/format-form form {:width 40})]
-      (is (re-find #"if\(>" result)
-          "short condition should stay on head line")))))
+   (deftest canon-head-line-args-respect-width
+     (testing "long if-condition falls back to body when it exceeds width"
+       (let [form '(if (and (> x 100) (< y 200) (not= z 0) (pos? w)) (body1) (body2))
+             result (fmt-canon/format-form form {:width 40})]
+         (is (not (re-find #"if\(and" result))
+             "long condition should not stay on head line")
+         (doseq [line (str/split-lines result)]
+           (is (<= (count line) 42)
+               (str "line exceeds width: " (pr-str line))))))
+     (testing "short if-condition stays on head line when multi-line needed"
+       (let [form '(if (> x 0) (do-something-with x) (do-something-else y))
+             result (fmt-canon/format-form form {:width 40})]
+         (is (re-find #"if\(>" result)
+             "short condition should stay on head line")))))
 
 ;; ---------------------------------------------------------------------------
 ;; Scar tissue: canon formatter map value column must use actual key width.
 ;; ---------------------------------------------------------------------------
 
 #?(:clj
-(deftest canon-map-value-column-uses-actual-key-width
-  (testing "map value indentation based on actual key width, not flat width"
-    (let [form {:k '(some-long-function arg1 arg2 arg3 arg4 arg5)}
-          result (fmt-canon/format-form form {:width 40})
-          lines (str/split-lines result)]
-      (is (some? result))
-      (is (> (count lines) 1) "should be multi-line")))))
+   (deftest canon-map-value-column-uses-actual-key-width
+     (testing "map value indentation based on actual key width, not flat width"
+       (let [form {:k '(some-long-function arg1 arg2 arg3 arg4 arg5)}
+             result (fmt-canon/format-form form {:width 40})
+             lines (str/split-lines result)]
+         (is (some? result))
+         (is (> (count lines) 1) "should be multi-line")))))
 
 ;; ---------------------------------------------------------------------------
 ;; Bug: pp-map underestimated val-col for single-line keys.
@@ -146,15 +146,15 @@
 ;; ---------------------------------------------------------------------------
 
 #?(:clj
-(deftest canon-map-value-column-includes-indent
-  (testing "map value breaks when key + indent + value exceed width"
-    (let [form (sorted-map :k '(fff arg1 arg2 arg3 arg4 a) :z 1)
-          result (fmt-canon/format-form form {:width 30})
-          lines (str/split-lines result)]
-      (is (> (count lines) 3) "value should break to multi-line")
-      (doseq [line lines]
-        (is (<= (count line) 34)
-            (str "line exceeds width: " (pr-str line))))))))
+   (deftest canon-map-value-column-includes-indent
+     (testing "map value breaks when key + indent + value exceed width"
+       (let [form (sorted-map :k '(fff arg1 arg2 arg3 arg4 a) :z 1)
+             result (fmt-canon/format-form form {:width 30})
+             lines (str/split-lines result)]
+         (is (> (count lines) 3) "value should break to multi-line")
+         (doseq [line lines]
+           (is (<= (count line) 34)
+               (str "line exceeds width: " (pr-str line))))))))
 
 ;; ---------------------------------------------------------------------------
 ;; Bug: canon formatter silently dropped metadata on multi-line call forms.
@@ -217,62 +217,62 @@
 ;; ---------------------------------------------------------------------------
 
 #?(:clj
-(deftest canon-deferred-auto-keyword-not-corrupted
-  (testing "::foo preserved at narrow width"
-    (is (= "::foo"
-           (fmt-canon/format-form '(clojure.core/read-string "::foo") {:width 4}))))
-  (testing "::keyword preserved when nested deeply"
-    (let [result (fmt-canon/format-form
-                   (list 'def 'x '(clojure.core/read-string "::long-keyword"))
-                   {:width 20})]
-      (is (re-find #"::long-keyword" result))
-      (is (not (re-find #"clojure.core/read-string" result)))))
-  (testing ":: keyword roundtrips through canon formatter"
-    (let [src "def(x ::my-key)"
-          forms (core/meme->forms src)
-          formatted (fmt-canon/format-forms forms {:width 10})
-          re-read (core/meme->forms formatted)]
-      (is (= forms re-read))))))
+   (deftest canon-deferred-auto-keyword-not-corrupted
+     (testing "::foo preserved at narrow width"
+       (is (= "::foo"
+              (fmt-canon/format-form '(clojure.core/read-string "::foo") {:width 4}))))
+     (testing "::keyword preserved when nested deeply"
+       (let [result (fmt-canon/format-form
+                     (list 'def 'x '(clojure.core/read-string "::long-keyword"))
+                     {:width 20})]
+         (is (re-find #"::long-keyword" result))
+         (is (not (re-find #"clojure.core/read-string" result)))))
+     (testing ":: keyword roundtrips through canon formatter"
+       (let [src "def(x ::my-key)"
+             forms (core/meme->forms src)
+             formatted (fmt-canon/format-forms forms {:width 10})
+             re-read (core/meme->forms formatted)]
+         (is (= forms re-read))))))
 
 ;; ---------------------------------------------------------------------------
 ;; Bug: canon formatter lost reader-sugar notation (@, #', ')
 ;; ---------------------------------------------------------------------------
 
 #?(:clj
-(deftest canon-preserves-deref-sugar
-  (testing "@atom sugar preserved at narrow width"
-    (let [form (with-meta (list 'clojure.core/deref 'my-very-long-atom-name) {:meme/sugar true})
-          result (fmt-canon/format-form form {:width 10})]
-      (is (str/starts-with? result "@"))
-      (is (not (str/includes? result "clojure.core/deref")))))
-  (testing "clojure.core/deref(x) call form preserved when not tagged"
-    (let [form (list 'clojure.core/deref 'my-atom)
-          result (fmt-canon/format-form form {:width 10})]
-      (is (str/includes? result "clojure.core/deref("))))))
+   (deftest canon-preserves-deref-sugar
+     (testing "@atom sugar preserved at narrow width"
+       (let [form (with-meta (list 'clojure.core/deref 'my-very-long-atom-name) {:meme/sugar true})
+             result (fmt-canon/format-form form {:width 10})]
+         (is (str/starts-with? result "@"))
+         (is (not (str/includes? result "clojure.core/deref")))))
+     (testing "clojure.core/deref(x) call form preserved when not tagged"
+       (let [form (list 'clojure.core/deref 'my-atom)
+             result (fmt-canon/format-form form {:width 10})]
+         (is (str/includes? result "clojure.core/deref("))))))
 
 #?(:clj
-(deftest canon-preserves-var-sugar
-  (testing "#'sym sugar preserved at narrow width"
-    (let [form (with-meta (list 'var 'some.ns/my-var) {:meme/sugar true})
-          result (fmt-canon/format-form form {:width 5})]
-      (is (str/starts-with? result "#'"))
-      (is (not (str/includes? result "var(")))))
-  (testing "var(x) call form preserved when not tagged"
-    (let [form (list 'var 'some.ns/my-var)
-          result (fmt-canon/format-form form {:width 5})]
-      (is (str/includes? result "var("))))))
+   (deftest canon-preserves-var-sugar
+     (testing "#'sym sugar preserved at narrow width"
+       (let [form (with-meta (list 'var 'some.ns/my-var) {:meme/sugar true})
+             result (fmt-canon/format-form form {:width 5})]
+         (is (str/starts-with? result "#'"))
+         (is (not (str/includes? result "var(")))))
+     (testing "var(x) call form preserved when not tagged"
+       (let [form (list 'var 'some.ns/my-var)
+             result (fmt-canon/format-form form {:width 5})]
+         (is (str/includes? result "var("))))))
 
 #?(:clj
-(deftest canon-preserves-quote-sugar
-  (testing "'sym sugar preserved at narrow width"
-    (let [form (with-meta (list 'quote 'my-long-symbol-name) {:meme/sugar true})
-          result (fmt-canon/format-form form {:width 5})]
-      (is (str/starts-with? result "'"))
-      (is (not (str/includes? result "quote(")))))
-  (testing "quote(x) call form preserved when not tagged"
-    (let [form (list 'quote 'my-long-symbol-name)
-          result (fmt-canon/format-form form {:width 5})]
-      (is (str/includes? result "quote("))))))
+   (deftest canon-preserves-quote-sugar
+     (testing "'sym sugar preserved at narrow width"
+       (let [form (with-meta (list 'quote 'my-long-symbol-name) {:meme/sugar true})
+             result (fmt-canon/format-form form {:width 5})]
+         (is (str/starts-with? result "'"))
+         (is (not (str/includes? result "quote(")))))
+     (testing "quote(x) call form preserved when not tagged"
+       (let [form (list 'quote 'my-long-symbol-name)
+             result (fmt-canon/format-form form {:width 5})]
+         (is (str/includes? result "quote("))))))
 
 ;; ---------------------------------------------------------------------------
 ;; Bug: reader-conditional printer emitted S-expressions via pr-str.
@@ -280,19 +280,19 @@
 ;; ---------------------------------------------------------------------------
 
 #?(:clj
-(deftest reader-conditional-prints-meme-syntax
-  (testing "reader conditional inner forms use meme syntax"
-    (let [rc (read-string {:read-cond :preserve} "#?(:clj (+ 1 2) :cljs (- 3 4))")
-          printed (fmt-flat/format-form rc)]
-      (is (= "#?(:clj +(1 2) :cljs -(3 4))" printed))))
-  (testing "#?@ splicing variant"
-    (let [rc (read-string {:read-cond :preserve} "#?@(:clj [1 2] :cljs [3 4])")
-          printed (fmt-flat/format-form rc)]
-      (is (= "#?@(:clj [1 2] :cljs [3 4])" printed))))
-  (testing "reader conditional with nested calls"
-    (let [rc (read-string {:read-cond :preserve} "#?(:clj (defn foo [x] x))")
-          printed (fmt-flat/format-form rc)]
-      (is (re-find #"defn\(" printed))))))
+   (deftest reader-conditional-prints-meme-syntax
+     (testing "reader conditional inner forms use meme syntax"
+       (let [rc (read-string {:read-cond :preserve} "#?(:clj (+ 1 2) :cljs (- 3 4))")
+             printed (fmt-flat/format-form rc)]
+         (is (= "#?(:clj +(1 2) :cljs -(3 4))" printed))))
+     (testing "#?@ splicing variant"
+       (let [rc (read-string {:read-cond :preserve} "#?@(:clj [1 2] :cljs [3 4])")
+             printed (fmt-flat/format-form rc)]
+         (is (= "#?@(:clj [1 2] :cljs [3 4])" printed))))
+     (testing "reader conditional with nested calls"
+       (let [rc (read-string {:read-cond :preserve} "#?(:clj (defn foo [x] x))")
+             printed (fmt-flat/format-form rc)]
+         (is (re-find #"defn\(" printed))))))
 
 ;; ---------------------------------------------------------------------------
 ;; Bug: nil/true/false as call heads produced unparseable meme output.
@@ -302,16 +302,16 @@
 (deftest non-callable-head-throws
   (testing "nil as call head"
     (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
-          #"not representable"
-          (fmt-flat/format-form (list nil 1 2)))))
+                          #"not representable"
+                          (fmt-flat/format-form (list nil 1 2)))))
   (testing "true as call head"
     (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
-          #"not representable"
-          (fmt-flat/format-form (list true 1 2)))))
+                          #"not representable"
+                          (fmt-flat/format-form (list true 1 2)))))
   (testing "false as call head"
     (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
-          #"not representable"
-          (fmt-flat/format-form (list false 1 2))))))
+                          #"not representable"
+                          (fmt-flat/format-form (list false 1 2))))))
 
 ;; ---------------------------------------------------------------------------
 ;; Scar tissue: ' prefix sugar roundtrips for all inner form types.
@@ -355,40 +355,40 @@
 ;; ---------------------------------------------------------------------------
 
 #?(:clj
-(deftest canon-preserves-anon-fn-sugar
-  (testing "#() sugar preserved in multi-line"
-    (let [form (first (core/meme->forms "#(long-function(a b c d e f))"))
-          result (fmt-canon/format-form form {:width 20})]
-      (is (str/starts-with? result "#("))
-      (is (not (str/includes? result "fn(")))))
-  (testing "#() with short body stays flat"
-    (let [form (first (core/meme->forms "#(inc(%))"))
-          result (fmt-canon/format-form form {:width 80})]
-      (is (= "#(inc(%1))" result))))))
+   (deftest canon-preserves-anon-fn-sugar
+     (testing "#() sugar preserved in multi-line"
+       (let [form (first (core/meme->forms "#(long-function(a b c d e f))"))
+             result (fmt-canon/format-form form {:width 20})]
+         (is (str/starts-with? result "#("))
+         (is (not (str/includes? result "fn(")))))
+     (testing "#() with short body stays flat"
+       (let [form (first (core/meme->forms "#(inc(%))"))
+             result (fmt-canon/format-form form {:width 80})]
+         (is (= "#(inc(%1))" result))))))
 
 #?(:clj
-(deftest canon-preserves-namespaced-map
-  (testing "#:ns{} prefix preserved in multi-line"
-    (let [form (first (core/meme->forms "#:user{:name \"x\" :age 42 :email \"long@example.com\"}"))
-          result (fmt-canon/format-form form {:width 20})]
-      (is (str/starts-with? result "#:user{"))
-      (is (not (re-find #"^\{" result)))))
-  (testing "#:ns{} with auto-resolve preserved"
-    (let [form (first (core/meme->forms "#::foo{:a 1 :b 2 :c \"a-very-long-value-here\"}"))
-          result (fmt-canon/format-form form {:width 20})]
-      (is (str/starts-with? result "#::foo{"))))))
+   (deftest canon-preserves-namespaced-map
+     (testing "#:ns{} prefix preserved in multi-line"
+       (let [form (first (core/meme->forms "#:user{:name \"x\" :age 42 :email \"long@example.com\"}"))
+             result (fmt-canon/format-form form {:width 20})]
+         (is (str/starts-with? result "#:user{"))
+         (is (not (re-find #"^\{" result)))))
+     (testing "#:ns{} with auto-resolve preserved"
+       (let [form (first (core/meme->forms "#::foo{:a 1 :b 2 :c \"a-very-long-value-here\"}"))
+             result (fmt-canon/format-form form {:width 20})]
+         (is (str/starts-with? result "#::foo{"))))))
 
 #?(:clj
-(deftest canon-preserves-meta-chain
-  (testing "^:a ^:b chain preserved in multi-line"
-    (let [form (first (core/meme->forms "^:private ^:deprecated defn(foo [x] x)"))
-          result (fmt-canon/format-form form {:width 30})]
-      (is (str/starts-with? result "^:private ^:deprecated"))
-      (is (not (str/includes? result "^{")))))
-  (testing "single ^:key still works"
-    (let [form (first (core/meme->forms "^:private defn(foo [x] x)"))
-          result (fmt-canon/format-form form {:width 20})]
-      (is (str/starts-with? result "^:private"))))))
+   (deftest canon-preserves-meta-chain
+     (testing "^:a ^:b chain preserved in multi-line"
+       (let [form (first (core/meme->forms "^:private ^:deprecated defn(foo [x] x)"))
+             result (fmt-canon/format-form form {:width 30})]
+         (is (str/starts-with? result "^:private ^:deprecated"))
+         (is (not (str/includes? result "^{")))))
+     (testing "single ^:key still works"
+       (let [form (first (core/meme->forms "^:private defn(foo [x] x)"))
+             result (fmt-canon/format-form form {:width 20})]
+         (is (str/starts-with? result "^:private"))))))
 
 ;; ---------------------------------------------------------------------------
 ;; Bug: regex patterns containing " printed unescaped.
@@ -404,13 +404,13 @@
              #?(:clj (.pattern ^java.util.regex.Pattern (first forms2))
                 :cljs (.-source (first forms2)))))))
   #?(:clj
-  (testing "programmatic regex with bare \" produces parseable output"
-    (let [r (re-pattern "a\"b")
-          printed (fmt-flat/format-form r)]
-      (is (re-find #"^#\"" printed))
-      (is (some? (core/meme->forms printed)))
-      (is (= (re-find r "a\"b")
-             (re-find (first (core/meme->forms printed)) "a\"b"))))))
+     (testing "programmatic regex with bare \" produces parseable output"
+       (let [r (re-pattern "a\"b")
+             printed (fmt-flat/format-form r)]
+         (is (re-find #"^#\"" printed))
+         (is (some? (core/meme->forms printed)))
+         (is (= (re-find r "a\"b")
+                (re-find (first (core/meme->forms printed)) "a\"b"))))))
   (testing "no double-escaping of already-escaped quotes"
     (let [forms (core/meme->forms "#\"x\\\"y\"")
           printed (fmt-flat/format-forms forms)
@@ -420,14 +420,14 @@
              #?(:clj (.pattern ^java.util.regex.Pattern (first forms2))
                 :cljs (.-source (first forms2)))))))
   #?(:clj
-  (testing "even backslashes before quote: \\\\ + \" not misidentified as escaped quote"
-    (let [r (re-pattern "a\\\\\"b")
-          printed (fmt-flat/format-form r)
-          forms (core/meme->forms printed)]
-      (is (some? forms) "printed regex should parse without error")
-      (is (= (re-find r "a\\\"b")
-             (re-find (first forms) "a\\\"b"))
-          "regex behavior should be preserved")))))
+     (testing "even backslashes before quote: \\\\ + \" not misidentified as escaped quote"
+       (let [r (re-pattern "a\\\\\"b")
+             printed (fmt-flat/format-form r)
+             forms (core/meme->forms printed)]
+         (is (some? forms) "printed regex should parse without error")
+         (is (= (re-find r "a\\\"b")
+                (re-find (first forms) "a\\\"b"))
+             "regex behavior should be preserved")))))
 
 ;; ---------------------------------------------------------------------------
 ;; Scar tissue: #() shorthand in :clj mode wrapped the body in extra parens.

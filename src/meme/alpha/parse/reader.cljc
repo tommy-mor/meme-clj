@@ -150,10 +150,10 @@
          (let [ctx (get closer-context end-type "expression")
                closer (get closer-name end-type (name end-type))]
            (errors/meme-error
-             (str "Unclosed " ctx " — expected " closer " but reached end of input")
-             (error-data p (cond-> (assoc (plast-loc p) :incomplete true)
-                             open-loc (assoc :secondary [{:line (:line open-loc) :col (:col open-loc) :label "opened here"}])
-                             open-loc (assoc :hint (str "Add " (get token-name end-type (name end-type)) " to close this " ctx)))))))
+            (str "Unclosed " ctx " — expected " closer " but reached end of input")
+            (error-data p (cond-> (assoc (plast-loc p) :incomplete true)
+                            open-loc (assoc :secondary [{:line (:line open-loc) :col (:col open-loc) :label "opened here"}])
+                            open-loc (assoc :hint (str "Add " (get token-name end-type (name end-type)) " to close this " ctx)))))))
        (let [tok (ppeek p)]
          (cond
            ;; Correct closer — done
@@ -166,10 +166,10 @@
                  actual (get token-name (:type tok) (name (:type tok)))
                  ctx (get closer-context end-type "expression")]
              (errors/meme-error
-               (str "Mismatched delimiter — expected " expected " to close " ctx " but got " actual)
-               (error-data p (cond-> (select-keys tok [:line :col])
-                               open-loc (assoc :secondary [{:line (:line open-loc) :col (:col open-loc) :label "opened here"}])
-                               open-loc (assoc :hint (str "Replace " actual " with " expected " to close this " ctx))))))
+              (str "Mismatched delimiter — expected " expected " to close " ctx " but got " actual)
+              (error-data p (cond-> (select-keys tok [:line :col])
+                              open-loc (assoc :secondary [{:line (:line open-loc) :col (:col open-loc) :label "opened here"}])
+                              open-loc (assoc :hint (str "Replace " actual " with " expected " to close this " ctx))))))
 
            ;; Normal form — parse and accumulate
            :else
@@ -219,7 +219,6 @@
   (let [loc (select-keys (ppeek p) [:line :col])]
     (padvance! p) ; (
     (parse-forms-until p :close-paren loc)))
-
 
 ;; ---------------------------------------------------------------------------
 ;; #() anonymous function — % param helpers
@@ -302,7 +301,6 @@
     (cond-> (mapv #(symbol (str "%" %)) (range 1 (inc max-n)))
       has-rest? (into ['& (symbol "%&")]))))
 
-
 ;; ---------------------------------------------------------------------------
 ;; Main parse dispatch
 ;; ---------------------------------------------------------------------------
@@ -349,8 +347,8 @@
           (let [form (parse-form p)]
             (when (discard-sentinel? form)
               (errors/meme-error
-                (str "Reader conditional branch " platform-key " value was discarded by #_ — each branch requires a value")
-                (error-data p (select-keys key-tok [:line :col]))))
+               (str "Reader conditional branch " platform-key " value was discarded by #_ — each branch requires a value")
+               (error-data p (select-keys key-tok [:line :col]))))
             (recur (conj pairs platform-key form))))))))
 
 (defn- parse-reader-cond-eval
@@ -380,8 +378,8 @@
                 (if (sequential? matched)
                   (splice-result matched)
                   (errors/meme-error
-                    "Splicing reader conditional value must be a list or vector"
-                    (error-data p loc)))
+                   "Splicing reader conditional value must be a list or vector"
+                   (error-data p loc)))
                 (maybe-call p matched))))
 
         ;; Already matched — consume remaining forms permissively until ).
@@ -401,9 +399,9 @@
             (padvance! p)
             (when (or (peof? p) (tok-type? (ppeek p) :close-paren))
               (errors/meme-error
-                (str "Missing value for " platform-key " in reader conditional")
-                (error-data p (cond-> (select-keys key-tok [:line :col])
-                                (peof? p) (assoc :incomplete true)))))
+               (str "Missing value for " platform-key " in reader conditional")
+               (error-data p (cond-> (select-keys key-tok [:line :col])
+                               (peof? p) (assoc :incomplete true)))))
             (let [form (parse-form p)]
               (if (or (= platform-key platform) (= platform-key :default))
                 (recur form)
@@ -463,8 +461,8 @@
         (if (tok-type? (ppeek p) :close-paren)
           (do (padvance! p) (list))
           (errors/meme-error
-            "Bare parentheses not allowed — every (...) needs a head: symbol, keyword, or vector. Write f(x) not (f x). Use () for the empty list."
-            (error-data p loc))))
+           "Bare parentheses not allowed — every (...) needs a head: symbol, keyword, or vector. Write f(x) not (f x). Use () for the empty list."
+           (error-data p loc))))
 
       :open-bracket (maybe-call p (parse-vector p))
       :open-brace (maybe-call p (parse-map p))
@@ -475,7 +473,7 @@
           (let [inner (parse-form p)]
             (when (discard-sentinel? inner)
               (errors/meme-error "Deref target was discarded by #_ — nothing to dereference"
-                                (error-data p (select-keys tok [:line :col]))))
+                                 (error-data p (select-keys tok [:line :col]))))
             (with-meta (list 'clojure.core/deref inner) {:meme/sugar true})))
 
       :meta
@@ -483,19 +481,19 @@
           (let [m (parse-form p)
                 _ (when (discard-sentinel? m)
                     (errors/meme-error "Metadata value was discarded by #_ — nothing to attach as metadata"
-                                      (error-data p (select-keys tok [:line :col]))))
+                                       (error-data p (select-keys tok [:line :col]))))
                 target (parse-form p)
                 _ (when (discard-sentinel? target)
                     (errors/meme-error "Metadata target was discarded by #_ — nothing to attach metadata to"
-                                      (error-data p (select-keys tok [:line :col]))))
+                                       (error-data p (select-keys tok [:line :col]))))
                 entry (cond
                         (keyword? m) {m true}
                         (symbol? m)  {:tag m}
                         (map? m)     m
                         :else
                         (errors/meme-error
-                          (str "Metadata must be a keyword, symbol, or map — got " (pr-str m))
-                          (error-data p (select-keys tok [:line :col]))))
+                         (str "Metadata must be a keyword, symbol, or map — got " (pr-str m))
+                         (error-data p (select-keys tok [:line :col]))))
                 chain (conj (or (:meme/meta-chain (meta target)) []) entry)]
             (vary-meta target merge entry {:meme/meta-chain chain})))
 
@@ -506,7 +504,7 @@
           (let [inner (parse-form p)]
             (when (discard-sentinel? inner)
               (errors/meme-error "Quote target was discarded by #_ — nothing to quote"
-                                (error-data p (select-keys tok [:line :col]))))
+                                 (error-data p (select-keys tok [:line :col]))))
             (with-meta (list 'quote inner) {:meme/sugar true})))
 
       :syntax-quote
@@ -518,7 +516,7 @@
                           (finally (vswap! (:sq-depth p) dec)))]
             (when (discard-sentinel? form)
               (errors/meme-error "Syntax-quote target was discarded by #_ — nothing to syntax-quote"
-                                (error-data p (select-keys tok [:line :col]))))
+                                 (error-data p (select-keys tok [:line :col]))))
             (forms/->MemeSyntaxQuote form)))
 
       :unquote
@@ -527,9 +525,9 @@
             (let [inner (parse-form p)]
               (when (discard-sentinel? inner)
                 (errors/meme-error "Unquote target was discarded by #_ — nothing to unquote"
-                                  (error-data p (select-keys tok [:line :col]))))
+                                   (error-data p (select-keys tok [:line :col]))))
               (with-meta (forms/->MemeUnquote inner)
-                        (select-keys tok [:line :col]))))
+                (select-keys tok [:line :col]))))
         (errors/meme-error "Unquote (~) outside syntax-quote — ~ only has meaning inside `"
                            (error-data p (select-keys tok [:line :col]))))
 
@@ -539,9 +537,9 @@
             (let [inner (parse-form p)]
               (when (discard-sentinel? inner)
                 (errors/meme-error "Unquote-splicing target was discarded by #_ — nothing to unquote-splice"
-                                  (error-data p (select-keys tok [:line :col]))))
+                                   (error-data p (select-keys tok [:line :col]))))
               (with-meta (forms/->MemeUnquoteSplicing inner)
-                         (select-keys tok [:line :col]))))
+                (select-keys tok [:line :col]))))
         (errors/meme-error "Unquote-splicing (~@) outside syntax-quote — ~@ only has meaning inside `"
                            (error-data p (select-keys tok [:line :col]))))
 
@@ -550,7 +548,7 @@
           (let [inner (parse-form p)]
             (when (discard-sentinel? inner)
               (errors/meme-error "Var-quote target was discarded by #_ — nothing to reference"
-                                (error-data p (select-keys tok [:line :col]))))
+                                 (error-data p (select-keys tok [:line :col]))))
             (with-meta (list 'var inner) {:meme/sugar true})))
 
       :discard
@@ -606,17 +604,17 @@
           (let [body (parse-form p)
                 _ (when (discard-sentinel? body)
                     (errors/meme-error "#() body was discarded — #() requires a non-discarded expression"
-                                      (error-data p (select-keys tok [:line :col]))))
+                                       (error-data p (select-keys tok [:line :col]))))
                 nxt (ppeek p)]
             (cond
               (nil? nxt)
               (errors/meme-error "Unterminated #() — expected closing )"
-                                (error-data p (assoc (select-keys tok [:line :col]) :incomplete true)))
+                                 (error-data p (assoc (select-keys tok [:line :col]) :incomplete true)))
 
               (not (tok-type? nxt :close-paren))
               (errors/meme-error "#() body must be a single expression — use fn(args...) for multiple expressions"
-                                (error-data p (assoc (select-keys nxt [:line :col])
-                                                :secondary [{:line (:line tok) :col (:col tok) :label "#( opened here"}]))))
+                                 (error-data p (assoc (select-keys nxt [:line :col])
+                                                      :secondary [{:line (:line tok) :col (:col tok) :label "#( opened here"}]))))
             (padvance! p)
             (let [params (find-percent-params body)
                   _ (when (contains? params 0)
@@ -670,9 +668,9 @@
            (adjacent-open-paren? p))
     (if (contains? #{nil true false} form)
       (errors/meme-error
-        (str "Cannot use " (pr-str form) " as a call head — "
-             (pr-str form) "(\u2026) is not valid meme syntax")
-        (error-data p (select-keys (ppeek p) [:line :col])))
+       (str "Cannot use " (pr-str form) " as a call head — "
+            (pr-str form) "(\u2026) is not valid meme syntax")
+       (error-data p (select-keys (ppeek p) [:line :col])))
       (let [args (parse-call-args p)]
         (recur p (apply list form args))))
     form))

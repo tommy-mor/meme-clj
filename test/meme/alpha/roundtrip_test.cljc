@@ -410,22 +410,22 @@
 
 (deftest roundtrip-deeply-nested-let
   (let [[f1 f2 _] (roundtrip-forms
-                     "let([a 1] let([b 2] let([c 3] let([d 4] +(a b c d)))))")]
+                   "let([a 1] let([b 2] let([c 3] let([d 4] +(a b c d)))))")]
     (is (= f1 f2))))
 
 (deftest roundtrip-nested-fn-in-fn
   (let [[f1 f2 _] (roundtrip-forms
-                     "defn(outer [x] let([f fn([y] +(x y))] f(10)))")]
+                   "defn(outer [x] let([f fn([y] +(x y))] f(10)))")]
     (is (= f1 f2))))
 
 (deftest roundtrip-nested-loop-for
   (let [[f1 f2 _] (roundtrip-forms
-                     "for([x [1 2 3]] for([y [4 5 6]] *(x y)))")]
+                   "for([x [1 2 3]] for([y [4 5 6]] *(x y)))")]
     (is (= f1 f2))))
 
 (deftest roundtrip-mixed-control-flow
   (let [[f1 f2 _] (roundtrip-forms
-                     "defn(process [items] let([result for([item items] if(even?(item) *(item 2) item))] reduce(+ 0 result)))")]
+                   "defn(process [items] let([result for([item items] if(even?(item) *(item 2) item))] reduce(+ 0 result)))")]
     (is (= f1 f2))))
 
 (deftest roundtrip-anon-fn-shorthand
@@ -482,17 +482,17 @@
 ;; ---------------------------------------------------------------------------
 
 #?(:clj
-(deftest roundtrip-number-formats
-  (testing "ratio"
-    (let [[f1 f2 _] (roundtrip-forms "1/2")]
-      (is (= f1 f2))))
-  (testing "BigInt"
-    (let [[f1 f2 _] (roundtrip-forms "42N")]
-      (is (= f1 f2))))
-  (testing "BigDecimal"
-    (let [[f1 f2 printed] (roundtrip-forms "1.5M")]
-      (is (= f1 f2))
-      (is (= "1.5M" printed))))))
+   (deftest roundtrip-number-formats
+     (testing "ratio"
+       (let [[f1 f2 _] (roundtrip-forms "1/2")]
+         (is (= f1 f2))))
+     (testing "BigInt"
+       (let [[f1 f2 _] (roundtrip-forms "42N")]
+         (is (= f1 f2))))
+     (testing "BigDecimal"
+       (let [[f1 f2 printed] (roundtrip-forms "1.5M")]
+         (is (= f1 f2))
+         (is (= "1.5M" printed))))))
 
 ;; ---------------------------------------------------------------------------
 ;; Deep nesting stress tests
@@ -578,33 +578,33 @@
 ;; ---------------------------------------------------------------------------
 
 #?(:clj
-(deftest roundtrip-reader-conditional
-  (testing "#?(:clj x :cljs y) roundtrips"
-    (let [[f1 f2 _] (roundtrip-forms "#?(:clj 1 :cljs 2)")]
-      (is (= f1 f2))))
-  (testing "#?@(:clj [1 2]) roundtrips"
-    (let [[f1 f2 _] (roundtrip-forms "#?@(:clj [1 2] :cljs [3 4])")]
-      (is (= f1 f2))))))
+   (deftest roundtrip-reader-conditional
+     (testing "#?(:clj x :cljs y) roundtrips"
+       (let [[f1 f2 _] (roundtrip-forms "#?(:clj 1 :cljs 2)")]
+         (is (= f1 f2))))
+     (testing "#?@(:clj [1 2]) roundtrips"
+       (let [[f1 f2 _] (roundtrip-forms "#?@(:clj [1 2] :cljs [3 4])")]
+         (is (= f1 f2))))))
 
 #?(:clj
-(deftest roundtrip-tagged-literal
-  (testing "#uuid roundtrips"
-    (let [[f1 f2 _] (roundtrip-forms "#uuid \"550e8400-e29b-41d4-a716-446655440000\"")]
-      (is (= f1 f2))))
-  (testing "#inst roundtrips"
-    (let [[f1 f2 _] (roundtrip-forms "#inst \"2024-01-01T00:00:00.000Z\"")]
-      (is (= f1 f2))))))
+   (deftest roundtrip-tagged-literal
+     (testing "#uuid roundtrips"
+       (let [[f1 f2 _] (roundtrip-forms "#uuid \"550e8400-e29b-41d4-a716-446655440000\"")]
+         (is (= f1 f2))))
+     (testing "#inst roundtrips"
+       (let [[f1 f2 _] (roundtrip-forms "#inst \"2024-01-01T00:00:00.000Z\"")]
+         (is (= f1 f2))))))
 
 #?(:clj
-(deftest roundtrip-auto-resolve-keyword
-  (testing "::foo roundtrips through deferred read-string"
-    (let [[f1 f2 text] (roundtrip-forms "::local")]
-      (is (= f1 f2))
-      (is (= "::local" text))))
-  (testing "::ns/foo roundtrips"
-    (let [[f1 f2 text] (roundtrip-forms "::foo/bar")]
-      (is (= f1 f2))
-      (is (= "::foo/bar" text))))))
+   (deftest roundtrip-auto-resolve-keyword
+     (testing "::foo roundtrips through deferred read-string"
+       (let [[f1 f2 text] (roundtrip-forms "::local")]
+         (is (= f1 f2))
+         (is (= "::local" text))))
+     (testing "::ns/foo roundtrips"
+       (let [[f1 f2 text] (roundtrip-forms "::foo/bar")]
+         (is (= f1 f2))
+         (is (= "::foo/bar" text))))))
 
 ;; ---------------------------------------------------------------------------
 ;; Metadata on collections
@@ -781,14 +781,14 @@
 
 (deftest roundtrip-numeric-notation-preserved
   #?(:clj
-  (testing "hex notation roundtrips"
-    (is (= "0xFF" (roundtrip-syntax "0xFF")))))
+     (testing "hex notation roundtrips"
+       (is (= "0xFF" (roundtrip-syntax "0xFF")))))
   #?(:clj
-  (testing "octal notation roundtrips"
-    (is (= "010" (roundtrip-syntax "010")))))
+     (testing "octal notation roundtrips"
+       (is (= "010" (roundtrip-syntax "010")))))
   #?(:clj
-  (testing "radix notation roundtrips"
-    (is (= "2r1010" (roundtrip-syntax "2r1010")))))
+     (testing "radix notation roundtrips"
+       (is (= "2r1010" (roundtrip-syntax "2r1010")))))
   (testing "scientific notation roundtrips"
     (is (= "1e2" (roundtrip-syntax "1e2"))))
   (testing "standard notation unchanged"
@@ -796,14 +796,14 @@
     (is (= "3.14" (roundtrip-syntax "3.14")))))
 
 #?(:clj
-(deftest roundtrip-char-escape-preserved
-  (testing "unicode char escape roundtrips"
-    (is (= "\\u0041" (roundtrip-syntax "\\u0041"))))
-  (testing "octal char escape roundtrips"
-    (is (= "\\o101" (roundtrip-syntax "\\o101"))))
-  (testing "standard chars unchanged"
-    (is (= "\\a" (roundtrip-syntax "\\a")))
-    (is (= "\\newline" (roundtrip-syntax "\\newline"))))))
+   (deftest roundtrip-char-escape-preserved
+     (testing "unicode char escape roundtrips"
+       (is (= "\\u0041" (roundtrip-syntax "\\u0041"))))
+     (testing "octal char escape roundtrips"
+       (is (= "\\o101" (roundtrip-syntax "\\o101"))))
+     (testing "standard chars unchanged"
+       (is (= "\\a" (roundtrip-syntax "\\a")))
+       (is (= "\\newline" (roundtrip-syntax "\\newline"))))))
 
 (deftest roundtrip-string-unicode-preserved
   (testing "string with unicode escape roundtrips"

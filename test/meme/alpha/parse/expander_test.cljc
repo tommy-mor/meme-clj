@@ -231,19 +231,19 @@
 ;; ---------------------------------------------------------------------------
 
 #?(:clj
-(deftest double-backtick-eval
-  (testing "``x eval produces (quote x) — double quoting"
-    (let [expanded (first (expander/expand-forms (core/meme->forms "``x")))]
-      (is (= '(quote x) (eval expanded))
-          "eval of ``x should produce (quote x)")))
-  (testing "``foo(x) eval produces inner expansion code, second eval produces (foo x)"
-    (let [expanded (first (expander/expand-forms (core/meme->forms "``foo(x)")))
-          once (eval expanded)]
+   (deftest double-backtick-eval
+     (testing "``x eval produces (quote x) — double quoting"
+       (let [expanded (first (expander/expand-forms (core/meme->forms "``x")))]
+         (is (= '(quote x) (eval expanded))
+             "eval of ``x should produce (quote x)")))
+     (testing "``foo(x) eval produces inner expansion code, second eval produces (foo x)"
+       (let [expanded (first (expander/expand-forms (core/meme->forms "``foo(x)")))
+             once (eval expanded)]
       ;; First eval yields the inner expansion code (seq/concat form)
-      (is (seq? once) "first eval should yield a seq form")
+         (is (seq? once) "first eval should yield a seq form")
       ;; Second eval of that code produces the actual (foo x) list
-      (is (= '(foo x) (eval once))
-          "double eval of ``foo(x) should produce (foo x)")))))
+         (is (= '(foo x) (eval once))
+             "double eval of ``foo(x) should produce (foo x)")))))
 
 (deftest double-backtick-single-unquote
   (testing "``~x — one unquote cancels one backtick level"
@@ -264,25 +264,25 @@
 ;; ---------------------------------------------------------------------------
 
 #?(:clj
-(deftest nested-backtick-gensym-scoping
-  (testing "gensym in outer backtick is independent of gensym in inner backtick"
+   (deftest nested-backtick-gensym-scoping
+     (testing "gensym in outer backtick is independent of gensym in inner backtick"
     ;; `list(x# `list(x#)) — the outer x# and inner x# should get different gensyms
     ;; because each backtick level has its own *gensym-env*
-    (let [expanded (first (expander/expand-forms (core/meme->forms "`list(x# `list(x#))")))
+       (let [expanded (first (expander/expand-forms (core/meme->forms "`list(x# `list(x#))")))
           ;; Eval the outer expansion to get the data form
-          evaled (eval expanded)
+             evaled (eval expanded)
           ;; evaled is (list OUTER-GENSYM INNER-CODE)
-          outer-sym (second evaled)
-          inner-code (nth (seq evaled) 2)
+             outer-sym (second evaled)
+             inner-code (nth (seq evaled) 2)
           ;; Eval the inner code to get (list INNER-GENSYM)
-          inner-evaled (eval inner-code)
-          inner-sym (second inner-evaled)]
-      (is (re-find #"__auto__$" (name outer-sym))
-          "outer x# should be a gensym")
-      (is (re-find #"__auto__$" (name inner-sym))
-          "inner x# should be a gensym")
-      (is (not= outer-sym inner-sym)
-          "outer and inner x# must be different gensyms")))))
+             inner-evaled (eval inner-code)
+             inner-sym (second inner-evaled)]
+         (is (re-find #"__auto__$" (name outer-sym))
+             "outer x# should be a gensym")
+         (is (re-find #"__auto__$" (name inner-sym))
+             "inner x# should be a gensym")
+         (is (not= outer-sym inner-sym)
+             "outer and inner x# must be different gensyms")))))
 
 ;; ---------------------------------------------------------------------------
 ;; :resolve-symbol option
@@ -292,8 +292,8 @@
   (testing "resolver namespace-qualifies symbols in syntax-quote"
     (let [resolver (fn [sym] (symbol "my.ns" (name sym)))
           expanded (first (expander/expand-forms
-                            (core/meme->forms "`foo(x)")
-                            {:resolve-symbol resolver}))
+                           (core/meme->forms "`foo(x)")
+                           {:resolve-symbol resolver}))
           ;; (seq (concat (list (quote my.ns/foo)) (list (quote my.ns/x))))
           concat-form (second expanded)
           args (vec (rest concat-form))]
@@ -306,8 +306,8 @@
   (testing "resolver does not affect gensyms"
     (let [resolver (fn [sym] (symbol "my.ns" (name sym)))
           expanded (first (expander/expand-forms
-                            (core/meme->forms "`x#")
-                            {:resolve-symbol resolver}))]
+                           (core/meme->forms "`x#")
+                           {:resolve-symbol resolver}))]
       ;; x# should be gensym'd, THEN namespace-qualified by resolver
       ;; Actually: sq-gensym is called on the result of sq-resolve-symbol
       ;; Wait — sq-resolve-symbol is called first, then sq-gensym.

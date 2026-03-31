@@ -68,9 +68,9 @@
 
 (s/def ::opts
   (s/nilable
-    (s/keys :opt-un [:meme.opts/resolve-keyword
-                     :meme.opts/read-cond
-                     :meme.opts/resolve-symbol])))
+   (s/keys :opt-un [:meme.opts/resolve-keyword
+                    :meme.opts/read-cond
+                    :meme.opts/resolve-symbol])))
 
 ;; ---------------------------------------------------------------------------
 ;; Context map specs — per stage boundary
@@ -164,9 +164,9 @@
     (let [spec (spec-for stage phase)]
       (when (and spec (not (s/valid? spec ctx)))
         (throw (ex-info
-                 (str "Pipeline contract violation at "
-                      (name stage) " " (name phase) ":\n"
-                      (with-out-str (s/explain spec ctx)))
-                 {:stage    stage
-                  :phase    phase
-                  :problems (::s/problems (s/explain-data spec ctx))}))))))
+                (str "Pipeline contract violation at "
+                     (name stage) " " (name phase) ":\n"
+                     (with-out-str (s/explain spec ctx)))
+                {:stage    stage
+                 :phase    phase
+                 :problems (::s/problems (s/explain-data spec ctx))}))))))

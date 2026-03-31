@@ -233,12 +233,12 @@
   (is (= "3.14" (flat/format-form 3.14))))
 
 #?(:clj
-(deftest print-number-bigdecimal
-  (is (= "1.5M" (flat/format-form 1.5M)))))
+   (deftest print-number-bigdecimal
+     (is (= "1.5M" (flat/format-form 1.5M)))))
 
 #?(:clj
-(deftest print-number-bigint
-  (is (= "42N" (flat/format-form 42N)))))
+   (deftest print-number-bigint
+     (is (= "42N" (flat/format-form 42N)))))
 
 (deftest print-string
   (is (= "\"hello\"" (flat/format-form "hello"))))
@@ -328,24 +328,24 @@
     (is (= "fn([%1 & %&] +(%1 %&))" (flat/format-form '(fn [%1 & %&] (+ %1 %&)))))))
 
 #?(:clj
-(deftest print-combined-metadata
-  (testing "multiple metadata keys"
-    (let [form (with-meta 'x {:private true :dynamic true})]
-      (is (re-find #"\^" (flat/format-form form)))))))
+   (deftest print-combined-metadata
+     (testing "multiple metadata keys"
+       (let [form (with-meta 'x {:private true :dynamic true})]
+         (is (re-find #"\^" (flat/format-form form)))))))
 
 (deftest print-swap
   (is (= "swap!(state update(:count inc))"
          (flat/format-form '(swap! state (update :count inc))))))
 
 #?(:clj
-(deftest print-tagged-literal
-  (is (= "#inst \"2024-01-01\""
-         (flat/format-form (tagged-literal 'inst "2024-01-01"))))))
+   (deftest print-tagged-literal
+     (is (= "#inst \"2024-01-01\""
+            (flat/format-form (tagged-literal 'inst "2024-01-01"))))))
 
 #?(:clj
-(deftest print-reader-conditional
-  (let [rc (clojure.core/read-string {:read-cond :preserve} "#?(:clj 1 :cljs 2)")]
-    (is (re-find #"^#\?" (flat/format-form rc))))))
+   (deftest print-reader-conditional
+     (let [rc (clojure.core/read-string {:read-cond :preserve} "#?(:clj 1 :cljs 2)")]
+       (is (re-find #"^#\?" (flat/format-form rc))))))
 
 ;; ---------------------------------------------------------------------------
 ;; case, deftype, reify
@@ -365,7 +365,6 @@
   (testing "reify with method prints as call"
     (is (= "reify(Object toString([this] \"hello\"))"
            (flat/format-form '(reify Object (toString [this] "hello")))))))
-
 
 ;; ---------------------------------------------------------------------------
 ;; List-as-head: ((f x) y) → f(x)(y)

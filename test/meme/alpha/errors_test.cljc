@@ -124,8 +124,8 @@
 (deftest format-error-secondary-locations
   (testing ":secondary locations are displayed with labels"
     (let [e (ex-info "mismatched bracket"
-              {:line 3 :col 5
-               :secondary [{:line 1 :col 1 :label "opened here"}]})
+                     {:line 3 :col 5
+                      :secondary [{:line 1 :col 1 :label "opened here"}]})
           source "foo(\n  bar\n    )"
           result (errors/format-error e source)]
       (is (re-find #"opened here" result)))))
@@ -135,8 +135,8 @@
     (let [;; Build source with 1000 lines so line 1000 is valid
           source (str/join "\n" (concat (repeat 999 "x") ["error-line"]))
           e (ex-info "test error"
-              {:line 5 :col 1
-               :secondary [{:line 1000 :col 1 :label "related"}]})
+                     {:line 5 :col 1
+                      :secondary [{:line 1000 :col 1 :label "related"}]})
           result (errors/format-error e source)]
       ;; gutter-w should be 4 (digits in "1000"), not 1 (digits in "5")
       ;; so primary line 5 should be padded: "   5 | "

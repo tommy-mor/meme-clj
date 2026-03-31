@@ -120,38 +120,38 @@
 (deftest symbol-spacing-space
   (testing "space between head and ( — NOT a call, bare paren error"
     (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
-          #"Bare parentheses"
-          (core/meme->forms "f (x)")))))
+                          #"Bare parentheses"
+                          (core/meme->forms "f (x)")))))
 
 (deftest symbol-spacing-multi-space
   (testing "multiple spaces between head and ( — NOT a call"
     (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
-          #"Bare parentheses"
-          (core/meme->forms "f   (x)")))))
+                          #"Bare parentheses"
+                          (core/meme->forms "f   (x)")))))
 
 (deftest symbol-spacing-tab
   (testing "tab between head and ( — NOT a call"
     (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
-          #"Bare parentheses"
-          (core/meme->forms "f\t(x)")))))
+                          #"Bare parentheses"
+                          (core/meme->forms "f\t(x)")))))
 
 (deftest symbol-spacing-newline
   (testing "newline between head and ( — NOT a call"
     (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
-          #"Bare parentheses"
-          (core/meme->forms "f\n(x)")))))
+                          #"Bare parentheses"
+                          (core/meme->forms "f\n(x)")))))
 
 (deftest symbol-spacing-multi-newline
   (testing "multiple newlines between head and ( — NOT a call"
     (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
-          #"Bare parentheses"
-          (core/meme->forms "f\n\n(x)")))))
+                          #"Bare parentheses"
+                          (core/meme->forms "f\n\n(x)")))))
 
 (deftest symbol-spacing-mixed
   (testing "mixed whitespace between head and ( — NOT a call"
     (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
-          #"Bare parentheses"
-          (core/meme->forms "f \t\n (x)")))))
+                          #"Bare parentheses"
+                          (core/meme->forms "f \t\n (x)")))))
 
 ;; ---------------------------------------------------------------------------
 ;; Keyword + spacing
@@ -163,14 +163,14 @@
 (deftest keyword-spacing-space
   (testing "space between keyword and ( — NOT a call"
     (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
-          #"Bare parentheses"
-          (core/meme->forms ":k (x)")))))
+                          #"Bare parentheses"
+                          (core/meme->forms ":k (x)")))))
 
 (deftest keyword-spacing-newline
   (testing "newline between keyword and ( — NOT a call"
     (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
-          #"Bare parentheses"
-          (core/meme->forms ":k\n(x)")))))
+                          #"Bare parentheses"
+                          (core/meme->forms ":k\n(x)")))))
 
 ;; ---------------------------------------------------------------------------
 ;; Vector + spacing
@@ -182,14 +182,14 @@
 (deftest vector-spacing-space
   (testing "space between vector and ( — NOT a call"
     (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
-          #"Bare parentheses"
-          (core/meme->forms "[x] (1)")))))
+                          #"Bare parentheses"
+                          (core/meme->forms "[x] (1)")))))
 
 (deftest vector-spacing-newline
   (testing "newline between vector and ( — NOT a call"
     (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
-          #"Bare parentheses"
-          (core/meme->forms "[x]\n(1)")))))
+                          #"Bare parentheses"
+                          (core/meme->forms "[x]\n(1)")))))
 
 ;; ---------------------------------------------------------------------------
 ;; Set + spacing
@@ -202,8 +202,8 @@
 (deftest set-spacing-space
   (testing "space between set and ( — NOT a call"
     (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
-          #"Bare parentheses"
-          (core/meme->forms "#{:a} (x)")))))
+                          #"Bare parentheses"
+                          (core/meme->forms "#{:a} (x)")))))
 
 ;; ---------------------------------------------------------------------------
 ;; Map + spacing
@@ -216,8 +216,8 @@
 (deftest map-spacing-space
   (testing "space between map and ( — NOT a call"
     (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
-          #"Bare parentheses"
-          (core/meme->forms "{:a 1} (:a)")))))
+                          #"Bare parentheses"
+                          (core/meme->forms "{:a 1} (:a)")))))
 
 ;; ===========================================================================
 ;; Bare parens rejection
@@ -292,24 +292,24 @@
     (is (= '[(def (x 1 2 3))] (core/meme->forms "def(x(1 2 3))"))))
   (testing "def(x (1 2 3)) — space prevents call, bare paren error"
     (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
-          #"Bare parentheses"
-          (core/meme->forms "def(x (1 2 3))")))))
+                          #"Bare parentheses"
+                          (core/meme->forms "def(x (1 2 3))")))))
 
 (deftest vector-eats-paren-in-do
   (testing "do([1 2 3](4 5)) — vector eats the ( when adjacent"
     (is (= '[(do ([1 2 3] 4 5))] (core/meme->forms "do([1 2 3](4 5))"))))
   (testing "do([1 2 3] (4 5)) — space prevents call, bare paren error"
     (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
-          #"Bare parentheses"
-          (core/meme->forms "do([1 2 3] (4 5))")))))
+                          #"Bare parentheses"
+                          (core/meme->forms "do([1 2 3] (4 5))")))))
 
 (deftest chained-call-after-non-head
   (testing "do(42(foo)) — 42(foo) chains to (42 foo) when adjacent"
     (is (= '[(do (42 foo))] (core/meme->forms "do(42(foo))"))))
   (testing "do(42 (foo)) — space prevents chain, bare paren error"
     (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
-          #"Bare parentheses"
-          (core/meme->forms "do(42 (foo))")))))
+                          #"Bare parentheses"
+                          (core/meme->forms "do(42 (foo))")))))
 
 (deftest vector-followed-by-symbol-call
   (testing "do([1 2 3] foo(x)) — vector does not eat symbol call"

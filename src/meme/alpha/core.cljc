@@ -52,23 +52,23 @@
   (fmt-flat/format-clj (expander/expand-forms forms)))
 
 #?(:clj
-(def ^:private eof-sentinel (Object.)))
+   (def ^:private eof-sentinel (Object.)))
 
 #?(:clj
-(defn clj->forms
-  "Read Clojure source string, return a vector of forms.
+   (defn clj->forms
+     "Read Clojure source string, return a vector of forms.
    JVM/Babashka only — Clojure's reader is needed for full form support."
-  [clj-src]
-  (binding [*read-eval* false]
-    (let [rdr (java.io.PushbackReader. (java.io.StringReader. clj-src))]
-      (loop [forms []]
-        (let [form (try
-                     (read {:read-cond :preserve :eof eof-sentinel} rdr)
-                     (catch Exception e
-                       (throw (ex-info (str "Clojure read error: " (ex-message e)) {} e))))]
-          (if (identical? form eof-sentinel)
-            forms
-            (recur (conj forms form)))))))))
+     [clj-src]
+     (binding [*read-eval* false]
+       (let [rdr (java.io.PushbackReader. (java.io.StringReader. clj-src))]
+         (loop [forms []]
+           (let [form (try
+                        (read {:read-cond :preserve :eof eof-sentinel} rdr)
+                        (catch Exception e
+                          (throw (ex-info (str "Clojure read error: " (ex-message e)) {} e))))]
+             (if (identical? form eof-sentinel)
+               forms
+               (recur (conj forms form)))))))))
 
 ;; ---------------------------------------------------------------------------
 ;; Text-to-text track (compositions)
@@ -81,11 +81,11 @@
   ([meme-src opts] (forms->clj (meme->forms meme-src opts))))
 
 #?(:clj
-(defn clj->meme
-  "Convert Clojure source string to meme source string.
+   (defn clj->meme
+     "Convert Clojure source string to meme source string.
    JVM/Babashka only."
-  [clj-src]
-  (forms->meme (clj->forms clj-src))))
+     [clj-src]
+     (forms->meme (clj->forms clj-src))))
 
 ;; ---------------------------------------------------------------------------
 ;; Pipeline access

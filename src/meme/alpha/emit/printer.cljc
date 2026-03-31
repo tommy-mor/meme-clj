@@ -110,10 +110,10 @@
       (if (empty? arg-docs)
         (render/group (render/cat (render/text "(") head-doc (render/text ")")))
         (render/group
-          (render/cat
-            (render/text "(") head-doc
-            (render/nest 2 (render/cat render/line (intersperse render/line arg-docs)))
-            (render/text ")"))))
+         (render/cat
+          (render/text "(") head-doc
+          (render/nest 2 (render/cat render/line (intersperse render/line arg-docs)))
+          (render/text ")"))))
       ;; Meme mode: head(arg1 arg2) with head-line-args
       (do
         ;; Non-callable heads
@@ -125,28 +125,28 @@
           (cond
             ;; Zero args: head()
             (empty? arg-docs)
-            (render/group (render/cat head-doc (render/text "(")(render/text ")")))
+            (render/group (render/cat head-doc (render/text "(") (render/text ")")))
 
             ;; Head-line args: keep n args on head line, rest in body
             (and n-head (pos? n-head) (> (count arg-docs) n-head))
             (let [hl (subvec arg-docs 0 n-head)
                   body (subvec arg-docs n-head)]
               (render/group
-                (render/cat
-                  head-doc (render/text "(")
-                  (render/nest 2
-                    (render/cat
-                      (render/group (render/cat render/line0 (intersperse render/line hl)))
-                      (reduce (fn [acc d] (render/cat acc render/line d)) nil body)))
-                  (render/text ")"))))
+               (render/cat
+                head-doc (render/text "(")
+                (render/nest 2
+                             (render/cat
+                              (render/group (render/cat render/line0 (intersperse render/line hl)))
+                              (reduce (fn [acc d] (render/cat acc render/line d)) nil body)))
+                (render/text ")"))))
 
             ;; Default: all args in body
             :else
             (render/group
-              (render/cat
-                head-doc (render/text "(")
-                (render/nest 2 (render/cat render/line0 (intersperse render/line arg-docs)))
-                (render/text ")")))))))))
+             (render/cat
+              head-doc (render/text "(")
+              (render/nest 2 (render/cat render/line0 (intersperse render/line arg-docs)))
+              (render/text ")")))))))))
 
 (defn- collection-doc
   "Build Doc for a delimited collection: [elems], #{elems}, #(body)."
@@ -155,11 +155,11 @@
     (render/text (str open close))
     (let [child-docs (mapv #(to-doc % mode) children)]
       (render/group
-        (render/cat
-          (render/text open)
-          (render/nest 2 (render/cat render/line0 (intersperse render/line child-docs)))
-          render/line0
-          (render/text close))))))
+       (render/cat
+        (render/text open)
+        (render/nest 2 (render/cat render/line0 (intersperse render/line child-docs)))
+        render/line0
+        (render/text close))))))
 
 (defn- pairs-doc
   "Build Doc for key-value pairs: {k v ...}, #:ns{k v ...}, #?(k v ...)."
@@ -170,11 +170,11 @@
                             (render/cat (to-doc k mode) (render/text " ") (to-doc v mode)))
                           entries)]
       (render/group
-        (render/cat
-          (render/text open)
-          (render/nest 2 (render/cat render/line0 (intersperse render/line pair-docs)))
-          render/line0
-          (render/text close))))))
+       (render/cat
+        (render/text open)
+        (render/nest 2 (render/cat render/line0 (intersperse render/line pair-docs)))
+        render/line0
+        (render/text close))))))
 
 (defn- to-doc-form
   "Convert a Clojure form to a Doc tree. Handles metadata wrapping.
@@ -282,8 +282,8 @@
     ;; Keyword
     (keyword? form)
     (render/text (if (namespace form)
-                (str ":" (namespace form) "/" (name form))
-                (str ":" (name form))))
+                   (str ":" (namespace form) "/" (name form))
+                   (str ":" (name form))))
 
     ;; String
     (string? form) (render/text (pr-str form))
@@ -298,8 +298,8 @@
               (let [named {(char 10) "newline" (char 13) "return" (char 9) "tab"
                            (char 32) "space" (char 8) "backspace" (char 12) "formfeed"}]
                 (render/text (if-let [n (get named form)]
-                            (str \\ n)
-                            (str \\ form))))])
+                               (str \\ n)
+                               (str \\ form))))])
 
     ;; Number — preserve BigDecimal M and BigInt N suffixes, symbolic values
     #?@(:clj [(decimal? form) (render/text (str form "M"))
@@ -332,6 +332,6 @@
          comments (form-comments form)]
      (if comments
        (render/if-break
-         (render/cat (comment-doc comments) doc) ; break: comments + form
-         doc)                                     ; flat: just form
+        (render/cat (comment-doc comments) doc) ; break: comments + form
+        doc)                                     ; flat: just form
        doc))))

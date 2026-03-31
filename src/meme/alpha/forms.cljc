@@ -44,7 +44,7 @@
 ;; ---------------------------------------------------------------------------
 
 #?(:cljs
-(defrecord MemeReaderConditional [form splicing]))
+   (defrecord MemeReaderConditional [form splicing]))
 
 (defn make-reader-conditional
   "Construct a reader conditional. Portable: uses native type on JVM,
