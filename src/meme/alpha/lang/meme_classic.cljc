@@ -4,9 +4,7 @@
    The default lang. Supports all commands: :run, :repl, :format, :convert."
   (:require [meme.alpha.core :as core]
             [meme.alpha.emit.formatter.canon :as fmt-canon]
-            [meme.alpha.lang.util :as util]
-            #?(:clj [meme.alpha.runtime.run :as run])
-            #?(:clj [meme.alpha.runtime.repl :as repl])))
+            [meme.alpha.lang.util :as util]))
 
 (defn format-meme [source opts]
   (fmt-canon/format-forms (core/meme->forms source) opts))
@@ -16,10 +14,3 @@
     (core/meme->clj source opts)
     #?(:clj (core/clj->meme source)
        :cljs (throw (ex-info "clj→meme requires JVM" {})))))
-
-(def lang
-  (merge
-   {:format  format-meme
-    :convert convert}
-   #?(:clj {:run  run/run-string
-            :repl repl/start})))

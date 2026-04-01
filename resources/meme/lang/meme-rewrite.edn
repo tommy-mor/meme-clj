@@ -1,0 +1,4 @@
+{:run     meme.alpha.lang.meme-rewrite/run-source
+ :repl    meme.alpha.lang.meme-rewrite/start-repl
+ :format  meme.alpha.lang.meme-rewrite/format-meme
+ :convert meme.alpha.lang.meme-rewrite/convert}

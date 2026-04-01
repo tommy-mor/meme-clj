@@ -10,51 +10,60 @@
    Every key is optional. A lang supports exactly the commands it has keys for.
    The CLI dispatches by looking up the command key in the lang map.
 
-   Built-in langs are defined in meme.alpha.lang.*:
-     :meme-classic (default) — recursive-descent parser + Wadler-Lindig printer
-     :meme-rewrite           — tree builder + rewrite rules
-     :meme-trs               — token-stream term rewriting
+   All lang definitions — built-in and user-defined — are EDN:
+     {:run     meme.alpha.runtime.run/run-string       ;; qualified symbol → fn
+      :format  meme.alpha.lang.meme-classic/format-meme
+      :convert meme.alpha.lang.meme-classic/convert}
 
-   User langs are EDN files:
-     {:run \"core.meme\" :format :meme-classic}
-   Values: string → .meme file to eval before user file (for :run)
-           keyword → reference to a built-in lang's command"
+   User langs can also use:
+     {:run \"core.meme\"          ;; string → .meme file to eval before user file
+      :format :meme-classic}      ;; keyword → inherit command from built-in lang
+
+   Built-in langs (resources/meme/lang/):
+     :meme-classic (default), :meme-rewrite, :meme-trs"
   (:require [clojure.edn :as edn]
-            [meme.alpha.lang.meme-classic :as meme-classic]
-            [meme.alpha.lang.meme-rewrite :as meme-rewrite]
-            [meme.alpha.lang.meme-trs :as meme-trs]
-            #?(:clj [meme.alpha.runtime.run :as run])))
-
-(def builtin
-  {:meme-classic meme-classic/lang
-   :meme-rewrite meme-rewrite/lang
-   :meme-trs     meme-trs/lang})
-
-(def default-lang :meme-classic)
+            #?(:clj [clojure.java.io :as io])
+            [meme.alpha.lang.meme-classic]
+            [meme.alpha.lang.meme-rewrite]
+            [meme.alpha.lang.meme-trs]))
 
 ;; ---------------------------------------------------------------------------
-;; EDN lang loading
+;; EDN value resolution
 ;; ---------------------------------------------------------------------------
 
 #?(:clj
-   (defn- resolve-command-value
-     "Resolve a single command value from an EDN lang definition.
-      string → for :run, wraps as: eval the .meme file, then eval user source
-      keyword → look up that command from a built-in lang"
+   (defn- resolve-symbol
+     "Resolve a qualified symbol to a var's value via requiring-resolve."
+     [sym]
+     (if-let [v (requiring-resolve sym)]
+       @v
+       (throw (ex-info (str "Cannot resolve symbol: " sym) {:symbol sym})))))
+
+(declare builtin)
+
+#?(:clj
+   (defn- resolve-value
+     "Resolve a single EDN value for a command.
+      symbol   → requiring-resolve to a function
+      string   → for :run, wraps as: eval .meme file then eval user source
+      keyword  → look up that command from a built-in lang"
      [command value]
      (cond
+       (symbol? value)
+       (resolve-symbol value)
+
        (string? value)
-       (case command
-         :run (fn [source opts]
-                (let [prelude-src (slurp value)]
-                  (run/run-string prelude-src opts)
-                  (run/run-string source opts)))
-         (throw (ex-info (str "String value not supported for :" (name command)
-                              " — use a keyword to reference a built-in")
-                         {:command command :value value})))
+       (let [run-string-fn (resolve-symbol 'meme.alpha.runtime.run/run-string)]
+         (case command
+           :run (fn [source opts]
+                  (run-string-fn (slurp value) opts)
+                  (run-string-fn source opts))
+           (throw (ex-info (str "String value not supported for :" (name command)
+                                " — use a qualified symbol or keyword")
+                           {:command command :value value}))))
 
        (keyword? value)
-       (let [base (get builtin value)]
+       (let [base (get @builtin value)]
          (when-not base
            (throw (ex-info (str "Unknown built-in lang: " value) {:value value})))
          (let [cmd-fn (get base command)]
@@ -65,20 +74,55 @@
 
        :else
        (throw (ex-info (str "Invalid lang value for :" (name command)
-                            " — expected string or keyword, got " (type value))
+                            " — expected symbol, string, or keyword, got " (type value))
                        {:command command :value value})))))
 
 #?(:clj
+   (defn- resolve-edn
+     "Resolve all values in an EDN map to functions."
+     [edn-data]
+     (into {} (map (fn [[k v]] [k (resolve-value k v)]) edn-data))))
+
+;; ---------------------------------------------------------------------------
+;; EDN loading
+;; ---------------------------------------------------------------------------
+
+#?(:clj
    (defn load-edn
-     "Load a lang from an EDN file. Returns a lang map with functions.
-      Each key-value pair is resolved: strings become run-with-core functions,
-      keywords reference built-in lang commands."
+     "Load a lang from an EDN file. Returns a lang map with functions."
      [path]
      (let [edn-data (edn/read-string (slurp path))]
        (when-not (map? edn-data)
          (throw (ex-info (str "Lang EDN must be a map, got " (type edn-data))
                          {:path path})))
-       (into {} (map (fn [[k v]] [k (resolve-command-value k v)]) edn-data)))))
+       (resolve-edn edn-data))))
+
+#?(:clj
+   (defn- load-resource-edn
+     "Load a lang from a classpath resource EDN file."
+     [resource-path]
+     (let [edn-data (edn/read-string (slurp (io/resource resource-path)))]
+       (resolve-edn edn-data))))
+
+;; ---------------------------------------------------------------------------
+;; Built-in langs (loaded from EDN resources)
+;; ---------------------------------------------------------------------------
+
+(def builtin
+  #?(:clj (delay
+            {:meme-classic (load-resource-edn "meme/lang/meme-classic.edn")
+             :meme-rewrite (load-resource-edn "meme/lang/meme-rewrite.edn")
+             :meme-trs     (load-resource-edn "meme/lang/meme-trs.edn")})
+     ;; CLJS: no requiring-resolve or io/resource, so build directly from functions.
+     ;; Only :format and :convert are portable; :run and :repl need eval (JVM only).
+     :cljs {:meme-classic {:format  meme.alpha.lang.meme-classic/format-meme
+                           :convert meme.alpha.lang.meme-classic/convert}
+            :meme-rewrite {:format  meme.alpha.lang.meme-rewrite/format-meme
+                           :convert meme.alpha.lang.meme-rewrite/convert}
+            :meme-trs     {:format  meme.alpha.lang.meme-trs/format-meme
+                           :convert meme.alpha.lang.meme-trs/convert}}))
+
+(def default-lang :meme-classic)
 
 ;; ---------------------------------------------------------------------------
 ;; Resolution
@@ -88,11 +132,12 @@
   "Resolve a lang by keyword name. Returns the lang map.
    Throws on unknown name."
   [lang-name]
-  (let [name (or lang-name default-lang)]
-    (or (get builtin name)
-        (throw (ex-info (str "Unknown lang: " (pr-str name)
-                             " — available: " (pr-str (keys builtin)))
-                        {:lang name})))))
+  (let [n (or lang-name default-lang)
+        b #?(:clj @builtin :cljs builtin)]
+    (or (get b n)
+        (throw (ex-info (str "Unknown lang: " (pr-str n)
+                             " — available: " (pr-str (keys b)))
+                        {:lang n})))))
 
 (defn supports?
   "Does the lang support the given command?"

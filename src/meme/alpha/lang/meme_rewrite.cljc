@@ -46,10 +46,3 @@
 #?(:clj
    (defn start-repl [opts]
      (repl/start (merge opts rewrite-opts))))
-
-(def lang
-  (merge
-   {:format  format-meme
-    :convert convert}
-   #?(:clj {:run  run-source
-            :repl start-repl})))

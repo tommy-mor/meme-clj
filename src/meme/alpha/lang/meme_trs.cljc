@@ -35,9 +35,3 @@
    (defn run-source [source opts]
      (let [clj-text (trs/meme->clj-text source)]
        (run/run-string clj-text opts))))
-
-(def lang
-  (merge
-   {:format  format-meme
-    :convert convert}
-   #?(:clj {:run run-source})))

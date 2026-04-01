@@ -9,26 +9,26 @@
 
 (deftest builtin-langs-exist
   (testing "all built-in langs are registered"
-    (is (contains? lang/builtin :meme-classic))
-    (is (contains? lang/builtin :meme-rewrite))
-    (is (contains? lang/builtin :meme-trs))))
+    (is (contains? @lang/builtin :meme-classic))
+    (is (contains? @lang/builtin :meme-rewrite))
+    (is (contains? @lang/builtin :meme-trs))))
 
 (deftest meme-classic-supports-all-commands
-  (let [l (:meme-classic lang/builtin)]
+  (let [l (:meme-classic @lang/builtin)]
     (is (fn? (:run l)))
     (is (fn? (:repl l)))
     (is (fn? (:format l)))
     (is (fn? (:convert l)))))
 
 (deftest meme-rewrite-supports-all-commands
-  (let [l (:meme-rewrite lang/builtin)]
+  (let [l (:meme-rewrite @lang/builtin)]
     (is (fn? (:run l)))
     (is (fn? (:repl l)))
     (is (fn? (:format l)))
     (is (fn? (:convert l)))))
 
 (deftest meme-trs-has-no-repl
-  (let [l (:meme-trs lang/builtin)]
+  (let [l (:meme-trs @lang/builtin)]
     (is (fn? (:run l)))
     (is (nil? (:repl l)))
     (is (fn? (:format l)))
@@ -39,29 +39,29 @@
 ;; ============================================================
 
 (deftest classic-run
-  (is (= 42 ((:run (:meme-classic lang/builtin)) "+(21 21)" {}))))
+  (is (= 42 ((:run (:meme-classic @lang/builtin)) "+(21 21)" {}))))
 
 (deftest classic-format
-  (let [result ((:format (:meme-classic lang/builtin)) "def(x 42)" {})]
+  (let [result ((:format (:meme-classic @lang/builtin)) "def(x 42)" {})]
     (is (= "def(x 42)" result))))
 
 (deftest classic-convert-to-clj
-  (let [result ((:convert (:meme-classic lang/builtin)) "f(x y)" {:direction :to-clj})]
+  (let [result ((:convert (:meme-classic @lang/builtin)) "f(x y)" {:direction :to-clj})]
     (is (= "(f x y)" result))))
 
 (deftest classic-convert-to-meme
-  (let [result ((:convert (:meme-classic lang/builtin)) "(f x y)" {:direction :to-meme})]
+  (let [result ((:convert (:meme-classic @lang/builtin)) "(f x y)" {:direction :to-meme})]
     (is (= "f(x y)" result))))
 
 (deftest rewrite-run
-  (is (= 42 ((:run (:meme-rewrite lang/builtin)) "+(21 21)" {}))))
+  (is (= 42 ((:run (:meme-rewrite @lang/builtin)) "+(21 21)" {}))))
 
 (deftest rewrite-convert-to-clj
-  (let [result ((:convert (:meme-rewrite lang/builtin)) "f(x y)" {:direction :to-clj})]
+  (let [result ((:convert (:meme-rewrite @lang/builtin)) "f(x y)" {:direction :to-clj})]
     (is (= "(f x y)" result))))
 
 (deftest trs-convert-to-clj
-  (let [result ((:convert (:meme-trs lang/builtin)) "f(x y)" {:direction :to-clj})]
+  (let [result ((:convert (:meme-trs @lang/builtin)) "f(x y)" {:direction :to-clj})]
     (is (= "(f x y)" result))))
 
 ;; ============================================================
@@ -69,12 +69,12 @@
 ;; ============================================================
 
 (deftest check-support-passes
-  (lang/check-support! (:meme-classic lang/builtin) :meme-classic :run)
+  (lang/check-support! (:meme-classic @lang/builtin) :meme-classic :run)
   (is true "should not throw"))
 
 (deftest check-support-fails
   (is (thrown-with-msg? Exception #"does not support :repl"
-        (lang/check-support! (:meme-trs lang/builtin) :meme-trs :repl))))
+        (lang/check-support! (:meme-trs @lang/builtin) :meme-trs :repl))))
 
 ;; ============================================================
 ;; EDN lang loading
@@ -111,8 +111,8 @@
 (deftest all-langs-agree-on-convert
   (testing "all meme langs produce same clj for basic inputs"
     (doseq [src ["f(x y)" "+(1 2)" "def(x 42)" "[1 2 3]"]]
-      (let [classic ((:convert (:meme-classic lang/builtin)) src {:direction :to-clj})
-            rewrite ((:convert (:meme-rewrite lang/builtin)) src {:direction :to-clj})
-            trs     ((:convert (:meme-trs lang/builtin)) src {:direction :to-clj})]
+      (let [classic ((:convert (:meme-classic @lang/builtin)) src {:direction :to-clj})
+            rewrite ((:convert (:meme-rewrite @lang/builtin)) src {:direction :to-clj})
+            trs     ((:convert (:meme-trs @lang/builtin)) src {:direction :to-clj})]
         (is (= classic rewrite) (str "classic vs rewrite on: " src))
         (is (= classic trs) (str "classic vs trs on: " src))))))

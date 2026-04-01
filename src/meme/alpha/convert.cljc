@@ -22,21 +22,26 @@
 ;; Public API (stable — callers don't need to change)
 ;; ---------------------------------------------------------------------------
 
+(defn- all-langs []
+  (let [b #?(:clj @lang/builtin :cljs lang/builtin)]
+    (merge b (zipmap (keys legacy-names)
+                     (map #(get b %) (vals legacy-names))))))
+
 (def pipelines
   "Available langs by keyword. Includes both legacy and new names.
    Kept as `pipelines` for backward compatibility with existing callers."
-  (merge lang/builtin
-         (zipmap (keys legacy-names)
-                 (map #(get lang/builtin %) (vals legacy-names)))))
+  #?(:clj (delay (all-langs))
+     :cljs (all-langs)))
 
 (defn resolve-pipeline
   "Look up a lang by keyword. Supports both legacy names (:classic, :rewrite, :ts-trs)
    and new names (:meme-classic, :meme-rewrite, :meme-trs).
    Throws on unknown name."
   [lang-name]
-  (or (get pipelines lang-name)
-      (throw (ex-info (str "Unknown pipeline: " lang-name
-                           " — must be one of: " (pr-str (keys pipelines))) {}))))
+  (let [p #?(:clj @pipelines :cljs pipelines)]
+    (or (get p lang-name)
+        (throw (ex-info (str "Unknown pipeline: " lang-name
+                             " — must be one of: " (pr-str (keys p))) {})))))
 
 (defn meme->clj
   "Convert meme source to Clojure source using the named lang."

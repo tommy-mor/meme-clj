@@ -142,7 +142,7 @@ defn-(get-lang
         catch(Exception _
           binding([*out* *err*]
             println(str("Unknown lang: " name))
-            println(str("Available: " str/join(", " map(name keys(lang/builtin))))))
+            println(str("Available: " str/join(", " map(name keys(deref(lang/builtin)))))))
           System/exit(1))))))
 
 ;; ---------------------------------------------------------------------------
@@ -248,7 +248,7 @@ defn(help
   println("  meme inspect [--lang meme-classic]")
   println("  meme version")
   println()
-  println(str("Available langs: " str/join(", " map(name keys(lang/builtin))))))
+  println(str("Available langs: " str/join(", " map(name keys(deref(lang/builtin)))))))
 
 ;; ---------------------------------------------------------------------------
 ;; bb entry point — babashka.cli loaded dynamically so this file works on JVM too
