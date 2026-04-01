@@ -1,5 +1,5 @@
-(ns meme.alpha.pipelines.meme-rewrite
-  "meme-rewrite pipeline: tree builder + rewrite rules.
+(ns meme.alpha.lang.meme-rewrite
+  "meme-rewrite: tree builder + rewrite rules.
 
    Alternative parser that builds explicit m-call/bracket/brace tagged trees,
    then applies rewrite rules to transform to S-expressions.
@@ -7,7 +7,7 @@
   (:require [meme.alpha.core :as core]
             [meme.alpha.emit.formatter.canon :as fmt-canon]
             [meme.alpha.pipeline :as pipeline]
-            [meme.alpha.pipelines.util :as util]
+            [meme.alpha.lang.util :as util]
             [meme.alpha.rewrite :as rw]
             [meme.alpha.rewrite.tree :as tree]
             [meme.alpha.rewrite.rules :as rules]
@@ -47,7 +47,7 @@
    (defn start-repl [opts]
      (repl/start (merge opts rewrite-opts))))
 
-(def pipeline
+(def lang
   (merge
    {:format  format-meme
     :convert convert}

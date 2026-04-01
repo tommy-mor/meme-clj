@@ -1,5 +1,5 @@
-(ns meme.alpha.pipelines.util
-  "Shared utilities for pipeline definitions.")
+(ns meme.alpha.lang.util
+  "Shared utilities for lang definitions.")
 
 (defn meme-source?
   "Determine conversion direction from opts or source heuristic.

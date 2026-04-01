@@ -1,10 +1,10 @@
-(ns meme.alpha.pipelines.meme-classic
-  "meme-classic pipeline: recursive-descent parser + Wadler-Lindig printer.
+(ns meme.alpha.lang.meme-classic
+  "meme-classic: recursive-descent parser + Wadler-Lindig printer.
 
-   The default pipeline. Supports all commands: :run, :repl, :format, :convert."
+   The default lang. Supports all commands: :run, :repl, :format, :convert."
   (:require [meme.alpha.core :as core]
             [meme.alpha.emit.formatter.canon :as fmt-canon]
-            [meme.alpha.pipelines.util :as util]
+            [meme.alpha.lang.util :as util]
             #?(:clj [meme.alpha.runtime.run :as run])
             #?(:clj [meme.alpha.runtime.repl :as repl])))
 
@@ -17,7 +17,7 @@
     #?(:clj (core/clj->meme source)
        :cljs (throw (ex-info "clj→meme requires JVM" {})))))
 
-(def pipeline
+(def lang
   (merge
    {:format  format-meme
     :convert convert}

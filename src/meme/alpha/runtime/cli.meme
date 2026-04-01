@@ -6,7 +6,7 @@ ns(meme.alpha.runtime.cli
     [meme.alpha.core :as core]
     [meme.alpha.convert :as convert]
     [meme.alpha.errors :as errors]
-    [meme.alpha.pipelines :as pipelines]
+    [meme.alpha.lang :as lang]
     [clojure.java.io :as io]
     [clojure.string :as str]))
 
@@ -119,43 +119,43 @@ defn-(process-files
       when(pos?(failed) System/exit(1)))))
 
 ;; ---------------------------------------------------------------------------
-;; Pipeline resolution
+;; Lang resolution
 ;; ---------------------------------------------------------------------------
-defn-(get-pipeline
+defn-(get-lang
   "Resolve pipeline and return [name pipeline-map].
    pipeline-str can be: nil (default), a keyword name, or a path to .edn file."
   [pipeline-str]
   if(and(pipeline-str str/ends-with?(pipeline-str ".edn"))
     ; EDN pipeline file
     try(
-      let([p pipelines/load-edn-pipeline(pipeline-str)]
+      let([p lang/load-edn(pipeline-str)]
         [pipeline-str p])
       catch(Exception e
         binding([*out* *err*]
-          println(str("Error loading pipeline " pipeline-str ": " ex-message(e))))
+          println(str("Error loading lang " pipeline-str ": " ex-message(e))))
         System/exit(1)))
     ; Built-in pipeline by keyword
     let([name if(pipeline-str keyword(pipeline-str) :meme-classic)]
       try(
-        let([p pipelines/resolve-pipeline(name)]
+        let([p lang/resolve-lang(name)]
           [name p])
         catch(Exception _
           binding([*out* *err*]
-            println(str("Unknown pipeline: " name))
-            println(str("Available: " str/join(", " map(name keys(pipelines/builtin))))))
+            println(str("Unknown lang: " name))
+            println(str("Available: " str/join(", " map(name keys(lang/builtin))))))
           System/exit(1))))))
 
 ;; ---------------------------------------------------------------------------
-;; Commands — dispatch through pipeline map
+;; Commands — dispatch through lang map
 ;; ---------------------------------------------------------------------------
 defn(run
-  [{:keys [file pipeline]}]
-  when-not(file binding([*out* *err*] println("Usage: meme run <file> [--pipeline meme-classic]")) System/exit(1))
-  let([[pipe-name pipe] get-pipeline(pipeline)]
-    pipelines/check-support!(pipe pipe-name :run)
+  [{:keys [file lang]}]
+  when-not(file binding([*out* *err*] println("Usage: meme run <file> [--lang meme-classic]")) System/exit(1))
+  let([[lang-name l] get-lang(lang)]
+    lang/check-support!(l lang-name :run)
     try(
       let([src slurp(file)]
-        :run(pipe)(src {}))
+        :run(l)(src {}))
       catch(Exception e
         let(
           [src try(slurp(file) catch(Exception _ nil))]
@@ -163,23 +163,23 @@ defn(run
         System/exit(1)))))
 
 defn(repl
-  [{:keys [pipeline]}]
-  let([[pipe-name pipe] get-pipeline(pipeline)]
-    pipelines/check-support!(pipe pipe-name :repl)
-    :repl(pipe)({})))
+  [{:keys [lang]}]
+  let([[lang-name l] get-lang(lang)]
+    lang/check-support!(l lang-name :repl)
+    :repl(l)({})))
 
 defn(convert
-  [{:keys [file files stdout pipeline]}]
+  [{:keys [file files stdout lang]}]
   let(
     [inputs or(files when(file [file]))
-     [pipe-name pipe] get-pipeline(pipeline)]
+     [lang-name l] get-lang(lang)]
     when(empty?(inputs)
-      println("Usage: meme convert <file|dir> [file...] [--pipeline meme-classic]")
+      println("Usage: meme convert <file|dir> [file...] [--lang meme-classic]")
       println("  Writes sibling files (.meme↔.clj) by default")
       println("  --stdout    print to stdout instead")
-      println("  --pipeline  select pipeline (default: meme-classic)")
+      println("  --lang      select lang (default: meme-classic)")
       System/exit(1))
-    pipelines/check-support!(pipe pipe-name :convert)
+    lang/check-support!(l lang-name :convert)
     process-files(
       {
         :inputs inputs
@@ -193,24 +193,24 @@ defn(convert
                            ex-info(str("Cannot detect direction: " path) {})))
                        let(
                          [src slurp(path)]
-                         :convert(pipe)(src {:direction direction}))))
+                         :convert(l)(src {:direction direction}))))
         :output-fn output-path
         :stdout stdout
-        :verb str("converted" when(not=(pipe-name :meme-classic) str(" (" name(pipe-name) ")")))
+        :verb str("converted" when(not=(lang-name :meme-classic) str(" (" name(lang-name) ")")))
       })))
 
 defn(format-cmd
-  [{:keys [file files stdout check pipeline]}]
+  [{:keys [file files stdout check lang]}]
   let(
     [inputs or(files when(file [file]))
-     [pipe-name pipe] get-pipeline(pipeline)]
+     [lang-name l] get-lang(lang)]
     when(empty?(inputs)
-      println("Usage: meme format <file|dir> [--pipeline meme-classic] [file...]")
+      println("Usage: meme format <file|dir> [--lang meme-classic] [file...]")
       println("  Formats .meme files in-place by default")
       println("  --stdout   print to stdout instead")
       println("  --check    exit 1 if any file would change (CI mode)")
       System/exit(1))
-    pipelines/check-support!(pipe pipe-name :format)
+    lang/check-support!(l lang-name :format)
     process-files(
       {
         :inputs inputs
@@ -218,7 +218,7 @@ defn(format-cmd
         :transform fn(
                      [path]
                      let([src slurp(path)]
-                       :format(pipe)(src {})))
+                       :format(l)(src {})))
         :output-fn nil
         :stdout stdout
         :check check
@@ -226,10 +226,10 @@ defn(format-cmd
       })))
 
 defn(inspect-cmd
-  [{:keys [pipeline]}]
-  let([[pipe-name pipe] get-pipeline(pipeline)]
-    println(str("Pipeline: " name(pipe-name)))
-    println(str("  Supported commands: " str/join(", " map(name filter(keyword? keys(pipe))))))))
+  [{:keys [lang]}]
+  let([[lang-name l] get-lang(lang)]
+    println(str("Lang: " name(lang-name)))
+    println(str("  Supported commands: " str/join(", " map(name filter(keyword? keys(l))))))))
 
 defn(version
   [_]
@@ -241,14 +241,14 @@ defn(help
   println("meme — M-expressions for Clojure")
   println()
   println("Commands:")
-  println("  meme run <file> [--pipeline meme-classic]")
-  println("  meme repl [--pipeline meme-classic]")
-  println("  meme convert <file|dir> [--pipeline meme-classic] [--stdout]")
-  println("  meme format <file|dir> [--pipeline meme-classic] [--stdout] [--check]")
-  println("  meme inspect [--pipeline meme-classic]")
+  println("  meme run <file> [--lang meme-classic]")
+  println("  meme repl [--lang meme-classic]")
+  println("  meme convert <file|dir> [--lang meme-classic] [--stdout]")
+  println("  meme format <file|dir> [--lang meme-classic] [--stdout] [--check]")
+  println("  meme inspect [--lang meme-classic]")
   println("  meme version")
   println()
-  println(str("Available pipelines: " str/join(", " map(name keys(pipelines/builtin))))))
+  println(str("Available langs: " str/join(", " map(name keys(lang/builtin))))))
 
 ;; ---------------------------------------------------------------------------
 ;; bb entry point — babashka.cli loaded dynamically so this file works on JVM too
@@ -262,8 +262,8 @@ defn-(collect-file-args
       assoc(:stdout true)
       :check(opts)
       assoc(:check true)
-      :pipeline(opts)
-      assoc(:pipeline :pipeline(opts)))))
+      :lang(opts)
+      assoc(:lang :lang(opts)))))
 
 defn(-main
   [& args]
@@ -272,20 +272,20 @@ defn(-main
     [
       dispatch
       resolve('babashka.cli/dispatch)
-      file+stdout+pipeline
-      {:args->opts [:file] :spec {:stdout {:coerce :boolean} :pipeline {:coerce :string}}}
+      file+stdout+lang
+      {:args->opts [:file] :spec {:stdout {:coerce :boolean} :lang {:coerce :string}}}
     ]
     dispatch(
       [
-        {:cmds ["run"] :fn fn([{:keys [opts]}] run(opts)) :args->opts [:file] :spec {:pipeline {:coerce :string}}}
-        {:cmds ["repl"] :fn fn([{:keys [opts]}] repl(opts)) :spec {:pipeline {:coerce :string}}}
+        {:cmds ["run"] :fn fn([{:keys [opts]}] run(opts)) :args->opts [:file] :spec {:lang {:coerce :string}}}
+        {:cmds ["repl"] :fn fn([{:keys [opts]}] repl(opts)) :spec {:lang {:coerce :string}}}
         merge(
           {:cmds ["convert"] :fn fn([m] convert(collect-file-args(m)))}
-          file+stdout+pipeline)
+          file+stdout+lang)
         merge(
           {:cmds ["format"] :fn fn([m] format-cmd(collect-file-args(m)))}
-          {:args->opts [:file] :spec {:stdout {:coerce :boolean} :check {:coerce :boolean} :pipeline {:coerce :string}}})
-        {:cmds ["inspect"] :fn fn([{:keys [opts]}] inspect-cmd(opts)) :spec {:pipeline {:coerce :string}}}
+          {:args->opts [:file] :spec {:stdout {:coerce :boolean} :check {:coerce :boolean} :lang {:coerce :string}}})
+        {:cmds ["inspect"] :fn fn([{:keys [opts]}] inspect-cmd(opts)) :spec {:lang {:coerce :string}}}
         {:cmds ["version"] :fn fn([_] version(nil))}
         {:cmds [] :fn fn([{:keys [args]}]
                           when(seq(args)

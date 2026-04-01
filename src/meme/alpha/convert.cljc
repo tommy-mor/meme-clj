@@ -1,10 +1,10 @@
 (ns meme.alpha.convert
-  "Unified convert: meme↔clj via named pipelines.
+  "Unified convert: meme↔clj via named langs.
 
-   Delegates to meme.alpha.pipelines — each pipeline is a command map.
+   Delegates to meme.alpha.lang — each lang is a command map.
    This module provides the public API for conversion, maintaining backward
-   compatibility with the legacy :classic/:rewrite/:ts-trs pipeline names."
-  (:require [meme.alpha.pipelines :as pipelines]))
+   compatibility with the legacy :classic/:rewrite/:ts-trs names."
+  (:require [meme.alpha.lang :as lang]))
 
 ;; ---------------------------------------------------------------------------
 ;; Legacy name mapping: :classic → :meme-classic, etc.
@@ -15,42 +15,43 @@
    :rewrite :meme-rewrite
    :ts-trs  :meme-trs})
 
-(defn- normalize-name [pipeline-name]
-  (get legacy-names pipeline-name pipeline-name))
+(defn- normalize-name [lang-name]
+  (get legacy-names lang-name lang-name))
 
 ;; ---------------------------------------------------------------------------
 ;; Public API (stable — callers don't need to change)
 ;; ---------------------------------------------------------------------------
 
 (def pipelines
-  "Available pipelines by keyword. Includes both legacy and new names."
-  (merge pipelines/builtin
+  "Available langs by keyword. Includes both legacy and new names.
+   Kept as `pipelines` for backward compatibility with existing callers."
+  (merge lang/builtin
          (zipmap (keys legacy-names)
-                 (map #(get pipelines/builtin %) (vals legacy-names)))))
+                 (map #(get lang/builtin %) (vals legacy-names)))))
 
 (defn resolve-pipeline
-  "Look up a pipeline by keyword. Supports both legacy names (:classic, :rewrite, :ts-trs)
+  "Look up a lang by keyword. Supports both legacy names (:classic, :rewrite, :ts-trs)
    and new names (:meme-classic, :meme-rewrite, :meme-trs).
    Throws on unknown name."
-  [pipeline-name]
-  (or (get pipelines pipeline-name)
-      (throw (ex-info (str "Unknown pipeline: " pipeline-name
+  [lang-name]
+  (or (get pipelines lang-name)
+      (throw (ex-info (str "Unknown pipeline: " lang-name
                            " — must be one of: " (pr-str (keys pipelines))) {}))))
 
 (defn meme->clj
-  "Convert meme source to Clojure source using the named pipeline."
+  "Convert meme source to Clojure source using the named lang."
   ([src] (meme->clj src :classic))
-  ([src pipeline-name]
-   (let [p (resolve-pipeline (normalize-name pipeline-name))]
-     (pipelines/check-support! p pipeline-name :convert)
-     ((:convert p) src {:read-cond :preserve :direction :to-clj}))))
+  ([src lang-name]
+   (let [l (resolve-pipeline (normalize-name lang-name))]
+     (lang/check-support! l lang-name :convert)
+     ((:convert l) src {:read-cond :preserve :direction :to-clj}))))
 
 #?(:clj
    (defn clj->meme
-     "Convert Clojure source to meme source using the named pipeline.
+     "Convert Clojure source to meme source using the named lang.
    JVM/Babashka only."
      ([src] (clj->meme src :classic))
-     ([src pipeline-name]
-      (let [p (resolve-pipeline (normalize-name pipeline-name))]
-        (pipelines/check-support! p pipeline-name :convert)
-        ((:convert p) src {:direction :to-meme})))))
+     ([src lang-name]
+      (let [l (resolve-pipeline (normalize-name lang-name))]
+        (lang/check-support! l lang-name :convert)
+        ((:convert l) src {:direction :to-meme})))))

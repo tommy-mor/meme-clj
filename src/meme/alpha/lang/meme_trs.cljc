@@ -1,12 +1,12 @@
-(ns meme.alpha.pipelines.meme-trs
-  "meme-trs pipeline: token-stream term rewriting.
+(ns meme.alpha.lang.meme-trs
+  "meme-trs: token-stream term rewriting.
 
    Operates at the token level: tokenize → nest → rewrite → flatten → text.
    Bypasses the recursive-descent parser entirely for the meme→clj direction.
    Supports :run, :format, :convert. No :repl yet."
   (:require [meme.alpha.core :as core]
             [meme.alpha.emit.formatter.canon :as fmt-canon]
-            [meme.alpha.pipelines.util :as util]
+            [meme.alpha.lang.util :as util]
             [meme.alpha.rewrite :as rw]
             [meme.alpha.rewrite.rules :as rules]
             [meme.alpha.rewrite.emit :as remit]
@@ -36,9 +36,8 @@
      (let [clj-text (trs/meme->clj-text source)]
        (run/run-string clj-text opts))))
 
-(def pipeline
+(def lang
   (merge
    {:format  format-meme
     :convert convert}
    #?(:clj {:run run-source})))
-   ;; no :repl — trs doesn't support it yet
