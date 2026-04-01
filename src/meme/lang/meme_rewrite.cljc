@@ -6,6 +6,7 @@
    Supports all commands: :run, :repl, :format, :to-clj, :to-meme."
   (:require [meme.core :as core]
             [meme.emit.formatter.canon :as fmt-canon]
+            [meme.emit.formatter.flat :as fmt-flat]
             [meme.stages :as stages]
             [meme.rewrite :as rw]
             [meme.rewrite.tree :as tree]
@@ -17,7 +18,10 @@
 (def ^:private rewrite-opts {:parser tree/rewrite-parser})
 
 (defn format-meme [source opts]
-  (fmt-canon/format-forms (core/meme->forms source rewrite-opts) opts))
+  (let [forms (core/meme->forms source rewrite-opts)]
+    (if (= (:style opts) "flat")
+      (fmt-flat/format-forms forms)
+      (fmt-canon/format-forms forms opts))))
 
 (defn to-clj [source]
   (core/forms->clj

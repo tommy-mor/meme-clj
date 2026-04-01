@@ -6,13 +6,17 @@
    Supports :run, :format, :to-clj, :to-meme. No :repl yet."
   (:require [meme.core :as core]
             [meme.emit.formatter.canon :as fmt-canon]
+            [meme.emit.formatter.flat :as fmt-flat]
             [meme.rewrite :as rw]
             [meme.rewrite.rules :as rules]
             [meme.rewrite.emit :as remit]
             [meme.trs :as trs]))
 
 (defn format-meme [source opts]
-  (fmt-canon/format-forms (core/meme->forms source) opts))
+  (let [forms (core/meme->forms source)]
+    (if (= (:style opts) "flat")
+      (fmt-flat/format-forms forms)
+      (fmt-canon/format-forms forms opts))))
 
 (defn to-clj [source]
   (trs/meme->clj-text source))
