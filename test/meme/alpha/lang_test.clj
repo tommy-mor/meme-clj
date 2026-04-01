@@ -1,94 +1,98 @@
 (ns meme.alpha.lang-test
-  "End-to-end tests for lang command maps and EDN loading."
+  "End-to-end tests for lang command maps and EDN loading.
+   Iterates over all known langs for exhaustive coverage."
   (:require [clojure.test :refer [deftest is testing]]
             [meme.alpha.lang :as lang]))
 
-;; ============================================================
-;; Built-in lang shape
-;; ============================================================
-
-(deftest builtin-langs-exist
-  (testing "all built-in langs are registered"
-    (is (contains? @lang/builtin :meme-classic))
-    (is (contains? @lang/builtin :meme-rewrite))
-    (is (contains? @lang/builtin :meme-trs))))
-
-(deftest meme-classic-supports-all-commands
-  (let [l (:meme-classic @lang/builtin)]
-    (is (fn? (:run l)))
-    (is (fn? (:repl l)))
-    (is (fn? (:format l)))
-    (is (fn? (:convert l)))))
-
-(deftest meme-rewrite-supports-all-commands
-  (let [l (:meme-rewrite @lang/builtin)]
-    (is (fn? (:run l)))
-    (is (fn? (:repl l)))
-    (is (fn? (:format l)))
-    (is (fn? (:convert l)))))
-
-(deftest meme-trs-has-no-repl
-  (let [l (:meme-trs @lang/builtin)]
-    (is (fn? (:run l)))
-    (is (nil? (:repl l)))
-    (is (fn? (:format l)))
-    (is (fn? (:convert l)))))
+(def all-langs @lang/builtin)
 
 ;; ============================================================
-;; Lang commands work end-to-end
+;; Every built-in lang has the expected shape
 ;; ============================================================
 
-(deftest classic-run
-  (is (= 42 ((:run (:meme-classic @lang/builtin)) "+(21 21)" {}))))
+(deftest all-langs-have-convert
+  (doseq [[lang-name l] all-langs]
+    (testing (str lang-name " has :convert")
+      (is (fn? (:convert l))))))
 
-(deftest classic-format
-  (let [result ((:format (:meme-classic @lang/builtin)) "def(x 42)" {})]
-    (is (= "def(x 42)" result))))
+(deftest all-langs-have-format
+  (doseq [[lang-name l] all-langs]
+    (testing (str lang-name " has :format")
+      (is (fn? (:format l))))))
 
-(deftest classic-convert-to-clj
-  (let [result ((:convert (:meme-classic @lang/builtin)) "f(x y)" {:direction :to-clj})]
-    (is (= "(f x y)" result))))
+(deftest all-langs-have-run
+  (doseq [[lang-name l] all-langs]
+    (testing (str lang-name " has :run")
+      (is (fn? (:run l))))))
 
-(deftest classic-convert-to-meme
-  (let [result ((:convert (:meme-classic @lang/builtin)) "(f x y)" {:direction :to-meme})]
-    (is (= "f(x y)" result))))
+;; ============================================================
+;; Every lang's commands work end-to-end
+;; ============================================================
 
-(deftest rewrite-run
-  (is (= 42 ((:run (:meme-rewrite @lang/builtin)) "+(21 21)" {}))))
+(deftest all-langs-run
+  (doseq [[lang-name l] all-langs
+          :when (:run l)]
+    (testing (str lang-name " :run")
+      (is (= 42 ((:run l) "+(21 21)" {}))))))
 
-(deftest rewrite-convert-to-clj
-  (let [result ((:convert (:meme-rewrite @lang/builtin)) "f(x y)" {:direction :to-clj})]
-    (is (= "(f x y)" result))))
+(deftest all-langs-format
+  (doseq [[lang-name l] all-langs
+          :when (:format l)]
+    (testing (str lang-name " :format")
+      (is (= "def(x 42)" ((:format l) "def(x 42)" {}))))))
 
-(deftest trs-convert-to-clj
-  (let [result ((:convert (:meme-trs @lang/builtin)) "f(x y)" {:direction :to-clj})]
-    (is (= "(f x y)" result))))
+(deftest all-langs-convert-to-clj
+  (doseq [[lang-name l] all-langs
+          :when (:convert l)]
+    (testing (str lang-name " :convert to-clj")
+      (is (= "(f x y)" ((:convert l) "f(x y)" {:direction :to-clj}))))))
+
+(deftest all-langs-convert-to-meme
+  (doseq [[lang-name l] all-langs
+          :when (:convert l)]
+    (testing (str lang-name " :convert to-meme")
+      (is (= "f(x y)" ((:convert l) "(f x y)" {:direction :to-meme}))))))
 
 ;; ============================================================
 ;; check-support!
 ;; ============================================================
 
-(deftest check-support-passes
-  (lang/check-support! (:meme-classic @lang/builtin) :meme-classic :run)
-  (is true "should not throw"))
+(deftest check-support-passes-for-all
+  (doseq [[lang-name l] all-langs
+          cmd (filter keyword? (keys l))]
+    (lang/check-support! l lang-name cmd)
+    (is true)))
 
-(deftest check-support-fails
-  (is (thrown-with-msg? Exception #"does not support :repl"
-        (lang/check-support! (:meme-trs @lang/builtin) :meme-trs :repl))))
+(deftest check-support-fails-for-missing
+  (testing "meme-trs has no :repl"
+    (is (thrown-with-msg? Exception #"does not support :repl"
+          (lang/check-support! (:meme-trs all-langs) :meme-trs :repl)))))
+
+;; ============================================================
+;; All langs agree on basic convert output
+;; ============================================================
+
+(deftest all-langs-agree-on-convert
+  (doseq [src ["f(x y)" "+(1 2)" "def(x 42)" "[1 2 3]"]]
+    (let [results (into {} (map (fn [[n l]] [n ((:convert l) src {:direction :to-clj})]) all-langs))
+          first-result (val (first results))]
+      (doseq [[lang-name result] results]
+        (is (= first-result result)
+            (str lang-name " diverges on: " src))))))
 
 ;; ============================================================
 ;; EDN lang loading
 ;; ============================================================
 
 (deftest load-edn-calc
-  (testing "calc lang.edn loads and :run works"
+  (testing "calc lang EDN loads and :run works"
     (let [l (lang/load-edn "examples/languages/calc/pipeline.edn")]
       (is (fn? (:run l)))
       (is (fn? (:format l)))
       (is (= 'x ((:run l) "simplify('+(*(1 x) 0))" {}))))))
 
 (deftest load-edn-prefix
-  (testing "prefix lang.edn loads and :run works"
+  (testing "prefix lang EDN loads and :run works"
     (let [l (lang/load-edn "examples/languages/prefix/pipeline.edn")]
       (is (fn? (:run l))))))
 
@@ -103,16 +107,3 @@
     (spit "/tmp/test-edn-lang.edn" "{:run \"/tmp/test-edn-lang-core.meme\"}")
     (let [l (lang/load-edn "/tmp/test-edn-lang.edn")]
       (is (= 84 ((:run l) "double(42)" {}))))))
-
-;; ============================================================
-;; All langs agree on convert
-;; ============================================================
-
-(deftest all-langs-agree-on-convert
-  (testing "all meme langs produce same clj for basic inputs"
-    (doseq [src ["f(x y)" "+(1 2)" "def(x 42)" "[1 2 3]"]]
-      (let [classic ((:convert (:meme-classic @lang/builtin)) src {:direction :to-clj})
-            rewrite ((:convert (:meme-rewrite @lang/builtin)) src {:direction :to-clj})
-            trs     ((:convert (:meme-trs @lang/builtin)) src {:direction :to-clj})]
-        (is (= classic rewrite) (str "classic vs rewrite on: " src))
-        (is (= classic trs) (str "classic vs trs on: " src))))))

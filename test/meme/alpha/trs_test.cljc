@@ -114,6 +114,6 @@
                      ;; calls inside collections
                      "[f(x) g(y)]"
                      "{:a f(x) :b g(y)}"]]
-         (is (= (convert/meme->clj src :classic)
-                (convert/meme->clj src :ts-trs))
+         (is (= (convert/meme->clj src :meme-classic)
+                (convert/meme->clj src :meme-trs))
              (str "disagreement on: " src))))))

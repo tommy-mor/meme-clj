@@ -10,8 +10,7 @@
             [meme.alpha.rewrite :as rw]
             [meme.alpha.rewrite.rules :as rules]
             [meme.alpha.rewrite.emit :as remit]
-            [meme.alpha.trs :as trs]
-            #?(:clj [meme.alpha.runtime.run :as run])))
+            [meme.alpha.trs :as trs]))
 
 (defn format-meme [source opts]
   (fmt-canon/format-forms (core/meme->forms source) opts))
@@ -33,5 +32,7 @@
 
 #?(:clj
    (defn run-source [source opts]
-     (let [clj-text (trs/meme->clj-text source)]
-       (run/run-string clj-text opts))))
+     (let [clj-text (trs/meme->clj-text source)
+           forms (core/clj->forms clj-text)
+           eval-fn (or (:eval opts) eval)]
+       (reduce (fn [_ form] (eval-fn form)) nil forms))))

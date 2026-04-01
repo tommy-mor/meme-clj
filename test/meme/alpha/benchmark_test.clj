@@ -79,9 +79,9 @@
    ts-trs is compared at form level (different text reconstruction)."
   [file]
   (let [src (slurp file)
-        [classic-result classic-ms] (timed (convert/meme->clj src :classic))
-        [rewrite-result rewrite-ms] (timed (convert/meme->clj src :rewrite))
-        [ts-trs-result ts-trs-ms] (timed (convert/meme->clj src :ts-trs))
+        [classic-result classic-ms] (timed (convert/meme->clj src :meme-classic))
+        [rewrite-result rewrite-ms] (timed (convert/meme->clj src :meme-rewrite))
+        [ts-trs-result ts-trs-ms] (timed (convert/meme->clj src :meme-trs))
         ;; ts-trs reconstructs text from tokens (different whitespace),
         ;; so compare at form level via clj->forms + pr-str
         classic-forms (pr-str (core/clj->forms classic-result))
@@ -182,9 +182,9 @@
     {:project project
      :files (count files)
      :forms n
-     :classic (bench-pipeline :classic)
-     :rewrite (bench-pipeline :rewrite)
-     :ts-trs (bench-pipeline :ts-trs)}))
+     :classic (bench-pipeline :meme-classic)
+     :rewrite (bench-pipeline :meme-rewrite)
+     :ts-trs (bench-pipeline :meme-trs)}))
 
 ;; ============================================================
 ;; Reporting

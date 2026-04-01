@@ -820,15 +820,15 @@
 #?(:clj
    (deftest build-tree-discard-before-closer
      (testing "#_ as last discarded form in vector"
-       (is (= "[1 2]" (convert/meme->clj "[1 2 #_ 3]" :rewrite))))
+       (is (= "[1 2]" (convert/meme->clj "[1 2 #_ 3]" :meme-rewrite))))
      (testing "#_ as last discarded form in call"
-       (is (= "(f)" (convert/meme->clj "f(#_ x)" :rewrite))))
+       (is (= "(f)" (convert/meme->clj "f(#_ x)" :meme-rewrite))))
      (testing "#_ as last discarded form in set"
-       (is (= "#{}" (convert/meme->clj "#{#_ 1}" :rewrite))))
+       (is (= "#{}" (convert/meme->clj "#{#_ 1}" :meme-rewrite))))
      (testing "#_ discards one of two map pairs"
-       (is (= "{:a 1}" (convert/meme->clj "{:a 1 #_ :b #_ 2}" :rewrite))))
+       (is (= "{:a 1}" (convert/meme->clj "{:a 1 #_ :b #_ 2}" :meme-rewrite))))
      (testing "double #_ at top level"
-       (is (= "c" (convert/meme->clj "#_ #_ a b c" :rewrite))))))
+       (is (= "c" (convert/meme->clj "#_ #_ a b c" :meme-rewrite))))))
 
 ;; ---------------------------------------------------------------------------
 ;; Scar tissue: reader conditional as call head
@@ -843,4 +843,4 @@
    (deftest reader-cond-as-call-head-rewrite
      (testing "RC as call head through rewrite pipeline"
        (is (= "(#?(:clj instance? :cljs implements?) MyProto x)"
-              (convert/meme->clj "#?(:clj instance? :cljs implements?)(MyProto x)" :rewrite))))))
+              (convert/meme->clj "#?(:clj instance? :cljs implements?)(MyProto x)" :meme-rewrite))))))
