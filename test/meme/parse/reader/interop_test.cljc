@@ -50,3 +50,33 @@
   (let [result (first (core/meme->forms ".replace(\"hello\" \"l\" \"r\")"))]
     (is (= '.replace (first result)))
     (is (= 4 (count result)))))
+
+;; ---------------------------------------------------------------------------
+;; Extended interop coverage
+;; ---------------------------------------------------------------------------
+
+(deftest parse-double-dot-interop
+  (let [result (first (core/meme->forms "..(obj method1() method2())"))]
+    (is (= '.. (first result)))))
+
+(deftest parse-doto-interop
+  (let [result (first (core/meme->forms "doto(StringBuilder.() .append(\"a\") .append(\"b\"))"))]
+    (is (= 'doto (first result)))
+    (is (= 4 (count result)))))
+
+(deftest parse-method-on-expression
+  (let [result (first (core/meme->forms ".trim(.concat(\"a\" \"b\"))"))]
+    (is (= '.trim (first result)))
+    (is (seq? (second result)))
+    (is (= '.concat (first (second result))))))
+
+(deftest parse-static-field-standalone
+  (is (= 'Integer/MAX_VALUE (first (core/meme->forms "Integer/MAX_VALUE")))))
+
+(deftest parse-constructor-in-binding
+  (let [result (first (core/meme->forms "let([sb StringBuilder.()] sb)"))]
+    (is (= 'let (first result)))
+    (let [bindings (second result)]
+      (is (vector? bindings))
+      (is (seq? (second bindings)))
+      (is (= 'StringBuilder. (first (second bindings)))))))
