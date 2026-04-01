@@ -1,5 +1,5 @@
 (ns meme.alpha.benchmark-test
-  "Comparative benchmark: classic vs rewrite pipelines.
+  "Comparative benchmark: classic vs rewrite vs ts-trs pipelines.
 
    Two benchmark axes:
      1. meme→clj roundtrip — .meme fixture files through each pipeline
@@ -74,15 +74,24 @@
 ;; ============================================================
 
 (defn- bench-meme->clj-file
-  "Convert a .meme file through each pipeline, return timing and agreement."
+  "Convert a .meme file through each pipeline, return timing and agreement.
+   Classic and rewrite are compared as text (same formatter).
+   ts-trs is compared at form level (different text reconstruction)."
   [file]
   (let [src (slurp file)
         [classic-result classic-ms] (timed (convert/meme->clj src :classic))
-        [rewrite-result rewrite-ms] (timed (convert/meme->clj src :rewrite))]
+        [rewrite-result rewrite-ms] (timed (convert/meme->clj src :rewrite))
+        [ts-trs-result ts-trs-ms] (timed (convert/meme->clj src :ts-trs))
+        ;; ts-trs reconstructs text from tokens (different whitespace),
+        ;; so compare at form level via clj->forms + pr-str
+        classic-forms (pr-str (core/clj->forms classic-result))
+        ts-trs-forms (pr-str (core/clj->forms ts-trs-result))]
     {:file (.getName file)
      :classic-ms classic-ms
      :rewrite-ms rewrite-ms
-     :classic=rewrite (= classic-result rewrite-result)}))
+     :ts-trs-ms ts-trs-ms
+     :classic=rewrite (= classic-result rewrite-result)
+     :classic=ts-trs (= classic-forms ts-trs-forms)}))
 
 ;; ============================================================
 ;; Structural equality — handles regex (Pattern lacks .equals)
@@ -174,7 +183,8 @@
      :files (count files)
      :forms n
      :classic (bench-pipeline :classic)
-     :rewrite (bench-pipeline :rewrite)}))
+     :rewrite (bench-pipeline :rewrite)
+     :ts-trs (bench-pipeline :ts-trs)}))
 
 ;; ============================================================
 ;; Reporting
@@ -186,47 +196,53 @@
     (format "%.2fs" (/ ms 1000.0))))
 
 (defn- report-meme->clj [results]
-  (println "\n╔════════════════════════════════════════════════════╗")
-  (println "║          meme→clj Fixture Benchmark               ║")
-  (println "╠════════════════════════════════════════════════════╣")
-  (println (format "║ %-22s %8s %8s  C=R ║" "file" "classic" "rewrite"))
-  (println "╠════════════════════════════════════════════════════╣")
-  (doseq [{:keys [file classic-ms rewrite-ms classic=rewrite]} results]
-    (println (format "║ %-22s %8s %8s   %s  ║"
+  (println "\n╔═══════════════════════════════════════════════════════════════════╗")
+  (println "║                meme→clj Fixture Benchmark                        ║")
+  (println "╠═══════════════════════════════════════════════════════════════════╣")
+  (println (format "║ %-22s %8s %8s %8s  C=R C=T ║" "file" "classic" "rewrite" "ts-trs"))
+  (println "╠═══════════════════════════════════════════════════════════════════╣")
+  (doseq [{:keys [file classic-ms rewrite-ms ts-trs-ms classic=rewrite classic=ts-trs]} results]
+    (println (format "║ %-22s %8s %8s %8s   %s   %s  ║"
                      (subs file 0 (min 22 (count file)))
                      (format-ms classic-ms)
                      (format-ms rewrite-ms)
-                     (if classic=rewrite "✓" "✗"))))
+                     (format-ms ts-trs-ms)
+                     (if classic=rewrite "✓" "✗")
+                     (if classic=ts-trs "✓" "✗"))))
   (let [totals (reduce (fn [acc r]
                          (-> acc
                              (update :classic + (:classic-ms r))
                              (update :rewrite + (:rewrite-ms r))
-                             (update :agree-r + (if (:classic=rewrite r) 1 0))))
-                       {:classic 0 :rewrite 0 :agree-r 0}
+                             (update :ts-trs + (:ts-trs-ms r))
+                             (update :agree-r + (if (:classic=rewrite r) 1 0))
+                             (update :agree-t + (if (:classic=ts-trs r) 1 0))))
+                       {:classic 0 :rewrite 0 :ts-trs 0 :agree-r 0 :agree-t 0}
                        results)
         n (count results)]
-    (println "╠════════════════════════════════════════════════════╣")
-    (println (format "║ %-22s %8s %8s %d/%d ║"
+    (println "╠═══════════════════════════════════════════════════════════════════╣")
+    (println (format "║ %-22s %8s %8s %8s %d/%d %d/%d ║"
                      "TOTAL"
                      (format-ms (:classic totals))
                      (format-ms (:rewrite totals))
-                     (:agree-r totals) n)))
-  (println "╚════════════════════════════════════════════════════╝")
-  (println "  C=R: classic agrees with rewrite"))
+                     (format-ms (:ts-trs totals))
+                     (:agree-r totals) n
+                     (:agree-t totals) n)))
+  (println "╚═══════════════════════════════════════════════════════════════════╝")
+  (println "  C=R: classic agrees with rewrite, C=T: classic agrees with ts-trs"))
 
 (defn- report-vendor [results]
-  (println "\n╔══════════════════════════════════════════════════════════╗")
-  (println "║          clj→meme→clj Vendor Roundtrip Benchmark        ║")
-  (println "╠══════════════════════════════════════════════════════════╣")
-  (println (format "║ %-14s %5s │ %14s │ %14s ║"
-                   "project" "forms" "classic" "rewrite"))
-  (println "╠══════════════════════════════════════════════════════════╣")
-  (doseq [{:keys [project forms classic rewrite]} results]
+  (println "\n╔═════════════════════════════════════════════════════════════════════════╗")
+  (println "║              clj→meme→clj Vendor Roundtrip Benchmark                    ║")
+  (println "╠═════════════════════════════════════════════════════════════════════════╣")
+  (println (format "║ %-14s %5s │ %14s │ %14s │ %14s ║"
+                   "project" "forms" "classic" "rewrite" "ts-trs"))
+  (println "╠═════════════════════════════════════════════════════════════════════════╣")
+  (doseq [{:keys [project forms classic rewrite ts-trs]} results]
     (let [fmt-p (fn [{:keys [ok errors ms]}]
                   (format "%4d/%4d %6s" ok (+ ok errors) (format-ms ms)))]
-      (println (format "║ %-14s %5d │ %14s │ %14s ║"
+      (println (format "║ %-14s %5d │ %14s │ %14s │ %14s ║"
                        project forms
-                       (fmt-p classic) (fmt-p rewrite)))))
+                       (fmt-p classic) (fmt-p rewrite) (fmt-p ts-trs)))))
   (let [sum (fn [k] (reduce (fn [acc r] (let [p (get r k)]
                                            (-> acc
                                                (update :ok + (:ok p))
@@ -237,34 +253,38 @@
         total-forms (reduce + (map :forms results))
         fmt-p (fn [{:keys [ok errors ms]}]
                 (format "%4d/%4d %6s" ok (+ ok errors) (format-ms ms)))]
-    (println "╠══════════════════════════════════════════════════════════╣")
-    (println (format "║ %-14s %5d │ %14s │ %14s ║"
+    (println "╠═════════════════════════════════════════════════════════════════════════╣")
+    (println (format "║ %-14s %5d │ %14s │ %14s │ %14s ║"
                      "TOTAL" total-forms
                      (fmt-p (sum :classic))
-                     (fmt-p (sum :rewrite)))))
-  (println "╚══════════════════════════════════════════════════════════╝"))
+                     (fmt-p (sum :rewrite))
+                     (fmt-p (sum :ts-trs)))))
+  (println "╚═════════════════════════════════════════════════════════════════════════╝"))
 
 ;; ============================================================
 ;; Tests
 ;; ============================================================
 
 (deftest benchmark-meme->clj-fixtures
-  (testing "meme→clj conversion across both pipelines"
+  (testing "meme→clj conversion across all pipelines"
     (let [files (meme-fixtures)
           results (mapv bench-meme->clj-file files)]
       (report-meme->clj results)
       (is (seq results) "Should have fixture files to benchmark")
-      (doseq [{:keys [file classic=rewrite]} results]
-        (is classic=rewrite (str file " classic and rewrite must agree"))))))
+      (doseq [{:keys [file classic=rewrite classic=ts-trs]} results]
+        (is classic=rewrite (str file " classic and rewrite must agree"))
+        (is classic=ts-trs (str file " classic and ts-trs must agree"))))))
 
 (deftest benchmark-vendor-roundtrip
-  (testing "clj→meme→clj vendor roundtrip across both pipelines"
+  (testing "clj→meme→clj vendor roundtrip across all pipelines"
     (let [projects (vendor-projects)]
       (if (empty? projects)
         (println "SKIP — vendor submodules not initialized (git submodule update --init)")
         (let [results (mapv bench-vendor-project projects)]
           (report-vendor results)
-          ;; Both pipelines should agree on roundtrip success count.
-          (doseq [{:keys [project classic rewrite]} results]
+          ;; All pipelines should agree on roundtrip success count.
+          (doseq [{:keys [project classic rewrite ts-trs]} results]
             (is (= (:ok classic) (:ok rewrite))
-                (str project " classic and rewrite should agree"))))))))
+                (str project " classic and rewrite should agree"))
+            (is (= (:ok classic) (:ok ts-trs))
+                (str project " classic and ts-trs should agree"))))))))
