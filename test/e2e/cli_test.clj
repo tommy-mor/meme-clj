@@ -1,0 +1,216 @@
+(ns e2e.cli-test
+  "End-to-end CLI tests. Shells out to `bb meme` and asserts output."
+  (:require [clojure.test :refer [deftest is]]
+            [clojure.java.io :as io]
+            [clojure.string :as str])
+  (:import [java.io File]))
+
+;; ---------------------------------------------------------------------------
+;; Helpers
+;; ---------------------------------------------------------------------------
+
+(defn- bb-meme
+  "Run `bb meme <args>`, return {:out :err :exit}."
+  [& args]
+  (let [pb (ProcessBuilder. ^java.util.List (into ["bb" "meme"] args))
+        _  (.directory pb (io/file "."))
+        p  (.start pb)
+        out (slurp (.getInputStream p))
+        err (slurp (.getErrorStream p))
+        exit (.waitFor p)]
+    {:out out :err err :exit exit}))
+
+(defn- tmp-meme
+  "Write content to a temp .meme file, return the File."
+  [content]
+  (let [f (File/createTempFile "meme-e2e-" ".meme")]
+    (.deleteOnExit f)
+    (spit f content)
+    f))
+
+(defn- tmp-clj
+  "Write content to a temp .clj file, return the File."
+  [content]
+  (let [f (File/createTempFile "meme-e2e-" ".clj")]
+    (.deleteOnExit f)
+    (spit f content)
+    f))
+
+;; ---------------------------------------------------------------------------
+;; version
+;; ---------------------------------------------------------------------------
+
+(deftest version-test
+  (let [{:keys [out exit]} (bb-meme "version")]
+    (is (zero? exit))
+    (is (re-find #"^meme \d+\.\d+\.\d+" out))))
+
+;; ---------------------------------------------------------------------------
+;; help
+;; ---------------------------------------------------------------------------
+
+(deftest help-test
+  (let [{:keys [out exit]} (bb-meme)]
+    (is (zero? exit))
+    (is (str/includes? out "Commands:"))
+    (is (str/includes? out "meme run"))
+    (is (str/includes? out "meme repl"))
+    (is (str/includes? out "meme to-clj"))
+    (is (str/includes? out "meme to-meme"))
+    (is (str/includes? out "meme format"))
+    (is (str/includes? out "meme inspect"))
+    (is (str/includes? out "meme version"))))
+
+(deftest unknown-command-test
+  (let [{:keys [err exit]} (bb-meme "nonexistent")]
+    (is (= 1 exit))
+    (is (str/includes? err "Unknown command: nonexistent"))))
+
+;; ---------------------------------------------------------------------------
+;; inspect
+;; ---------------------------------------------------------------------------
+
+(deftest inspect-test
+  (let [{:keys [out exit]} (bb-meme "inspect")]
+    (is (zero? exit))
+    (is (str/includes? out "Lang: meme-classic"))
+    (is (str/includes? out "run"))
+    (is (str/includes? out "format"))
+    (is (str/includes? out "to-clj"))
+    (is (str/includes? out "to-meme"))))
+
+(deftest inspect-lang-test
+  (let [{:keys [out exit]} (bb-meme "inspect" "--lang" "meme-trs")]
+    (is (zero? exit))
+    (is (str/includes? out "Lang: meme-trs"))))
+
+;; ---------------------------------------------------------------------------
+;; run
+;; ---------------------------------------------------------------------------
+
+(deftest run-test
+  (let [f (tmp-meme "println(+(1 2))")
+        {:keys [out exit]} (bb-meme "run" (str f))]
+    (is (zero? exit))
+    (is (= "3\n" out))))
+
+(deftest run-missing-file-test
+  (let [{:keys [exit]} (bb-meme "run")]
+    (is (= 1 exit))))
+
+(deftest run-error-test
+  (let [f (tmp-meme "def(")
+        {:keys [exit err]} (bb-meme "run" (str f))]
+    (is (= 1 exit))
+    (is (not (str/blank? err)))))
+
+;; ---------------------------------------------------------------------------
+;; to-clj
+;; ---------------------------------------------------------------------------
+
+(deftest to-clj-stdout-test
+  (let [f (tmp-meme "defn(foo [x] +(x 1))")
+        {:keys [out exit]} (bb-meme "to-clj" (str f) "--stdout")]
+    (is (zero? exit))
+    (is (= "(defn foo [x] (+ x 1))\n" out))))
+
+(deftest to-clj-file-test
+  (let [f (tmp-meme "defn(foo [x] +(x 1))")
+        clj-path (str/replace (str f) #"\.meme$" ".clj")
+        clj-file (io/file clj-path)]
+    (try
+      (let [{:keys [exit]} (bb-meme "to-clj" (str f))]
+        (is (zero? exit))
+        (is (.exists clj-file))
+        (is (= "(defn foo [x] (+ x 1))\n" (slurp clj-file))))
+      (finally (.delete clj-file)))))
+
+(deftest to-clj-lang-test
+  (let [f (tmp-meme "f(x y)")
+        {:keys [out exit]} (bb-meme "to-clj" (str f) "--stdout" "--lang" "meme-rewrite")]
+    (is (zero? exit))
+    (is (= "(f x y)\n" out))))
+
+;; ---------------------------------------------------------------------------
+;; to-meme
+;; ---------------------------------------------------------------------------
+
+(deftest to-meme-stdout-test
+  (let [f (tmp-clj "(defn foo [x] (+ x 1))")
+        {:keys [out exit]} (bb-meme "to-meme" (str f) "--stdout")]
+    (is (zero? exit))
+    (is (= "defn(foo [x] +(x 1))\n" out))))
+
+(deftest to-meme-file-test
+  (let [f (tmp-clj "(defn foo [x] (+ x 1))")
+        meme-path (str/replace (str f) #"\.clj$" ".meme")
+        meme-file (io/file meme-path)]
+    (try
+      (let [{:keys [exit]} (bb-meme "to-meme" (str f))]
+        (is (zero? exit))
+        (is (.exists meme-file))
+        (is (= "defn(foo [x] +(x 1))\n" (slurp meme-file))))
+      (finally (.delete meme-file)))))
+
+;; ---------------------------------------------------------------------------
+;; format
+;; ---------------------------------------------------------------------------
+
+(deftest format-stdout-test
+  (let [f (tmp-meme "defn(foo [x] +(x 1))")
+        {:keys [out exit]} (bb-meme "format" (str f) "--stdout")]
+    (is (zero? exit))
+    (is (= "defn(foo [x] +(x 1))\n" out))))
+
+(deftest format-style-flat-test
+  (let [f (tmp-meme "defn(foo [x] +(x 1))")
+        {:keys [out exit]} (bb-meme "format" (str f) "--stdout" "--style" "flat")]
+    (is (zero? exit))
+    (is (= "defn(foo [x] +(x 1))\n" out))))
+
+(deftest format-style-clj-test
+  (let [f (tmp-meme "defn(foo [x] +(x 1))")
+        {:keys [out exit]} (bb-meme "format" (str f) "--stdout" "--style" "clj")]
+    (is (zero? exit))
+    (is (= "(defn foo [x] (+ x 1))\n" out))))
+
+(deftest format-width-test
+  (let [src "defn(greet [first-name last-name title] let([full str(title first-name last-name)] println(full)))"
+        f (tmp-meme src)
+        {:keys [out exit]} (bb-meme "format" (str f) "--stdout" "--width" "40")]
+    (is (zero? exit))
+    ;; width 40 should force multi-line
+    (is (> (count (str/split-lines out)) 1))))
+
+(deftest format-check-clean-test
+  (let [f (tmp-meme "defn(foo [x] +(x 1))\n")
+        {:keys [exit]} (bb-meme "format" (str f) "--check")]
+    (is (zero? exit))))
+
+(deftest format-check-dirty-test
+  (let [f (tmp-meme "defn(foo    [x]    +(x    1))\n")
+        {:keys [exit out]} (bb-meme "format" (str f) "--check")]
+    (is (= 1 exit))
+    (is (str/includes? out "would reformat"))))
+
+(deftest format-inplace-test
+  (let [f (tmp-meme "defn(foo    [x]    +(x    1))")
+        {:keys [exit]} (bb-meme "format" (str f))]
+    (is (zero? exit))
+    (is (= "defn(foo [x] +(x 1))\n" (slurp f)))))
+
+;; ---------------------------------------------------------------------------
+;; format with --lang
+;; ---------------------------------------------------------------------------
+
+(deftest format-lang-rewrite-test
+  (let [f (tmp-meme "defn(foo [x] +(x 1))")
+        {:keys [out exit]} (bb-meme "format" (str f) "--stdout" "--lang" "meme-rewrite")]
+    (is (zero? exit))
+    (is (= "defn(foo [x] +(x 1))\n" out))))
+
+(deftest format-lang-trs-test
+  (let [f (tmp-meme "defn(foo [x] +(x 1))")
+        {:keys [out exit]} (bb-meme "format" (str f) "--stdout" "--lang" "meme-trs")]
+    (is (zero? exit))
+    (is (= "defn(foo [x] +(x 1))\n" out))))
