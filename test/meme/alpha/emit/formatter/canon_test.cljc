@@ -177,6 +177,62 @@
       (is (= forms re-parsed)))))
 
 ;; ---------------------------------------------------------------------------
+;; Comment preservation roundtrip: source → parse → format → comments intact
+;; ---------------------------------------------------------------------------
+
+(deftest comment-roundtrip-before-form
+  (testing "comment before a form survives parse→format"
+    (let [src "; header comment\ndef(x 42)"
+          formatted (canon/format-forms (core/meme->forms src) {:width 80})]
+      (is (re-find #"; header comment" formatted))
+      (is (re-find #"def\(x 42\)" formatted)))))
+
+(deftest comment-roundtrip-between-forms
+  (testing "comment between two forms survives"
+    (let [src "def(x 1)\n; middle comment\ndef(y 2)"
+          formatted (canon/format-forms (core/meme->forms src) {:width 80})]
+      (is (re-find #"; middle comment" formatted))
+      (is (re-find #"def\(x 1\)" formatted))
+      (is (re-find #"def\(y 2\)" formatted)))))
+
+(deftest comment-roundtrip-end-of-line
+  (testing "end-of-line comment attached to next form survives"
+    (let [src "def(x 1) ; note\ndef(y 2)"
+          formatted (canon/format-forms (core/meme->forms src) {:width 80})]
+      (is (re-find #"; note" formatted)))))
+
+(deftest comment-roundtrip-trailing
+  (testing "trailing comment after all forms survives"
+    (let [src "def(x 1)\n; end of file"
+          formatted (canon/format-forms (core/meme->forms src) {:width 80})]
+      (is (re-find #"; end of file" formatted)))))
+
+(deftest comment-roundtrip-mid-expression-break
+  (testing "comment inside a form appears when format forces multi-line"
+    (let [src "defn(foo\n  ; body comment\n  [x]\n  +(x 1))"
+          forms (core/meme->forms src)
+          formatted (canon/format-form (first forms) {:width 15})]
+      (is (re-find #"; body comment" formatted))
+      (is (re-find #"defn\(foo" formatted)))))
+
+(deftest comment-roundtrip-mid-expression-flat
+  (testing "comment inside a form is dropped when format stays single-line"
+    (let [src "defn(foo\n  ; body comment\n  [x]\n  +(x 1))"
+          forms (core/meme->forms src)
+          formatted (canon/format-form (first forms) {:width 80})]
+      ;; DocIfBreak: flat mode drops comments — this is by design
+      (is (not (re-find #"; body comment" formatted)))
+      (is (= "defn(foo [x] +(x 1))" formatted)))))
+
+(deftest comment-roundtrip-forms-roundtrip
+  (testing "formatted output with comments re-parses to same forms"
+    (let [src "; top\ndef(x 42)\n; mid\ndefn(f [x] +(x 1))\n; end"
+          forms (core/meme->forms src)
+          formatted (canon/format-forms forms {:width 80})
+          re-read (core/meme->forms formatted)]
+      (is (= (pr-str forms) (pr-str re-read))))))
+
+;; ---------------------------------------------------------------------------
 ;; Idempotency: format(format(x)) == format(x)
 ;; ---------------------------------------------------------------------------
 
