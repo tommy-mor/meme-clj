@@ -26,7 +26,7 @@
 (defn- meme-file? [path] (str/ends-with? path ".meme"))
 (defn- clj-file? [path] (boolean (re-find #"\.clj[cdsx]?$" path)))
 (defn- swap-ext [path from to]
-  (str/replace path (re-pattern (str "\\." from "$")) (str "." to)))
+  (str/replace path (re-pattern (str "\\." from "[cdsx]?$")) (str "." to)))
 
 ;; ---------------------------------------------------------------------------
 ;; Generic file processor

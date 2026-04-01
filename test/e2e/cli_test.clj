@@ -36,6 +36,14 @@
     (spit f content)
     f))
 
+(defn- tmp-ext
+  "Write content to a temp file with the given extension, return the File."
+  [ext content]
+  (let [f (File/createTempFile "meme-e2e-" (str "." ext))]
+    (.deleteOnExit f)
+    (spit f content)
+    f))
+
 ;; ---------------------------------------------------------------------------
 ;; version
 ;; ---------------------------------------------------------------------------
@@ -150,6 +158,33 @@
         (is (zero? exit))
         (is (.exists meme-file))
         (is (= "defn(foo [x] +(x 1))\n" (slurp meme-file))))
+      (finally (.delete meme-file)))))
+
+(deftest to-meme-cljc-file-test
+  (let [f (tmp-ext "cljc" "(defn foo [x] (+ x 1))")
+        meme-path (str/replace (str f) #"\.cljc$" ".meme")
+        meme-file (io/file meme-path)
+        original-content (slurp f)]
+    (try
+      (let [{:keys [exit]} (bb-meme "to-meme" (str f))]
+        (is (zero? exit))
+        (is (.exists meme-file) ".meme output file should be created")
+        (is (= "defn(foo [x] +(x 1))\n" (slurp meme-file)))
+        ;; Critical: original .cljc must NOT be overwritten
+        (is (= original-content (slurp f)) ".cljc source must not be overwritten"))
+      (finally (.delete meme-file)))))
+
+(deftest to-meme-cljs-file-test
+  (let [f (tmp-ext "cljs" "(defn foo [x] (+ x 1))")
+        meme-path (str/replace (str f) #"\.cljs$" ".meme")
+        meme-file (io/file meme-path)
+        original-content (slurp f)]
+    (try
+      (let [{:keys [exit]} (bb-meme "to-meme" (str f))]
+        (is (zero? exit))
+        (is (.exists meme-file) ".meme output file should be created")
+        (is (= "defn(foo [x] +(x 1))\n" (slurp meme-file)))
+        (is (= original-content (slurp f)) ".cljs source must not be overwritten"))
       (finally (.delete meme-file)))))
 
 ;; ---------------------------------------------------------------------------
