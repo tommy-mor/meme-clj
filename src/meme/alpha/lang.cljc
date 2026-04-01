@@ -7,6 +7,9 @@
      :format  (fn [source opts] → text)     — format a file
      :convert (fn [source opts] → text)     — convert a file (both directions)
 
+   Plus optional metadata:
+     :extension  \".ext\"   — file extension for auto-detection
+
    Every key is optional. A lang supports exactly the commands it has keys for.
    The CLI dispatches by looking up the command key in the lang map.
 
@@ -16,12 +19,16 @@
       :convert meme.alpha.lang.meme-classic/convert}
 
    User langs can also use:
-     {:run \"core.meme\"          ;; string → .meme file to eval before user file
-      :format :meme-classic}      ;; keyword → inherit command from built-in lang
+     {:extension \".calc\"        ;; file extension for auto-detection
+      :run \"core.meme\"          ;; string → .meme file to eval before user file
+      :rules \"rules.meme\"       ;; string → .meme file returning rewrite rules
+      :parser my.ns/parser-fn    ;; symbol → custom parser function
+      :format :meme-classic}     ;; keyword → inherit command from built-in lang
 
    Built-in langs (resources/meme/lang/):
      :meme-classic (default), :meme-rewrite, :meme-trs"
   (:require [clojure.edn :as edn]
+            [clojure.string :as str]
             #?(:clj [clojure.java.io :as io])
             [meme.alpha.lang.meme-classic]
             [meme.alpha.lang.meme-rewrite]
@@ -46,7 +53,9 @@
      "Resolve a single EDN value for a command.
       symbol   → requiring-resolve to a function
       string   → for :run, wraps as: eval .meme file then eval user source
-      keyword  → look up that command from a built-in lang"
+                 for :rules, eval file to get rule vector
+      keyword  → look up that command from a built-in lang
+      fn/other → pass through (for register! with pre-resolved fns)"
      [command value]
      (cond
        (symbol? value)
@@ -58,6 +67,7 @@
            :run (fn [source opts]
                   (run-string-fn (slurp value) (dissoc opts :rewrite-rules :prelude))
                   (run-string-fn source opts))
+           :rules (run-string-fn (slurp value))
            (throw (ex-info (str "String value not supported for :" (name command)
                                 " — use a qualified symbol or keyword")
                            {:command command :value value}))))
@@ -72,16 +82,36 @@
                              {:lang value :command command})))
            cmd-fn))
 
+       (ifn? value)
+       value
+
        :else
        (throw (ex-info (str "Invalid lang value for :" (name command)
-                            " — expected symbol, string, or keyword, got " (type value))
+                            " — expected symbol, string, keyword, or fn, got " (type value))
                        {:command command :value value})))))
 
 #?(:clj
    (defn- resolve-edn
-     "Resolve all values in an EDN map to functions."
+     "Resolve all values in an EDN map to functions.
+      Extracts :extension as metadata (not a command).
+      Bakes :rules and :parser into the :run closure."
      [edn-data]
-     (into {} (map (fn [[k v]] [k (resolve-value k v)]) edn-data))))
+     (let [ext (get edn-data :extension)
+           commands (dissoc edn-data :extension)
+           base (into {} (map (fn [[k v]] [k (resolve-value k v)]) commands))
+           run-fn (:run base)
+           rules  (:rules base)
+           parser (:parser base)
+           base (cond-> base
+                  (and run-fn (or rules parser))
+                  (assoc :run (fn [source opts]
+                                (run-fn source
+                                  (cond-> opts
+                                    rules  (assoc :rewrite-rules rules)
+                                    parser (assoc :parser parser)))))
+                  rules  (dissoc :rules)
+                  parser (dissoc :parser))]
+       (cond-> base ext (assoc :extension ext)))))
 
 ;; ---------------------------------------------------------------------------
 ;; EDN loading
@@ -125,18 +155,57 @@
 (def default-lang :meme-classic)
 
 ;; ---------------------------------------------------------------------------
+;; User lang registration (JVM only)
+;; ---------------------------------------------------------------------------
+
+#?(:clj (defonce ^:private user-langs (atom {})))
+
+#?(:clj
+   (defn register!
+     "Register a user lang at runtime. config is an EDN-style map — symbols
+      are resolved via requiring-resolve, strings and keywords follow the same
+      rules as load-edn. Pre-resolved functions are passed through."
+     [lang-name config]
+     (swap! user-langs assoc lang-name (resolve-edn config))))
+
+#?(:clj
+   (defn resolve-by-extension
+     "Given a file path, find the lang whose :extension matches.
+      Returns [lang-name lang-map] or nil. Checks user langs only
+      (built-in langs don't have :extension)."
+     [path]
+     (some (fn [[n l]]
+             (when-let [ext (:extension l)]
+               (when (str/ends-with? path ext) [n l])))
+           @user-langs)))
+
+#?(:clj
+   (defn registered-langs
+     "List all registered user language names."
+     []
+     (keys @user-langs)))
+
+#?(:clj
+   (defn clear-user-langs!
+     "Clear all registered user languages. For testing."
+     []
+     (reset! user-langs {})))
+
+;; ---------------------------------------------------------------------------
 ;; Resolution
 ;; ---------------------------------------------------------------------------
 
 (defn resolve-lang
   "Resolve a lang by keyword name. Returns the lang map.
-   Throws on unknown name."
+   Checks user-registered langs first, then built-ins. Throws on unknown name."
   [lang-name]
   (let [n (or lang-name default-lang)
+        user #?(:clj @user-langs :cljs nil)
         b #?(:clj @builtin :cljs builtin)]
-    (or (get b n)
+    (or (get user n)
+        (get b n)
         (throw (ex-info (str "Unknown lang: " (pr-str n)
-                             " — available: " (pr-str (keys b)))
+                             " — available: " (pr-str (concat (keys user) (keys b))))
                         {:lang n})))))
 
 (defn supports?

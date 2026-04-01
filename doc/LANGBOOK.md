@@ -21,7 +21,7 @@ A language that shares meme syntax but has its own functions.
 ```
 my-lang/
   core.meme     ← prelude (standard library)
-  register.meme ← registration
+  lang.edn      ← lang definition
 ```
 
 **core.meme** — define what's available to every `.ml` file:
@@ -32,15 +32,17 @@ defn(double [x] *(2 x))
 defn(square [x] *(x x))
 ```
 
-**register.meme** — tell the platform about your language:
+**lang.edn** — declare your language:
 
+```edn
+{:extension ".ml"
+ :run "my-lang/core.meme"
+ :format :meme-classic}
 ```
-require('[meme.alpha.platform.registry :as reg])
 
-reg/register!(:my-lang
-  {:extension ".ml"
-   :prelude-file "my-lang/core.meme"})
-```
+- `:extension` — file extension for auto-detection
+- `:run` — string path to prelude file (eval'd before user code)
+- `:format` — keyword to inherit formatting from a built-in lang
 
 **app.ml** — user code, prelude loaded automatically:
 
@@ -52,12 +54,12 @@ println(double(square(3)))
 **Run it:**
 
 ```bash
-# Direct — prelude flag
-bb meme run app.ml --prelude my-lang/core.meme
+# Via --lang flag pointing to EDN file
+bb meme run app.ml --lang my-lang/lang.edn
 
-# Via registry — register first, then auto-detect from extension
-bb meme run register.meme   # registers .ml
-bb meme run app.ml          # prelude auto-loaded
+# Or register at runtime and auto-detect from extension
+bb -e '(require (quote [meme.alpha.lang :as lang])) (lang/register! :my-lang (lang/load-edn "my-lang/lang.edn"))'
+bb meme run app.ml    # auto-detected from .ml extension
 ```
 
 
@@ -112,14 +114,16 @@ require('[meme.alpha.rewrite :as rw])
 > vector. If the file ends with a side-effecting form (like `println` or `def`),
 > the rules will be lost.
 
-**Register with rules:**
+**Lang EDN with rules:**
 
+```edn
+{:extension ".calc"
+ :run "calc/core.meme"
+ :rules "calc/rules.meme"
+ :format :meme-classic}
 ```
-reg/register!(:calc
-  {:extension ".calc"
-   :prelude-file "calc/core.meme"
-   :rules-file  "calc/rules.meme"})
-```
+
+The `:rules` key accepts a string path to a `.meme` file that returns a rule vector. Rules are baked into the `:run` closure — they're injected as `:rewrite-rules` in opts before user code runs.
 
 **What rules can do:**
 - Algebraic simplification: `(+ x 0) → x`
@@ -184,23 +188,22 @@ It receives meme's flat token vector (all atoms already tokenized with source po
 - Call back into meme's parser for embedded meme regions
 - Produce any Clojure forms
 
-**Register with a parser:**
+**Lang EDN with a parser:**
 
+```edn
+{:extension ".mys"
+ :run meme.alpha.runtime.run/run-string
+ :parser my.ns/my-parser-fn}
 ```
-reg/register!(:my-syntax
-  {:extension ".mys"
-   :parser    my-parser-fn
-   :prelude   [...]})
-```
+
+The `:parser` key accepts a qualified symbol that resolves to a parser function. It's baked into the `:run` closure — injected as `:parser` in opts.
 
 **The rewrite-based parser** is a ready-made alternative:
 
-```
-require('[meme.alpha.rewrite.tree :as tree])
-
-reg/register!(:rewrite-meme
-  {:extension ".rwm"
-   :parser    tree/rewrite-parser})
+```edn
+{:extension ".rwm"
+ :run meme.alpha.runtime.run/run-string
+ :parser meme.alpha.rewrite.tree/rewrite-parser}
 ```
 
 This uses the rewrite engine instead of the recursive-descent parser. Same output, different implementation. Useful as a starting point for custom parsers — fork `tree.cljc` and modify.
@@ -283,22 +286,28 @@ See `examples/languages/` in this repo:
 
 - **calc** — algebraic simplification. Prelude + rules. Demonstrates `simplify` function built from rewrite rules.
 - **prefix** — traced functions. Prelude only. Demonstrates `trace` wrapper and `check` assertion helper.
+- **superficie** — surface-level tooling. Prelude only.
 
 
 ## API reference
 
 ```clojure
-;; --- Registry ---
-(require '[meme.alpha.platform.registry :as reg])
+;; --- Lang registration ---
+(require '[meme.alpha.lang :as lang])
 
-(reg/register! :name {:extension ".ext"
-                      :prelude-file "path/core.meme"
-                      :rules-file  "path/rules.meme"
-                      :parser      parser-fn})
+;; Load from EDN file
+(lang/load-edn "my-lang/lang.edn")    ; → lang map
 
-(reg/resolve-lang "file.ext")   ; → :name or nil
-(reg/lang-config :name)         ; → config map
-(reg/registered-langs)          ; → (:name ...)
+;; Register at runtime
+(lang/register! :name {:extension ".ext"
+                       :run "path/core.meme"
+                       :rules "path/rules.meme"
+                       :parser my.ns/parser-fn
+                       :format :meme-classic})
+
+(lang/resolve-lang :name)              ; → lang map
+(lang/resolve-by-extension "file.ext") ; → [name lang-map] or nil
+(lang/registered-langs)                ; → (:name ...)
 
 ;; --- Rewrite engine ---
 (require '[meme.alpha.rewrite :as rw])
@@ -312,7 +321,7 @@ See `examples/languages/` in this repo:
 (rw/rewrite-top rules expr)               ; top-level only
 
 ;; --- CLI ---
-bb meme run <file> [--prelude p.meme] [--rules r.meme] [--lang name]
+bb meme run <file> [--lang name-or-path.edn]
 ```
 
 

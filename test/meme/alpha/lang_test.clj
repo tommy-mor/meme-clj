@@ -1,10 +1,13 @@
 (ns meme.alpha.lang-test
-  "End-to-end tests for lang command maps and EDN loading.
-   Iterates over all known langs for exhaustive coverage."
-  (:require [clojure.test :refer [deftest is testing]]
-            [meme.alpha.lang :as lang]))
+  "End-to-end tests for lang command maps, EDN loading, and user
+   lang registration (migrated from platform.registry-test)."
+  (:require [clojure.test :refer [deftest is testing use-fixtures]]
+            [meme.alpha.lang :as lang]
+            [meme.alpha.runtime.run :as run]))
 
 (def all-langs @lang/builtin)
+
+(use-fixtures :each (fn [f] (lang/clear-user-langs!) (f) (lang/clear-user-langs!)))
 
 ;; ============================================================
 ;; Every built-in lang has the expected shape
@@ -95,12 +98,14 @@
     (let [l (lang/load-edn "examples/languages/calc/lang.edn")]
       (is (fn? (:run l)))
       (is (fn? (:format l)))
+      (is (= ".calc" (:extension l)))
       (is (= 'x ((:run l) "simplify('+(*(1 x) 0))" {}))))))
 
 (deftest load-edn-prefix
   (testing "prefix lang EDN loads and :run works"
     (let [l (lang/load-edn "examples/languages/prefix/lang.edn")]
-      (is (fn? (:run l))))))
+      (is (fn? (:run l)))
+      (is (= ".pfx" (:extension l))))))
 
 (deftest load-edn-format-delegates
   (testing ":format :meme-classic in EDN resolves to built-in format"
@@ -113,3 +118,60 @@
     (spit "/tmp/test-edn-lang.edn" "{:run \"/tmp/test-edn-lang-core.meme\"}")
     (let [l (lang/load-edn "/tmp/test-edn-lang.edn")]
       (is (= 84 ((:run l) "double(42)" {}))))))
+
+;; ============================================================
+;; User lang registration (migrated from registry_test)
+;; ============================================================
+
+(deftest register-and-resolve-by-extension
+  (testing "register a user lang and resolve from extension"
+    (lang/register! :calc {:extension ".calc"
+                           :run 'meme.alpha.runtime.run/run-string})
+    (let [[name _lang] (lang/resolve-by-extension "app.calc")]
+      (is (= :calc name)))
+    (is (nil? (lang/resolve-by-extension "app.meme")))
+    (is (nil? (lang/resolve-by-extension "app.clj"))))
+  (testing "registered-langs returns names"
+    (is (contains? (set (lang/registered-langs)) :calc)))
+  (testing "resolve-lang finds user langs"
+    (is (map? (lang/resolve-lang :calc)))))
+
+(deftest register-with-prelude-file
+  (testing "registered lang auto-loads prelude from extension via run-file"
+    (lang/register! :calc {:extension ".calc"
+                           :run "examples/languages/calc/core.meme"})
+    (spit "/tmp/test-lang-dispatch.calc" "simplify('+(*(1 x) 0))")
+    (is (= 'x (run/run-file "/tmp/test-lang-dispatch.calc")))))
+
+(deftest register-with-pre-resolved-fn
+  (testing "register! accepts pre-resolved functions"
+    (lang/register! :mini {:extension ".mini"
+                           :run (fn [source opts]
+                                  (let [run-string @(resolve 'meme.alpha.runtime.run/run-string)]
+                                    (run-string "defn(greet [n] str(\"Hi \" n))" opts)
+                                    (run-string source opts)))})
+    (spit "/tmp/test-mini.mini" "greet(\"world\")")
+    (is (= "Hi world" (run/run-file "/tmp/test-mini.mini")))))
+
+(deftest register-with-custom-parser
+  (testing "registered lang with rewrite-based parser"
+    (lang/register! :rwm {:extension ".rwm"
+                          :run 'meme.alpha.runtime.run/run-string
+                          :parser 'meme.alpha.rewrite.tree/rewrite-parser})
+    (spit "/tmp/test-rwm.rwm" "+(21 21)")
+    (is (= 42 (run/run-file "/tmp/test-rwm.rwm")))))
+
+(deftest run-with-explicit-lang
+  (testing ":lang opt overrides extension detection"
+    (lang/register! :calc {:extension ".calc"
+                           :run "examples/languages/calc/core.meme"})
+    ;; Run a .meme file AS calc (explicit lang, mismatched extension)
+    (spit "/tmp/test-explicit.meme" "simplify('+(0 42))")
+    (is (= 42 (run/run-file "/tmp/test-explicit.meme" {:lang :calc})))))
+
+(deftest clear-user-langs-works
+  (testing "clear-user-langs! empties user registry"
+    (lang/register! :test {:extension ".tst"})
+    (is (seq (lang/registered-langs)))
+    (lang/clear-user-langs!)
+    (is (empty? (lang/registered-langs)))))

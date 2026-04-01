@@ -1,9 +1,7 @@
 (ns meme.alpha.runtime.run
   "Run .meme files: read, eval, return last result."
   (:require [clojure.string :as str]
-            [meme.alpha.core :as core]
             [meme.alpha.pipeline :as pipeline]
-            [meme.alpha.platform.registry :as registry]
             #?(:clj [meme.alpha.runtime.resolve :as resolve])))
 
 (defn- step-strip-shebang
@@ -60,42 +58,31 @@
                              pipeline/step-rewrite))]
        (reduce (fn [_ form] (eval-fn form)) nil forms)))))
 
-(defn- resolve-lang-opts
-  "If path matches a registered language, load its prelude/rules/parser and merge into opts."
+(defn- resolve-lang-run
+  "If path matches a registered user lang (by extension or explicit :lang opt),
+   return its :run function. Returns nil for default meme.
+   Uses requiring-resolve to avoid cyclic load dependency (lang → lang.meme-rewrite → run)."
   [path opts]
   #?(:clj
-     (if-let [lang (or (:lang opts) (registry/resolve-lang path))]
-       (let [config (registry/lang-config lang)]
-         (when (and (:lang opts) (nil? config))
-           (throw (ex-info (str "Unknown language: " (name lang)
-                                " — not registered. Use register! to add it.")
-                           {:lang lang})))
-         (cond-> opts
-           (and (:prelude-file config) (not (:prelude opts)))
-           (assoc :prelude (core/meme->forms (slurp (:prelude-file config))))
-
-           (and (:prelude config) (not (:prelude opts)))
-           (assoc :prelude (:prelude config))
-
-           (and (:rules-file config) (not (:rewrite-rules opts)))
-           (assoc :rewrite-rules (run-string (slurp (:rules-file config))))
-
-           (and (:rules config) (not (:rewrite-rules opts)))
-           (assoc :rewrite-rules (:rules config))
-
-           (and (:parser config) (not (:parser opts)))
-           (assoc :parser (:parser config))))
-       opts)
-     :cljs opts))
+     (let [explicit (:lang opts)
+           resolve-lang-fn @(requiring-resolve 'meme.alpha.lang/resolve-lang)
+           resolve-ext-fn  @(requiring-resolve 'meme.alpha.lang/resolve-by-extension)]
+       (if explicit
+         (:run (resolve-lang-fn explicit))
+         (when-let [[_name l] (resolve-ext-fn path)]
+           (:run l))))
+     :cljs nil))
 
 (defn run-file
   "Read and eval a file. Returns the last result.
-   Auto-detects guest language from file extension via the registry.
+   Auto-detects guest language from file extension via registered langs.
    Second arg can be an eval-fn (backward compat) or an opts map."
   ([path] (run-file path {}))
   ([path eval-fn-or-opts]
    (let [opts (if (map? eval-fn-or-opts) eval-fn-or-opts {:eval eval-fn-or-opts})
-         opts (resolve-lang-opts path opts)
+         lang-run (resolve-lang-run path opts)
          src #?(:clj (slurp path)
                 :cljs (throw (ex-info "run-file requires slurp — not available in ClojureScript" {})))]
-     (run-string src opts))))
+     (if lang-run
+       (lang-run src opts)
+       (run-string src opts)))))

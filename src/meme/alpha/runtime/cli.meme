@@ -121,10 +121,13 @@ defn-(process-files
 ;; ---------------------------------------------------------------------------
 defn-(get-lang
   "Resolve lang and return [name lang-map].
-   lang-str can be: nil (default), a keyword name, or a path to .edn file."
-  [lang-str]
-  if(and(lang-str str/ends-with?(lang-str ".edn"))
-    ; EDN lang file
+   lang-str can be: nil (default), a keyword name, or a path to .edn file.
+   file is the input file path — used for extension-based auto-detection
+   when lang-str is nil."
+  [lang-str file]
+  cond(
+    ; Explicit .edn file path
+    and(lang-str str/ends-with?(lang-str ".edn"))
     try(
       let([l lang/load-edn(lang-str)]
         [lang-str l])
@@ -132,8 +135,10 @@ defn-(get-lang
         binding([*out* *err*]
           println(str("Error loading lang " lang-str ": " ex-message(e))))
         System/exit(1)))
-    ; Built-in lang by keyword
-    let([name if(lang-str keyword(lang-str) :meme-classic)]
+
+    ; Explicit keyword name
+    lang-str
+    let([name keyword(lang-str)]
       try(
         let([l lang/resolve-lang(name)]
           [name l])
@@ -141,7 +146,18 @@ defn-(get-lang
           binding([*out* *err*]
             println(str("Unknown lang: " name))
             println(str("Available: " str/join(", " map(name keys(deref(lang/builtin)))))))
-          System/exit(1))))))
+          System/exit(1))))
+
+    ; No --lang: try extension detection from file
+    file
+    if-let([[ext-name ext-lang] lang/resolve-by-extension(file)]
+      [ext-name ext-lang]
+      ; No match — default
+      [:meme-classic lang/resolve-lang(:meme-classic)])
+
+    ; No file, no --lang: default
+    :else
+    [:meme-classic lang/resolve-lang(:meme-classic)]))
 
 ;; ---------------------------------------------------------------------------
 ;; Commands — dispatch through lang map
@@ -149,7 +165,7 @@ defn-(get-lang
 defn(run
   [{:keys [file lang]}]
   when-not(file binding([*out* *err*] println("Usage: meme run <file> [--lang meme-classic]")) System/exit(1))
-  let([[lang-name l] get-lang(lang)]
+  let([[lang-name l] get-lang(lang file)]
     lang/check-support!(l lang-name :run)
     try(
       let([src slurp(file)]
@@ -162,7 +178,7 @@ defn(run
 
 defn(repl
   [{:keys [lang]}]
-  let([[lang-name l] get-lang(lang)]
+  let([[lang-name l] get-lang(lang nil)]
     lang/check-support!(l lang-name :repl)
     :repl(l)({})))
 
@@ -170,7 +186,7 @@ defn(convert
   [{:keys [file files stdout lang]}]
   let(
     [inputs or(files when(file [file]))
-     [lang-name l] get-lang(lang)]
+     [lang-name l] get-lang(lang file)]
     when(empty?(inputs)
       println("Usage: meme convert <file|dir> [file...] [--lang meme-classic]")
       println("  Writes sibling files (.meme↔.clj) by default")
@@ -201,7 +217,7 @@ defn(format-cmd
   [{:keys [file files stdout check lang]}]
   let(
     [inputs or(files when(file [file]))
-     [lang-name l] get-lang(lang)]
+     [lang-name l] get-lang(lang file)]
     when(empty?(inputs)
       println("Usage: meme format <file|dir> [--lang meme-classic] [file...]")
       println("  Formats .meme files in-place by default")
@@ -225,7 +241,7 @@ defn(format-cmd
 
 defn(inspect-cmd
   [{:keys [lang]}]
-  let([[lang-name l] get-lang(lang)]
+  let([[lang-name l] get-lang(lang nil)]
     println(str("Lang: " name(lang-name)))
     println(str("  Supported commands: " str/join(", " map(name filter(keyword? keys(l))))))))
 

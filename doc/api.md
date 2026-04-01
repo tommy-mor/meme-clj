@@ -340,7 +340,7 @@ On JVM/Babashka, `:resolve-symbol` is automatically injected (matching Clojure's
 
 Read and eval a `.meme` file. Returns the last result. Uses `slurp` internally (JVM/Babashka only). Second argument follows same convention as `run-string`.
 
-Automatically detects guest languages from file extension via `meme.alpha.platform.registry/resolve-lang`. If a registered language matches the extension, its prelude, rules, and/or custom parser are merged into the run options.
+Automatically detects guest languages from file extension via `meme.alpha.lang/resolve-by-extension`. If a registered lang matches the extension, its `:run` function handles prelude, rules, and custom parser.
 
 ```clojure
 (run-file "test/examples/tests/01_core_rules.meme")
@@ -751,55 +751,47 @@ Convert a form (with m-call tags) to meme text string.
 Emit a sequence of top-level forms as meme text, separated by newlines.
 
 
-## meme.alpha.platform.registry
+## meme.alpha.lang — User lang registration
 
-Guest language registration. Maps language names (keywords) to configurations. Used by `run-file` for automatic language dispatch based on file extension.
+In addition to built-in langs and EDN-loaded langs, user langs can be registered at runtime for extension-based auto-detection by `run-file` and the CLI.
 
 ### register!
 
 ```clojure
-(meme.alpha.platform.registry/register! lang-name config)
+(meme.alpha.lang/register! lang-name config)
 ```
 
-Register a guest language. `lang-name` is a keyword. Config keys:
-- `:extension` — file extension (e.g. `".calc"`)
-- `:prelude-file` — path to prelude `.meme` file (eval'd before user code)
-- `:rules-file` — path to rules `.meme` file (eval'd, must return rule vector)
-- `:prelude` — prelude forms (alternative to `:prelude-file`)
-- `:rules` — rule vector (alternative to `:rules-file`)
-- `:parser` — custom parser fn: `(fn [tokens opts source] forms-vector)`. If nil, uses the default meme parser.
-
-### resolve-lang
+Register a user lang. `lang-name` is a keyword. `config` is an EDN-style map — the same format as `.edn` lang files. Symbols are resolved via `requiring-resolve`, strings and keywords follow the same rules as `load-edn`. Pre-resolved functions are also accepted.
 
 ```clojure
-(meme.alpha.platform.registry/resolve-lang path)
+(lang/register! :calc {:extension ".calc"
+                       :run "examples/languages/calc/core.meme"
+                       :format :meme-classic})
 ```
 
-Given a file path, determine the guest language from its extension. Returns the language name keyword, or `nil` for unrecognized extensions. `.meme` files return `nil` (default meme, no guest language).
-
-### lang-config
+### resolve-by-extension
 
 ```clojure
-(meme.alpha.platform.registry/lang-config lang-name)
+(meme.alpha.lang/resolve-by-extension path)
 ```
 
-Get the config for a registered language. Returns `nil` if not found.
+Given a file path, find the user lang whose `:extension` matches. Returns `[lang-name lang-map]` or `nil`.
 
 ### registered-langs
 
 ```clojure
-(meme.alpha.platform.registry/registered-langs)
+(meme.alpha.lang/registered-langs)
 ```
 
-List all registered language names (keywords).
+List all registered user language names (keywords).
 
-### clear!
+### clear-user-langs!
 
 ```clojure
-(meme.alpha.platform.registry/clear!)
+(meme.alpha.lang/clear-user-langs!)
 ```
 
-Clear all registered languages. For testing.
+Clear all registered user languages. For testing.
 
 ## meme.alpha.convert
 

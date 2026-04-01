@@ -207,9 +207,9 @@ meme rules inside. No opaque regions.
   `doc/LANGBOOK.md`. Includes:
   - **Rewrite engine** (`meme.alpha.rewrite`) — pattern matching, rule
     application, bottom-up rewriting to fixpoint. `defrule`, `ruleset` macros.
-  - **Platform registry** (`meme.alpha.platform.registry`) — `register!` a
-    guest language with `:extension`, `:prelude`, `:rules`, `:parser`.
-    `run-file` auto-detects guest languages from file extension.
+  - **Lang registration** (`meme.alpha.lang`) — `register!` a guest language
+    with `:extension`, `:run`, `:rules`, `:parser`, `:format`, `:convert`.
+    `run-file` and CLI auto-detect guest languages from file extension.
   - **Pipeline integration** — `step-rewrite` stage, pluggable `:parser` in
     `step-parse`, `:prelude`/`:rewrite-rules`/`:rewrite-max-iters` options
     in `run-string`.
@@ -221,8 +221,8 @@ meme rules inside. No opaque regions.
 |----|-------------|--------|
 | PL1 | Rewrite engine: pattern matching (`?x`, `??x`), substitution, bottom-up rewriting | Done |
 | PL2 | `defrule`, `defrule-guard`, `ruleset` macros for rule definition (JVM) | Done |
-| PL3 | Language registry: `register!`, `resolve-lang`, `lang-config` | Done |
-| PL4 | `run-file` auto-detects guest language from file extension | Done |
+| PL3 | Lang registration: `lang/register!`, `lang/resolve-by-extension`, `lang/resolve-lang` | Done |
+| PL4 | `run-file` and CLI auto-detect guest language from file extension | Done |
 | PL5 | `run-string` accepts `:prelude`, `:rewrite-rules`, `:rewrite-max-iters` | Done |
 | PL6 | Pluggable parser: `:parser` option in `step-parse` for guest language parsers | Done |
 | PL7 | `step-rewrite` pipeline stage applies rules after expansion | Done |

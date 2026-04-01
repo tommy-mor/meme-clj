@@ -95,8 +95,7 @@ The pipeline has composable stages (composed by `meme.alpha.pipeline`), each a `
 - `meme.alpha.rewrite.rules` (.cljc) — S↔M transformation rule sets: `s->m-rules`, `m->s-rules`, `tree->s-rules`, `transform-structures`. Portable.
 - `meme.alpha.rewrite.tree` (.cljc) — Token→tagged tree builder. `tokens->tree`, `build-tree`, `rewrite-parser` (drop-in replacement for the standard parser). Portable.
 - `meme.alpha.rewrite.emit` (.cljc) — Serializes m-call tagged trees to meme text. `emit`, `emit-forms`. Portable.
-- `meme.alpha.platform.registry` (.cljc) — Guest language registration. `register!` (name + config with `:extension`, `:prelude`, `:rules`, `:parser`), `resolve-lang` (file path → language keyword), `lang-config`, `registered-langs`, `clear!`. Portable.
-- `meme.alpha.lang` (.cljc) — Lang registry, EDN loading, and resolution. `builtin` (delay of built-in lang maps), `default-lang`, `resolve-lang`, `supports?`, `check-support!`, `load-edn`. Built-in langs loaded from `resources/meme/lang/*.edn`. Portable (EDN loading JVM only).
+- `meme.alpha.lang` (.cljc) — Lang registry, EDN loading, resolution, and user lang registration. `builtin` (delay of built-in lang maps), `default-lang`, `resolve-lang`, `supports?`, `check-support!`, `load-edn`, `register!`, `resolve-by-extension`, `registered-langs`, `clear-user-langs!`. Built-in langs loaded from `resources/meme/lang/*.edn`. User langs support `:extension` for file-based auto-detection. Portable (EDN loading and registration JVM only).
 - `meme.alpha.lang.meme-classic` (.cljc) — Meme-classic lang implementation: `format-meme`, `convert`. Uses recursive-descent parser + Wadler-Lindig printer. Portable.
 - `meme.alpha.lang.meme-rewrite` (.cljc) — Meme-rewrite lang implementation: `format-meme`, `convert`, `start-repl`. Uses tree builder + rewrite rules. Portable.
 - `meme.alpha.lang.meme-trs` (.cljc) — Meme-trs lang implementation: `format-meme`, `convert`. Uses token-stream term rewriting. Portable.
@@ -109,7 +108,7 @@ The pipeline has composable stages (composed by `meme.alpha.pipeline`), each a `
 
 | Tier | Modules | Platforms |
 |------|---------|-----------|
-| Core translation | tokenizer, reader, expander, resolve, printer, render, formatter.flat, formatter.canon, pipeline, pipeline.contract, core, errors, forms, source, rewrite, rewrite.rules, rewrite.tree, rewrite.emit, platform.registry, lang, lang.meme-classic, lang.meme-rewrite, lang.meme-trs, lang.util, trs, convert | JVM, Babashka, ClojureScript |
+| Core translation | tokenizer, reader, expander, resolve, printer, render, formatter.flat, formatter.canon, pipeline, pipeline.contract, core, errors, forms, source, rewrite, rewrite.rules, rewrite.tree, rewrite.emit, lang, lang.meme-classic, lang.meme-rewrite, lang.meme-trs, lang.util, trs, convert | JVM, Babashka, ClojureScript |
 | Runtime | repl, run, runtime.resolve | JVM, Babashka (CLJS possible with injected eval) |
 | Test infra | test-runner, dogfood-test, vendor-roundtrip-test | JVM only |
 
@@ -164,10 +163,9 @@ The pipeline has composable stages (composed by `meme.alpha.pipeline`), each a `
 | `rewrite_test` | Rewrite engine: pattern matching, substitution, splice variables, cycle detection |
 | `rewrite/rules_test` | Rewrite rules: S→M and M→S transformations |
 | `rewrite/tree_test` | Rewrite tree builder: tokens→tagged tree, cross-test vs main parser |
-| `platform/registry_test` | Language registration, extension dispatch, prelude injection, custom parser. JVM only. |
 | `convert_test` | Unified convert: meme↔clj via all three langs, legacy name aliases, roundtrip, error cases. |
 | `rewrite/emit_test` | Rewrite tree serialization: m-call nodes, edge types (BigDecimal, regex, tagged literals). |
-| `lang_test` | Lang command maps, EDN loading, check-support!, all-langs agreement. JVM only. |
+| `lang_test` | Lang command maps, EDN loading, user lang registration, extension dispatch, prelude injection, custom parser, check-support!. JVM only. |
 | `trs_test` | Token-stream term rewriting: meme→clj, clj→meme, lang agreement with classic. |
 | `benchmark_test` | Performance: all three langs across 11 meme fixtures and 7,526 vendor forms. JVM only. |
 

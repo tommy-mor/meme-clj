@@ -344,6 +344,6 @@ meme serves as a platform for guest languages. A guest language can define:
 2. **Rewrite rules** — transforms applied to parsed forms (compile-time macros)
 3. **A custom parser** — optionally replacing the meme parser entirely
 
-Guest languages register via `meme.alpha.platform.registry` and are dispatched
-by file extension. See `doc/LANGBOOK.md` for a cookbook and
+Guest languages are defined as EDN files and registered via `meme.alpha.lang`.
+They are dispatched by file extension. See `doc/LANGBOOK.md` for a cookbook and
 `examples/languages/` for working examples (calc, prefix, superficie).
