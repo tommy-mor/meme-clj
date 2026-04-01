@@ -11,9 +11,11 @@
                             (shell "clojure" "-M:cljs-test")
                             (finally
                               (babashka.fs/delete-tree "cljs-test-runner-out")))}
-         test-all {:doc "Run all test suites (Babashka + JVM + ClojureScript)"
+         test-all {:doc "Run all test suites (Babashka + JVM + ClojureScript + e2e)"
                    :task (do (shell "bb" "test-meme")
                              (println)
                              (shell "clojure" "-X:test")
                              (println)
-                             (run 'test-cljs))}}}
+                             (run 'test-cljs)
+                             (println)
+                             (shell "clojure" "-X:e2e"))}}}
