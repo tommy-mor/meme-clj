@@ -1,4 +1,5 @@
 {:run     meme.alpha.runtime.run/run-string
  :repl    meme.alpha.runtime.repl/start
  :format  meme.alpha.lang.meme-classic/format-meme
- :convert meme.alpha.lang.meme-classic/convert}
+ :to-clj  meme.alpha.lang.meme-classic/to-clj
+ :to-meme meme.alpha.lang.meme-classic/to-meme}

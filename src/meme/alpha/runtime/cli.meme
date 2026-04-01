@@ -193,7 +193,6 @@ defn(convert
       println("  --stdout    print to stdout instead")
       println("  --lang      select lang (default: meme-classic)")
       System/exit(1))
-    lang/check-support!(l lang-name :convert)
     process-files(
       {
         :inputs inputs
@@ -206,8 +205,10 @@ defn(convert
                          throw(
                            ex-info(str("Cannot detect direction: " path) {})))
                        let(
-                         [src slurp(path)]
-                         :convert(l)(src {:direction direction}))))
+                         [cmd if(=(direction :to-clj) :to-clj :to-meme)
+                          src slurp(path)]
+                         lang/check-support!(l lang-name cmd)
+                         cmd(l)(src))))
         :output-fn output-path
         :stdout stdout
         :verb str("converted" when(not=(lang-name :meme-classic) str(" (" name(lang-name) ")")))

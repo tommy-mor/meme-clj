@@ -208,7 +208,7 @@ meme rules inside. No opaque regions.
   - **Rewrite engine** (`meme.alpha.rewrite`) — pattern matching, rule
     application, bottom-up rewriting to fixpoint. `defrule`, `ruleset` macros.
   - **Lang registration** (`meme.alpha.lang`) — `register!` a guest language
-    with `:extension`, `:run`, `:rules`, `:parser`, `:format`, `:convert`.
+    with `:extension`, `:run`, `:rules`, `:parser`, `:format`, `:to-clj`, `:to-meme`.
     `run-file` and CLI auto-detect guest languages from file extension.
   - **Pipeline integration** — `step-rewrite` stage, pluggable `:parser` in
     `step-parse`, `:prelude`/`:rewrite-rules`/`:rewrite-max-iters` options

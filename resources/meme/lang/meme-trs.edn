@@ -1,3 +1,4 @@
 {:run     meme.alpha.lang.meme-trs/run-source
  :format  meme.alpha.lang.meme-trs/format-meme
- :convert meme.alpha.lang.meme-trs/convert}
+ :to-clj  meme.alpha.lang.meme-trs/to-clj
+ :to-meme meme.alpha.lang.meme-trs/to-meme}

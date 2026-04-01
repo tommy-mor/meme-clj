@@ -92,5 +92,5 @@
     (is (contains? b :meme-rewrite))
     (is (contains? b :meme-trs))
     (doseq [[n l] b]
-      (is (fn? (:convert l)) (str n " missing :convert"))
+      (is (fn? (:to-clj l)) (str n " missing :to-clj"))
       (is (fn? (:format l)) (str n " missing :format")))))

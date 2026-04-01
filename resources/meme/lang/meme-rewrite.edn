@@ -1,4 +1,5 @@
 {:run     meme.alpha.lang.meme-rewrite/run-source
  :repl    meme.alpha.lang.meme-rewrite/start-repl
  :format  meme.alpha.lang.meme-rewrite/format-meme
- :convert meme.alpha.lang.meme-rewrite/convert}
+ :to-clj  meme.alpha.lang.meme-rewrite/to-clj
+ :to-meme meme.alpha.lang.meme-rewrite/to-meme}

@@ -96,10 +96,9 @@ The reader has composable stages (composed by `meme.alpha.stages`), each a `ctx 
 - `meme.alpha.rewrite.tree` (.cljc) — Token→tagged tree builder. `tokens->tree`, `build-tree`, `rewrite-parser` (drop-in replacement for the standard parser). Portable.
 - `meme.alpha.rewrite.emit` (.cljc) — Serializes m-call tagged trees to meme text. `emit`, `emit-forms`. Portable.
 - `meme.alpha.lang` (.cljc) — Lang registry, EDN loading, resolution, and user lang registration. `builtin` (delay of built-in lang maps), `default-lang`, `resolve-lang`, `supports?`, `check-support!`, `load-edn`, `register!`, `resolve-by-extension`, `registered-langs`, `clear-user-langs!`. Built-in langs loaded from `resources/meme/lang/*.edn`. User langs support `:extension` for file-based auto-detection. Portable (EDN loading and registration JVM only).
-- `meme.alpha.lang.meme-classic` (.cljc) — Meme-classic lang implementation: `format-meme`, `convert`. Uses recursive-descent parser + Wadler-Lindig printer. Portable.
-- `meme.alpha.lang.meme-rewrite` (.cljc) — Meme-rewrite lang implementation: `format-meme`, `convert`, `start-repl`. Uses tree builder + rewrite rules. Portable.
-- `meme.alpha.lang.meme-trs` (.cljc) — Meme-trs lang implementation: `format-meme`, `convert`. Uses token-stream term rewriting. Portable.
-- `meme.alpha.lang.util` (.cljc) — Shared helpers for lang implementations. Portable.
+- `meme.alpha.lang.meme-classic` (.cljc) — Meme-classic lang implementation: `format-meme`, `to-clj`, `to-meme`. Uses recursive-descent parser + Wadler-Lindig printer. Portable.
+- `meme.alpha.lang.meme-rewrite` (.cljc) — Meme-rewrite lang implementation: `format-meme`, `to-clj`, `to-meme`, `start-repl`. Uses tree builder + rewrite rules. Portable.
+- `meme.alpha.lang.meme-trs` (.cljc) — Meme-trs lang implementation: `format-meme`, `to-clj`, `to-meme`. Uses token-stream term rewriting. Portable.
 - `meme.alpha.trs` (.cljc) — Token-stream term rewriting: `meme->clj-text`, `clj->meme-text`. Converts via token-level S↔M rewrite rules without building a full parse tree. Portable.
 - `meme.alpha.convert` (.cljc) — Unified dispatch for three conversion langs: `:meme-classic`, `:meme-rewrite`, `:meme-trs` (legacy aliases `:classic`, `:rewrite`, `:ts-trs` also accepted). `meme->clj`, `clj->meme` (JVM only). Portable.
 - `meme.alpha.test-runner` (.clj) — Eval + fixture test runner. Lives in `test/`, not `src/`. JVM only.
@@ -108,7 +107,7 @@ The reader has composable stages (composed by `meme.alpha.stages`), each a `ctx 
 
 | Tier | Modules | Platforms |
 |------|---------|-----------|
-| Core translation | tokenizer, reader, expander, resolve, printer, render, formatter.flat, formatter.canon, stages, stages.contract, core, errors, forms, source, rewrite, rewrite.rules, rewrite.tree, rewrite.emit, lang, lang.meme-classic, lang.meme-rewrite, lang.meme-trs, lang.util, trs, convert | JVM, Babashka, ClojureScript |
+| Core translation | tokenizer, reader, expander, resolve, printer, render, formatter.flat, formatter.canon, stages, stages.contract, core, errors, forms, source, rewrite, rewrite.rules, rewrite.tree, rewrite.emit, lang, lang.meme-classic, lang.meme-rewrite, lang.meme-trs, trs, convert | JVM, Babashka, ClojureScript |
 | Runtime | repl, run, runtime.resolve | JVM, Babashka (CLJS possible with injected eval) |
 | Test infra | test-runner, dogfood-test, vendor-roundtrip-test | JVM only |
 

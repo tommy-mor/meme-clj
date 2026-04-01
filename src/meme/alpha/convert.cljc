@@ -9,8 +9,8 @@
   ([src] (meme->clj src :meme-classic))
   ([src lang-name]
    (let [l (lang/resolve-lang lang-name)]
-     (lang/check-support! l lang-name :convert)
-     ((:convert l) src {:read-cond :preserve :direction :to-clj}))))
+     (lang/check-support! l lang-name :to-clj)
+     ((:to-clj l) src))))
 
 #?(:clj
    (defn clj->meme
@@ -19,5 +19,5 @@
      ([src] (clj->meme src :meme-classic))
      ([src lang-name]
       (let [l (lang/resolve-lang lang-name)]
-        (lang/check-support! l lang-name :convert)
-        ((:convert l) src {:direction :to-meme})))))
+        (lang/check-support! l lang-name :to-meme)
+        ((:to-meme l) src)))))

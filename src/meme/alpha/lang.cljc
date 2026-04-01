@@ -2,10 +2,11 @@
   "Lang registry, resolution, and EDN loading.
 
    A lang is a map of command functions:
-     :run     (fn [source opts] → result)   — run a file
-     :repl    (fn [opts] → nil)             — interactive loop
-     :format  (fn [source opts] → text)     — format a file
-     :convert (fn [source opts] → text)     — convert a file (both directions)
+     :run      (fn [source opts] → result)  — run a file
+     :repl     (fn [opts] → nil)            — interactive loop
+     :format   (fn [source opts] → text)    — format a file
+     :to-clj   (fn [source] → clj-text)     — convert meme→clj (self-contained)
+     :to-meme  (fn [source] → meme-text)    — convert clj→meme (JVM only, self-contained)
 
    Plus optional metadata:
      :extension  \".ext\"   — file extension for auto-detection
@@ -14,9 +15,10 @@
    The CLI dispatches by looking up the command key in the lang map.
 
    All lang definitions — built-in and user-defined — are EDN:
-     {:run     meme.alpha.runtime.run/run-string       ;; qualified symbol → fn
-      :format  meme.alpha.lang.meme-classic/format-meme
-      :convert meme.alpha.lang.meme-classic/convert}
+     {:run      meme.alpha.runtime.run/run-string
+      :format   meme.alpha.lang.meme-classic/format-meme
+      :to-clj   meme.alpha.lang.meme-classic/to-clj
+      :to-meme  meme.alpha.lang.meme-classic/to-meme}
 
    User langs can also use:
      {:extension \".calc\"        ;; file extension for auto-detection
@@ -144,13 +146,13 @@
              :meme-rewrite (load-resource-edn "meme/lang/meme-rewrite.edn")
              :meme-trs     (load-resource-edn "meme/lang/meme-trs.edn")})
      ;; CLJS: no requiring-resolve or io/resource, so build directly from functions.
-     ;; Only :format and :convert are portable; :run and :repl need eval (JVM only).
-     :cljs {:meme-classic {:format  meme.alpha.lang.meme-classic/format-meme
-                           :convert meme.alpha.lang.meme-classic/convert}
-            :meme-rewrite {:format  meme.alpha.lang.meme-rewrite/format-meme
-                           :convert meme.alpha.lang.meme-rewrite/convert}
-            :meme-trs     {:format  meme.alpha.lang.meme-trs/format-meme
-                           :convert meme.alpha.lang.meme-trs/convert}}))
+     ;; Only :format and :to-clj are portable; :run, :repl, :to-meme need JVM.
+     :cljs {:meme-classic {:format meme.alpha.lang.meme-classic/format-meme
+                           :to-clj meme.alpha.lang.meme-classic/to-clj}
+            :meme-rewrite {:format meme.alpha.lang.meme-rewrite/format-meme
+                           :to-clj meme.alpha.lang.meme-rewrite/to-clj}
+            :meme-trs     {:format meme.alpha.lang.meme-trs/format-meme
+                           :to-clj meme.alpha.lang.meme-trs/to-clj}}))
 
 (def default-lang :meme-classic)
 

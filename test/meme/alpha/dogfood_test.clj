@@ -185,7 +185,6 @@
                 "src/meme/alpha/lang/meme_classic.cljc"
                 "src/meme/alpha/lang/meme_rewrite.cljc"
                 "src/meme/alpha/lang/meme_trs.cljc"
-                "src/meme/alpha/lang/util.cljc"
                 "src/meme/alpha/convert.cljc"
                 "src/meme/alpha/trs.cljc"]]
     (testing (str path " roundtripped vars match original")

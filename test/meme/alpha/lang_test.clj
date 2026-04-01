@@ -20,10 +20,15 @@
 ;; Every built-in lang has the expected shape
 ;; ============================================================
 
-(deftest all-langs-have-convert
+(deftest all-langs-have-to-clj
   (doseq [[lang-name l] all-langs]
-    (testing (str lang-name " has :convert")
-      (is (fn? (:convert l))))))
+    (testing (str lang-name " has :to-clj")
+      (is (fn? (:to-clj l))))))
+
+(deftest all-langs-have-to-meme
+  (doseq [[lang-name l] all-langs]
+    (testing (str lang-name " has :to-meme")
+      (is (fn? (:to-meme l))))))
 
 (deftest all-langs-have-format
   (doseq [[lang-name l] all-langs]
@@ -51,17 +56,17 @@
     (testing (str lang-name " :format")
       (is (= "def(x 42)" ((:format l) "def(x 42)" {}))))))
 
-(deftest all-langs-convert-to-clj
+(deftest all-langs-to-clj
   (doseq [[lang-name l] all-langs
-          :when (:convert l)]
-    (testing (str lang-name " :convert to-clj")
-      (is (= "(f x y)" ((:convert l) "f(x y)" {:direction :to-clj}))))))
+          :when (:to-clj l)]
+    (testing (str lang-name " :to-clj")
+      (is (= "(f x y)" ((:to-clj l) "f(x y)"))))))
 
-(deftest all-langs-convert-to-meme
+(deftest all-langs-to-meme
   (doseq [[lang-name l] all-langs
-          :when (:convert l)]
-    (testing (str lang-name " :convert to-meme")
-      (is (= "f(x y)" ((:convert l) "(f x y)" {:direction :to-meme}))))))
+          :when (:to-meme l)]
+    (testing (str lang-name " :to-meme")
+      (is (= "f(x y)" ((:to-meme l) "(f x y)"))))))
 
 ;; ============================================================
 ;; check-support!
@@ -85,12 +90,12 @@
           (lang/check-support! (:meme-trs all-langs) :meme-trs :repl)))))
 
 ;; ============================================================
-;; All langs agree on basic convert output
+;; All langs agree on basic to-clj output
 ;; ============================================================
 
-(deftest all-langs-agree-on-convert
+(deftest all-langs-agree-on-to-clj
   (doseq [src ["f(x y)" "+(1 2)" "def(x 42)" "[1 2 3]"]]
-    (let [results (into {} (map (fn [[n l]] [n ((:convert l) src {:direction :to-clj})]) all-langs))
+    (let [results (into {} (map (fn [[n l]] [n ((:to-clj l) src)]) all-langs))
           first-result (val (first results))]
       (doseq [[lang-name result] results]
         (is (= first-result result)
