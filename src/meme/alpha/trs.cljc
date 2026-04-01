@@ -1,284 +1,224 @@
 (ns meme.alpha.trs
   "Token-stream term rewriting system.
 
-   Declarative rules that pattern-match on token subsequences and produce
-   rewritten token subsequences. Rules are applied right-to-left in a
-   single pass so innermost matches rewrite first.
+   Three stages:
+   1. Nest: group balanced delimiters into nested vectors (cheap pre-pass)
+   2. Rewrite: apply rules on nested structure, forward-matching
+   3. Flatten: unnest back to flat token vector for emission
 
-   Pattern language (each element matches one or more tokens):
-     {:type :symbol}             — match token by type
-     {:type :open-paren :adj true} — match adjacent token (no :ws)
-     {:pred fn}                  — match token satisfying predicate fn
-     {:var :name :pred fn}       — match one token satisfying fn, bind to :name
-     {:span :name}               — match balanced inner tokens until closer, bind to :name
+   Rules are data: a pattern that matches a window of sibling nodes,
+   and a rewrite function that produces replacement nodes.
 
-   Replacement elements:
-     {:ref :name}                — emit bound token(s)
-     {:ref :name :dissoc-ws true} — emit bound token(s), strip :ws from first
-     {:ref :name :ensure-ws s}   — emit bound token(s), ensure :ws on first
-     {:token {...} :ws-from :name} — emit a literal token, copy :ws from bound var"
+   On nested structures, patterns match forward — no backward scanning
+   needed. A nested vector is just a vector in the pattern."
   (:require [meme.alpha.scan.tokenizer :as tokenizer]))
 
 ;; ============================================================
-;; Delimiter matching
+;; Delimiter classification
 ;; ============================================================
 
 (def ^:private openers #{:open-paren :open-bracket :open-brace :open-set :open-anon-fn})
 (def ^:private closers #{:close-paren :close-bracket :close-brace})
 
-(defn- find-matching-close
-  "Given a token vector and the index of an opener token, return the index
-   of its matching closer. Tracks nested delimiters. Returns nil if unbalanced."
-  [tokens open-idx]
-  (let [n (count tokens)]
-    (loop [i (inc open-idx)
-           depth 1]
-      (when (< i n)
-        (let [t (:type (nth tokens i))]
-          (cond
-            (openers t) (recur (inc i) (inc depth))
-            (closers t) (if (= depth 1) i (recur (inc i) (dec depth)))
-            :else (recur (inc i) depth)))))))
+;; ============================================================
+;; Stage 1: Nest — group balanced delimiters
+;; ============================================================
 
-(defn- find-matching-open
-  "Given a token vector and the index of a closer token, scan backwards
-   to find the matching opener. Returns the index, or nil."
-  [tokens close-idx]
-  (loop [i (dec close-idx)
-         depth 1]
-    (when (>= i 0)
-      (let [t (:type (nth tokens i))]
+(defn nest-tokens
+  "Group balanced delimiters into nested vectors.
+   Each delimited group becomes [opener-tok ...children closer-tok].
+   Children may themselves be nested groups or atom tokens."
+  [tokens]
+  (loop [i 0
+         stack [[]]]
+    (if (>= i (count tokens))
+      (peek stack)
+      (let [tok (nth tokens i)
+            typ (:type tok)]
         (cond
-          (closers t) (recur (dec i) (inc depth))
-          (openers t) (if (= depth 1) i (recur (dec i) (dec depth)))
-          :else (recur (dec i) depth))))))
+          (openers typ)
+          (recur (inc i) (conj stack [tok]))
+
+          (closers typ)
+          (let [current (conj (peek stack) tok)
+                parent-stack (pop stack)
+                parent (peek parent-stack)]
+            (recur (inc i) (conj (pop parent-stack) (conj parent current))))
+
+          :else
+          (recur (inc i) (conj (pop stack) (conj (peek stack) tok))))))))
 
 ;; ============================================================
-;; Pattern matching on token vectors
+;; Whitespace helpers for nested nodes
 ;; ============================================================
 
-(defn- match-balanced-inner
-  "Match tokens from i until the matching closer for the opener before i.
-   Returns [close-idx tokens-between] or nil."
-  [tokens i]
-  (let [n (count tokens)]
-    (loop [j i
-           depth 1
-           acc (transient [])]
-      (when (< j n)
-        (let [tok (nth tokens j)
-              t (:type tok)]
-          (cond
-            (openers t)
-            (recur (inc j) (inc depth) (conj! acc tok))
+(defn- node-ws
+  "Get the :ws of a node (atom token or first token of a nested group)."
+  [node]
+  (if (vector? node)
+    (:ws (first node))
+    (:ws node)))
 
-            (closers t)
-            (if (= depth 1)
-              [j (persistent! acc)]
-              (recur (inc j) (dec depth) (conj! acc tok)))
+(defn- strip-ws
+  "Remove :ws from a node."
+  [node]
+  (if (vector? node)
+    (into [(dissoc (first node) :ws)] (rest node))
+    (dissoc node :ws)))
 
-            :else
-            (recur (inc j) depth (conj! acc tok))))))))
+(defn- set-ws
+  "Set :ws on a node."
+  [node ws]
+  (if (vector? node)
+    (into [(assoc (first node) :ws ws)] (rest node))
+    (assoc node :ws ws)))
 
-(defn- match-element
-  "Try to match a single pattern element at position i in tokens.
-   Returns [new-index bindings-update] on success, nil on failure."
-  [pat tokens i]
-  (when (< i (count tokens))
-    (let [tok (nth tokens i)]
-      (cond
-        ;; Span match: {:span :name} — match balanced inner tokens until closer
-        (:span pat)
-        (when-let [[close-idx inner] (match-balanced-inner tokens i)]
-          [close-idx {(:span pat) inner}])
-
-        ;; Type match with optional adjacency
-        (and (:type pat) (not (:var pat)) (not (:pred pat)))
-        (when (= (:type pat) (:type tok))
-          (if (:adj pat)
-            (when (not (contains? tok :ws))
-              [(inc i) {}])
-            [(inc i) {}]))
-
-        ;; Predicate match (no binding)
-        (and (:pred pat) (not (:var pat)))
-        (when ((:pred pat) tok)
-          [(inc i) {}])
-
-        ;; Var match (single token, optional predicate)
-        (:var pat)
-        (let [pred (:pred pat)]
-          (when (or (nil? pred) (pred tok))
-            [(inc i) {(:var pat) [tok]}]))))))
-
-(defn- match-pattern
-  "Try to match a pattern (vector of elements) starting at position i.
-   Returns {:end index :bindings {...}} on success, nil on failure."
-  [pattern tokens i]
-  (loop [pi 0
-         ti i
-         bindings {}]
-    (if (>= pi (count pattern))
-      {:end ti :bindings bindings}
-      (let [pat (nth pattern pi)]
-        (when-let [[new-ti new-binds] (match-element pat tokens ti)]
-          (recur (inc pi) new-ti (merge bindings new-binds)))))))
+(defn- ensure-ws
+  "If a node has no :ws, set it to the given value."
+  [node ws]
+  (if (node-ws node) node (set-ws node ws)))
 
 ;; ============================================================
-;; Replacement emission
+;; Stage 2: Rule engine on nested structures
 ;; ============================================================
 
-(defn- emit-replacement
-  "Produce a token vector from a replacement template and bindings."
-  [replacement bindings]
-  (into []
-    (mapcat
-      (fn [elem]
-        (cond
-          ;; Reference: {:ref :name}
-          (:ref elem)
-          (let [toks (get bindings (:ref elem))]
-            (cond
-              (:dissoc-ws elem)
-              (into [(dissoc (first toks) :ws)] (rest toks))
-
-              (:ensure-ws elem)
-              (if (empty? toks)
-                toks
-                (let [first-tok (first toks)]
-                  (into [(if (contains? first-tok :ws)
-                           first-tok
-                           (assoc first-tok :ws (:ensure-ws elem)))]
-                        (rest toks))))
-
-              :else toks))
-
-          ;; Literal token: {:token {...}}
-          (:token elem)
-          (let [tok (:token elem)]
-            (if-let [ws-var (:ws-from elem)]
-              (let [source-tok (first (get bindings ws-var))]
-                [(if (contains? source-tok :ws)
-                   (assoc tok :ws (:ws source-tok))
-                   (dissoc tok :ws))])
-              [tok]))
-
-          :else []))
-      replacement)))
-
-;; ============================================================
-;; Rules
-;; ============================================================
+;; A rule is {:match (fn [children i] -> match-or-nil) :rewrite (fn [match] -> nodes)}
+;; A match is a map with whatever the rule needs to perform the rewrite.
+;; The rule engine scans right-to-left, applies the first matching rule,
+;; splices the rewrite result, and adjusts the index.
 
 (defn rule
-  "Create a token-stream rewrite rule.
-   pattern — vector of match elements
-   replacement — vector of emit elements"
-  [pattern replacement]
-  {:pattern pattern :replacement replacement})
+  "Create a rewrite rule.
+   match-fn: (fn [children i] -> {:width n ...} or nil)
+     Called at each position. Returns a match map with at least :width
+     (number of nodes consumed) or nil if no match.
+   rewrite-fn: (fn [match] -> [replacement-nodes...])
+     Produces the replacement nodes to splice in."
+  [match-fn rewrite-fn]
+  {:match match-fn :rewrite rewrite-fn})
 
 ;; ============================================================
-;; Rule engine: right-to-left single-pass rewriter
+;; M-call rule: the one rule
 ;; ============================================================
 
-(defn- try-rules-at
-  "Try each rule at position i. Returns {:start :end :result} on first match, nil otherwise."
-  [rules tokens i]
-  (some (fn [{:keys [pattern replacement]}]
-          (when-let [{:keys [end bindings]} (match-pattern pattern tokens i)]
-            {:start i :end end
-             :result (emit-replacement replacement bindings)}))
-        rules))
+(defn- paren-group?
+  "Is this node a paren-delimited group?"
+  [node]
+  (and (vector? node) (map? (first node)) (= :open-paren (:type (first node)))))
+
+(defn- adjacent-paren-group?
+  "Is this node an adjacent paren group (no :ws on opener)?"
+  [node]
+  (and (paren-group? node) (nil? (node-ws node))))
+
+(def ^:private prefix-types
+  "Token types that are prefix operators — not valid call heads."
+  #{:quote :deref :meta :syntax-quote :unquote :unquote-splicing
+    :var-quote :discard :tagged-literal :reader-cond-start
+    :namespaced-map-start})
+
+(defn- valid-head?
+  "Can this node be the head of an M-expression call?
+   Any node except prefix tokens and open delimiters."
+  [node]
+  (if (map? node)
+    (not (or (contains? prefix-types (:type node))
+             (openers (:type node))))
+    ;; Nested group (vector) — always a valid head
+    true))
+
+(def m-call-rule
+  "M-expression call: a valid head followed by an adjacent paren-group.
+   head(args...) → (head args...)
+   [x](args...)  → ([x] args...)
+
+   The head is moved inside the paren group after the opener.
+   The head's :ws transfers to the opener (the group takes the head's
+   position in the sibling list). A space is ensured between head and
+   first arg."
+  (rule
+    ;; match: two adjacent siblings — valid head + adjacent paren-group
+    (fn [children i]
+      (when (< (inc i) (count children))
+        (let [node (nth children i)
+              next-node (nth children (inc i))]
+          (when (and (valid-head? node) (adjacent-paren-group? next-node))
+            {:width 2
+             :head node
+             :group next-node}))))
+    ;; rewrite: move head inside paren group
+    (fn [{:keys [head group]}]
+      (let [opener (first group)
+            closer (peek group)
+            inner (subvec group 1 (dec (count group)))
+            ;; Transfer head's :ws to opener
+            opener (if-let [ws (node-ws head)]
+                     (assoc opener :ws ws)
+                     (dissoc opener :ws))
+            head-inside (strip-ws head)
+            ;; Ensure space between head and first arg
+            inner (if (seq inner)
+                    (into [(ensure-ws (first inner) " ")] (rest inner))
+                    inner)]
+        [(into [opener head-inside] (conj inner closer))]))))
 
 ;; ============================================================
-;; M-expression rules (declarative)
+;; Rewrite engine
 ;; ============================================================
 
-(def ^:private atom-head-types
-  #{:symbol :keyword :number :string :char})
-
-(def atom-head?
-  "Predicate: is this token an atom that can be a call head?"
-  #(contains? atom-head-types (:type %)))
-
-(def m-call-rules
-  "Declarative rules for M-expression -> S-expression rewriting on token streams.
-
-   Rule: atom-head adjacent to open-paren.
-     f(x y) -> (f x y)
-     Pattern:  [head] [(adj)] [inner...] [)]
-     Replace:  [(ws<-head)] [head(no-ws)] [inner(ensure-ws)] [)]"
-  [(rule
-     [{:var :head :pred atom-head?}
-      {:type :open-paren :adj true}
-      {:span :inner}
-      {:type :close-paren}]
-     [{:token {:type :open-paren :value "("} :ws-from :head}
-      {:ref :head :dissoc-ws true}
-      {:ref :inner :ensure-ws " "}
-      {:token {:type :close-paren :value ")"}}])])
-
-;; ============================================================
-;; Group-head rewrite (delimiter-as-head, e.g. [x](body))
-;; ============================================================
-
-(defn- apply-group-head-rewrite
-  "Rewrite a delimiter-group head adjacent to open-paren.
-   [before] [head-group...] [(] [args...] [)] [after]
-   -> [before] [(] [head-group...] [args...] [)] [after]"
-  [tokens open-of-head close-of-head open-of-args close-of-args]
-  (let [head-tokens (subvec tokens open-of-head (inc close-of-head))
-        first-head (first head-tokens)
-        head-inside (into [(dissoc first-head :ws)] (rest head-tokens))
-        before (subvec tokens 0 open-of-head)
-        open-tok (if (contains? first-head :ws)
-                   {:type :open-paren :value "(" :ws (:ws first-head)}
-                   {:type :open-paren :value "("})
-        inner (subvec tokens (inc open-of-args) close-of-args)
-        inner (if (seq inner)
-                (let [fi (first inner)]
-                  (into [(if (contains? fi :ws) fi (assoc fi :ws " "))]
-                        (rest inner)))
-                inner)
-        close-tok (nth tokens close-of-args)
-        after (subvec tokens (inc close-of-args))]
-    (into [] cat [before [open-tok] head-inside inner [close-tok] after])))
+(defn rewrite-level
+  "Rewrite one level of nested children.
+   Recurses into sub-groups first (bottom-up), then scans right-to-left
+   applying rules at this level."
+  [rules children]
+  ;; Recurse into sub-groups
+  (let [children (mapv (fn [c]
+                         (if (vector? c)
+                           (let [opener (first c)
+                                 closer (peek c)
+                                 inner (subvec c 1 (dec (count c)))
+                                 rewritten (rewrite-level rules inner)]
+                             (into [opener] (conj rewritten closer)))
+                           c))
+                       children)]
+    ;; Scan right-to-left, apply first matching rule
+    (loop [i (- (count children) 2)
+           children children]
+      (if (neg? i)
+        children
+        (let [match (some (fn [r] (when-let [m ((:match r) children i)]
+                                    (assoc m :rule r)))
+                          rules)]
+          (if match
+            (let [result ((:rewrite (:rule match)) match)
+                  width (:width match)
+                  before (subvec children 0 i)
+                  after (subvec children (+ i width))
+                  new-children (into [] cat [before result after])]
+              (recur (dec i) new-children))
+            (recur (dec i) children)))))))
 
 ;; ============================================================
-;; Rewrite engine: declarative rules + group-head fallback
+;; Default rule set
 ;; ============================================================
 
-(defn- rewrite-with-group-heads
-  "Apply m-call rules right-to-left, with special handling for delimiter-group heads.
-   Declarative rules handle atom heads. Delimiter-group heads (e.g. [x](body))
-   are detected structurally and rewritten by backing up to the matching opener."
-  [rules tokens]
-  (let [n (count tokens)]
-    (if (< n 2)
-      tokens
-      (loop [i (- n 2)
-             tokens tokens]
-        (if (neg? i)
-          tokens
-          ;; Try declarative rules first
-          (if-let [{:keys [start end result]} (try-rules-at rules tokens i)]
-            (let [before (subvec tokens 0 start)
-                  after (subvec tokens end)
-                  rewritten (into [] cat [before result after])]
-              (recur (dec start) rewritten))
-            ;; Check for delimiter-group head: ] or ) followed by adjacent (
-            (let [tok (nth tokens i)
-                  next-tok (nth tokens (inc i))]
-              (if (and (closers (:type tok))
-                       (= :open-paren (:type next-tok))
-                       (not (contains? next-tok :ws)))
-                (let [open-of-head (find-matching-open tokens i)
-                      close-of-args (when open-of-head (find-matching-close tokens (inc i)))]
-                  (if close-of-args
-                    (let [rewritten (apply-group-head-rewrite tokens open-of-head i (inc i) close-of-args)]
-                      (recur (dec open-of-head) rewritten))
-                    (recur (dec i) tokens)))
-                (recur (dec i) tokens)))))))))
+(def default-rules
+  "Default rule set for M-expression → S-expression rewriting."
+  [m-call-rule])
+
+;; ============================================================
+;; Stage 3: Flatten — unnest back to flat token vector
+;; ============================================================
+
+(defn- flatten-nested
+  "Flatten a nested token structure back to a flat token vector."
+  [nodes]
+  (into []
+    (mapcat (fn [node]
+              (if (vector? node)
+                (flatten-nested node)
+                [node]))
+            nodes)))
 
 ;; ============================================================
 ;; Public API
@@ -286,9 +226,10 @@
 
 (defn rewrite-meme->sexp
   "Rewrite a meme token stream to S-expression token structure.
-   Uses declarative m-call rules applied right-to-left."
-  [tokens]
-  (rewrite-with-group-heads m-call-rules tokens))
+   Nest → rewrite → flatten."
+  ([tokens] (rewrite-meme->sexp tokens default-rules))
+  ([tokens rules]
+   (-> tokens nest-tokens ((->> rules (partial rewrite-level))) flatten-nested)))
 
 (defn tokens->text
   "Reconstruct source text from a token vector, preserving whitespace."
