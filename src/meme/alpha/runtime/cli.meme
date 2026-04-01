@@ -6,12 +6,7 @@ ns(meme.alpha.runtime.cli
     [meme.alpha.core :as core]
     [meme.alpha.convert :as convert]
     [meme.alpha.errors :as errors]
-    [meme.alpha.pipeline :as pipeline]
-    [meme.alpha.rewrite :as rewrite]
-    [meme.alpha.rewrite.tree :as tree]
-    [meme.alpha.platform.registry :as registry]
-    [meme.alpha.runtime.run :as meme-run]
-    [meme.alpha.runtime.repl :as repl]
+    [meme.alpha.pipelines :as pipelines]
     [clojure.java.io :as io]
     [clojure.string :as str]))
 
@@ -124,46 +119,38 @@ defn-(process-files
       when(pos?(failed) System/exit(1)))))
 
 ;; ---------------------------------------------------------------------------
-;; Commands — accept a map, work with both -T and babashka.cli
+;; Pipeline resolution
 ;; ---------------------------------------------------------------------------
-defn-(load-meme-file
-  "Load and eval a .meme file, returning the last result."
-  [path]
-  let([src slurp(path)]
-    meme-run/run-string(src)))
-
-defn-(load-prelude
-  "Load a prelude file. Returns a vector of parsed forms to eval before user code.
-   Forms are parsed but not expanded — expansion happens in run-string/start
-   before eval, matching the user-code path."
-  [path]
-  let([src slurp(path)
-       forms core/meme->forms(src)]
-    forms))
-
-defn-(resolve-pipeline
-  "Resolve pipeline keyword from string option. Default: :classic."
+defn-(resolve-pipeline-name
+  "Resolve pipeline keyword from string option. Default: :meme-classic."
   [pipeline-str]
-  let([p if(pipeline-str keyword(pipeline-str) :classic)]
-    try(convert/resolve-pipeline(p)
+  let([p if(pipeline-str keyword(pipeline-str) :meme-classic)]
+    try(pipelines/resolve-pipeline(p)
       catch(Exception _
         binding([*out* *err*]
           println(str("Unknown pipeline: " p))
-          println(str("Available: " str/join(", " map(name keys(convert/pipelines))))))
+          println(str("Available: " str/join(", " map(name keys(pipelines/builtin))))))
         System/exit(1)))
     p))
 
+defn-(get-pipeline
+  "Resolve pipeline and return [name pipeline-map]."
+  [pipeline-str]
+  let([name resolve-pipeline-name(pipeline-str)
+       p pipelines/resolve-pipeline(name)]
+    [name p]))
+
+;; ---------------------------------------------------------------------------
+;; Commands — dispatch through pipeline map
+;; ---------------------------------------------------------------------------
 defn(run
-  [{:keys [file rules prelude lang pipeline]}]
-  when-not(file binding([*out* *err*] println("Usage: meme run <file> --pipeline classic [--lang name] [--prelude p.meme] [--rules r.meme]")) System/exit(1))
-  let([pipe resolve-pipeline(pipeline)]
+  [{:keys [file pipeline]}]
+  when-not(file binding([*out* *err*] println("Usage: meme run <file> [--pipeline meme-classic]")) System/exit(1))
+  let([[pipe-name pipe] get-pipeline(pipeline)]
+    pipelines/check-support!(pipe pipe-name :run)
     try(
-      let([opts cond->({}
-                       not=(pipe :classic) assoc(:parser tree/rewrite-parser)
-                       rules assoc(:rewrite-rules load-meme-file(rules))
-                       prelude assoc(:prelude load-prelude(prelude))
-                       lang assoc(:lang keyword(lang)))]
-        meme-run/run-file(file opts))
+      let([src slurp(file)]
+        :run(pipe)(src {}))
       catch(Exception e
         let(
           [src try(slurp(file) catch(Exception _ nil))]
@@ -172,22 +159,22 @@ defn(run
 
 defn(repl
   [{:keys [pipeline]}]
-  let([pipe resolve-pipeline(pipeline)]
-    if(=(pipe :classic)
-      repl/start()
-      repl/start({:parser tree/rewrite-parser}))))
+  let([[pipe-name pipe] get-pipeline(pipeline)]
+    pipelines/check-support!(pipe pipe-name :repl)
+    :repl(pipe)({})))
 
 defn(convert
   [{:keys [file files stdout pipeline]}]
   let(
     [inputs or(files when(file [file]))
-     pipe resolve-pipeline(pipeline)]
+     [pipe-name pipe] get-pipeline(pipeline)]
     when(empty?(inputs)
-      println("Usage: meme convert <file|dir> [file...] [--pipeline classic|rewrite|ts-trs]")
+      println("Usage: meme convert <file|dir> [file...] [--pipeline meme-classic]")
       println("  Writes sibling files (.meme↔.clj) by default")
       println("  --stdout    print to stdout instead")
-      println("  --pipeline  select pipeline (default: classic)")
+      println("  --pipeline  select pipeline (default: meme-classic)")
       System/exit(1))
+    pipelines/check-support!(pipe pipe-name :convert)
     process-files(
       {
         :inputs inputs
@@ -201,41 +188,32 @@ defn(convert
                            ex-info(str("Cannot detect direction: " path) {})))
                        let(
                          [src slurp(path)]
-                         case(direction
-                           :to-clj
-                           convert/meme->clj(src pipe)
-                           :to-meme
-                           convert/clj->meme(src pipe)))))
+                         :convert(pipe)(src {:direction direction}))))
         :output-fn output-path
         :stdout stdout
-        :verb str("converted" when(not=(pipe :classic) str(" (" name(pipe) ")")))
+        :verb str("converted" when(not=(pipe-name :meme-classic) str(" (" name(pipe-name) ")")))
       })))
 
 defn(format-cmd
   [{:keys [file files stdout check pipeline]}]
   let(
     [inputs or(files when(file [file]))
-     pipe resolve-pipeline(pipeline)]
+     [pipe-name pipe] get-pipeline(pipeline)]
     when(empty?(inputs)
-      println("Usage: meme format <file|dir> --pipeline <name> [file...]")
+      println("Usage: meme format <file|dir> [--pipeline meme-classic] [file...]")
       println("  Formats .meme files in-place by default")
       println("  --stdout   print to stdout instead")
       println("  --check    exit 1 if any file would change (CI mode)")
       System/exit(1))
+    pipelines/check-support!(pipe pipe-name :format)
     process-files(
       {
         :inputs inputs
         :pred fn([p] str/ends-with?(p ".meme"))
         :transform fn(
                      [path]
-                     let(
-                       [src slurp(path)
-                        parser-opts case(pipe
-                                     :classic {}
-                                     :rewrite {:parser tree/rewrite-parser}
-                                     :ts-trs {})
-                        forms :forms(pipeline/run(src parser-opts))]
-                       core/format-meme(forms)))
+                     let([src slurp(path)]
+                       :format(pipe)(src {})))
         :output-fn nil
         :stdout stdout
         :check check
@@ -244,26 +222,9 @@ defn(format-cmd
 
 defn(inspect-cmd
   [{:keys [pipeline]}]
-  let([pipe resolve-pipeline(pipeline)]
-    case(pipe
-      :classic
-      do(
-        println("Classic pipeline:")
-        println("  meme→clj: tokenizer → recursive-descent parser → expander → printer")
-        println("  clj→meme: Clojure reader → meme printer"))
-      :rewrite
-      do(
-        println("Rewrite pipeline:")
-        println("  meme→clj: tokenizer → tree builder → rewrite rules (m→s) → transform → printer")
-        println("  clj→meme: Clojure reader → rewrite rules (s→m) → emitter"))
-      :ts-trs
-      do(
-        println("Token-stream TRS pipeline:")
-        println("  meme→clj: tokenizer → nest → declarative rewrite rules → flatten → text")
-        println("  clj→meme: Clojure reader → rewrite rules (s→m) → emitter"))
-      do(
-        println(str("Unknown pipeline: " pipe))
-        println("Available: classic, rewrite, ts-trs")))))
+  let([[pipe-name pipe] get-pipeline(pipeline)]
+    println(str("Pipeline: " name(pipe-name)))
+    println(str("  Supported commands: " str/join(", " map(name filter(keyword? keys(pipe))))))))
 
 defn(version
   [_]
@@ -274,15 +235,15 @@ defn(help
   [_]
   println("meme — M-expressions for Clojure")
   println()
-  println("All commands require --pipeline classic|rewrite|ts-trs")
-  println()
   println("Commands:")
-  println("  meme run <file> --pipeline <name> [--lang name] [--prelude p.meme] [--rules r.meme]")
-  println("  meme repl --pipeline classic")
-  println("  meme convert <file|dir> --pipeline <name> [--stdout]")
-  println("  meme format <file|dir> --pipeline <name> [--stdout] [--check]")
-  println("  meme inspect --pipeline <name>")
-  println("  meme version"))
+  println("  meme run <file> [--pipeline meme-classic]")
+  println("  meme repl [--pipeline meme-classic]")
+  println("  meme convert <file|dir> [--pipeline meme-classic] [--stdout]")
+  println("  meme format <file|dir> [--pipeline meme-classic] [--stdout] [--check]")
+  println("  meme inspect [--pipeline meme-classic]")
+  println("  meme version")
+  println()
+  println(str("Available pipelines: " str/join(", " map(name keys(pipelines/builtin))))))
 
 ;; ---------------------------------------------------------------------------
 ;; bb entry point — babashka.cli loaded dynamically so this file works on JVM too
@@ -311,7 +272,7 @@ defn(-main
     ]
     dispatch(
       [
-        {:cmds ["run"] :fn fn([{:keys [opts]}] run(opts)) :args->opts [:file] :spec {:rules {:coerce :string} :prelude {:coerce :string} :lang {:coerce :string} :pipeline {:coerce :string}}}
+        {:cmds ["run"] :fn fn([{:keys [opts]}] run(opts)) :args->opts [:file] :spec {:pipeline {:coerce :string}}}
         {:cmds ["repl"] :fn fn([{:keys [opts]}] repl(opts)) :spec {:pipeline {:coerce :string}}}
         merge(
           {:cmds ["convert"] :fn fn([m] convert(collect-file-args(m)))}
