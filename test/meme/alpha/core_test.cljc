@@ -140,10 +140,10 @@
           (is (integer? (:line data)))
           (is (integer? (:col data))))))))
 
-(deftest run-pipeline-error-has-location
-  (testing "parse error through run-pipeline carries :line and :col in ex-data"
+(deftest run-stages-error-has-location
+  (testing "parse error through run-stages carries :line and :col in ex-data"
     (try
-      (core/run-pipeline "(bare parens)")
+      (core/run-stages "(bare parens)")
       (is false "should have thrown")
       (catch #?(:clj clojure.lang.ExceptionInfo :cljs ExceptionInfo) e
         (let [data (ex-data e)]
@@ -160,12 +160,12 @@
         (is (re-find #"(?i)paren" (ex-message e)))))))
 
 ;; ---------------------------------------------------------------------------
-;; run-pipeline
+;; run-stages
 ;; ---------------------------------------------------------------------------
 
-(deftest run-pipeline-test
+(deftest run-stages-test
   (testing "returns context with all intermediate state"
-    (let [ctx (core/run-pipeline "foo(1 2)")]
+    (let [ctx (core/run-stages "foo(1 2)")]
       (is (string? (:source ctx)))
       (is (vector? (:raw-tokens ctx)))
       (is (vector? (:tokens ctx)))
@@ -173,16 +173,16 @@
       (is (= "foo(1 2)" (:source ctx)))))
   (testing "forms match meme->forms"
     (let [src "def(x 42)\nprintln(x)"
-          ctx (core/run-pipeline src)]
+          ctx (core/run-stages src)]
       (is (= (core/meme->forms src) (:forms ctx))))))
 
-(deftest run-pipeline-nil-source-error
+(deftest run-stages-nil-source-error
   (testing "nil source throws instead of silently returning empty"
-    (is (thrown? #?(:clj Exception :cljs :default) (core/run-pipeline nil)))))
+    (is (thrown? #?(:clj Exception :cljs :default) (core/run-stages nil)))))
 
-(deftest run-pipeline-empty-source
+(deftest run-stages-empty-source
   (testing "empty string produces empty vectors, not nil"
-    (let [ctx (core/run-pipeline "")]
+    (let [ctx (core/run-stages "")]
       (is (= [] (:forms ctx)))
       (is (= [] (:tokens ctx)))
       (is (= [] (:raw-tokens ctx)))
@@ -190,26 +190,26 @@
       (is (vector? (:tokens ctx)))
       (is (vector? (:raw-tokens ctx)))))
   (testing "whitespace-only source produces empty vectors"
-    (let [ctx (core/run-pipeline "   \n  ")]
+    (let [ctx (core/run-stages "   \n  ")]
       (is (= [] (:forms ctx)))
       (is (= [] (:tokens ctx)))
       (is (= [] (:raw-tokens ctx))))))
 
-(deftest run-pipeline-whitespace-test
+(deftest run-stages-whitespace-test
   (testing "raw-tokens carry :ws from pipeline"
-    (let [ctx (core/run-pipeline "  foo(x)")]
+    (let [ctx (core/run-stages "  foo(x)")]
       (is (= "  " (:ws (first (:raw-tokens ctx)))))))
   (testing "whitespace between forms preserved"
-    (let [ctx (core/run-pipeline "foo\n\nbar")]
+    (let [ctx (core/run-stages "foo\n\nbar")]
       (is (= "\n\n" (:ws (second (:raw-tokens ctx))))))))
 
 #?(:clj
-   (deftest run-pipeline-jvm-test
+   (deftest run-stages-jvm-test
      (testing "raw-tokens and tokens are identical"
-       (let [ctx (core/run-pipeline "`foo")]
+       (let [ctx (core/run-stages "`foo")]
          (is (= (:raw-tokens ctx) (:tokens ctx)))))
      (testing "opts pass through"
-       (let [ctx (core/run-pipeline "::foo"
+       (let [ctx (core/run-stages "::foo"
                                     {:resolve-keyword #(clojure.core/read-string %)})]
          (is (= [:user/foo] (:forms ctx)))))))
 
@@ -218,8 +218,8 @@
 ;; ---------------------------------------------------------------------------
 
 (deftest meme-raw-accessors
-  (testing "run-pipeline exposes MemeRaw nodes with raw-value and raw-text"
-    (let [ctx (core/run-pipeline "42")
+  (testing "run-stages exposes MemeRaw nodes with raw-value and raw-text"
+    (let [ctx (core/run-stages "42")
           form (first (:forms ctx))]
       (when (forms/raw? form)
         (is (= 42 (forms/raw-value form)))

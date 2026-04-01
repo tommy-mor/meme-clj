@@ -6,6 +6,7 @@
   (:require [clojure.test :refer [deftest is testing]]
             [meme.alpha.core :as core]
             [meme.alpha.emit.formatter.flat :as fmt-flat]
+            [meme.alpha.runtime.run :as run]
             [clojure.java.io :as io]
             [clojure.set :as set]
             [clojure.string :as str]
@@ -132,8 +133,8 @@
     (is (zero? (count failed)))
     (is (zero? (count read-errors)) "no read errors in own source")))
 
-(deftest dogfood-per-form-pipeline
-  (let [{:keys [total succeeded failed read-errors]} (roundtrip-file-forms "src/meme/alpha/pipeline.cljc")]
+(deftest dogfood-per-form-stages
+  (let [{:keys [total succeeded failed read-errors]} (roundtrip-file-forms "src/meme/alpha/stages.cljc")]
     (is (= total (count succeeded))
         (str "all forms roundtrip; failures: "
              (str/join ", " (map :name failed))))
@@ -178,7 +179,7 @@
                 "src/meme/alpha/runtime/repl.cljc" "test/meme/alpha/test_runner.clj"
                 "src/meme/alpha/parse/reader.cljc" "src/meme/alpha/emit/printer.cljc"
                 "src/meme/alpha/scan/tokenizer.cljc"
-                "src/meme/alpha/parse/resolve.cljc" "src/meme/alpha/pipeline.cljc"
+                "src/meme/alpha/parse/resolve.cljc" "src/meme/alpha/stages.cljc"
                 "src/meme/alpha/errors.cljc"
                 "src/meme/alpha/lang.cljc"
                 "src/meme/alpha/lang/meme_classic.cljc"
@@ -235,6 +236,20 @@
       (is (= total succeeded)
           (str total " forms, " (count failed) " failed roundtrip"))
       (is (empty? failed)))))
+
+(deftest self-hosting-cli-meme-evals
+  (testing "roundtripped cli.meme can be eval'd without error"
+    (let [src (slurp "src/meme/alpha/runtime/cli.meme")
+          forms (core/meme->forms src)
+          meme-text (fmt-flat/format-forms forms)
+          ;; Save and restore *ns* — cli.meme contains an ns form that
+          ;; would change the current namespace and break later tests.
+          original-ns *ns*]
+      (try
+        (is (some? (run/run-string meme-text))
+            "roundtripped cli.meme should eval without error")
+        (finally
+          (in-ns (.getName original-ns)))))))
 
 (deftest self-hosting-example-meme-files
   (doseq [path ["examples/rewrite/simplify.meme"

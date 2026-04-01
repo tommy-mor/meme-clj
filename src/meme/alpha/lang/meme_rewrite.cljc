@@ -6,7 +6,7 @@
    Supports all commands: :run, :repl, :format, :convert."
   (:require [meme.alpha.core :as core]
             [meme.alpha.emit.formatter.canon :as fmt-canon]
-            [meme.alpha.pipeline :as pipeline]
+            [meme.alpha.stages :as stages]
             [meme.alpha.lang.util :as util]
             [meme.alpha.rewrite :as rw]
             [meme.alpha.rewrite.tree :as tree]
@@ -22,7 +22,7 @@
 
 (defn meme->clj [source opts]
   (core/forms->clj
-   (:forms (pipeline/run source (merge opts rewrite-opts {:read-cond :preserve})))))
+   (:forms (stages/run source (merge opts rewrite-opts {:read-cond :preserve})))))
 
 #?(:clj
    (defn clj->meme [source]

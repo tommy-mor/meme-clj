@@ -1,7 +1,7 @@
 (ns meme.alpha.runtime.run
   "Run .meme files: read, eval, return last result."
   (:require [clojure.string :as str]
-            [meme.alpha.pipeline :as pipeline]
+            [meme.alpha.stages :as stages]
             #?(:clj [meme.alpha.runtime.resolve :as resolve])))
 
 (defn- step-strip-shebang
@@ -46,16 +46,16 @@
      ;; Expand and eval prelude before user code (must expand syntax-quotes,
      ;; matching the user-code path — raw parsed forms contain AST nodes)
      (when-let [prelude (seq (:prelude opts))]
-       (let [expanded (:forms (pipeline/step-expand-syntax-quotes
+       (let [expanded (:forms (stages/step-expand-syntax-quotes
                                 {:forms (vec prelude) :opts reader-opts}))]
          (doseq [form expanded]
            (eval-fn form))))
      (let [forms (:forms (-> {:source s :opts reader-opts}
                              step-strip-shebang
-                             pipeline/step-scan
-                             pipeline/step-parse
-                             pipeline/step-expand-syntax-quotes
-                             pipeline/step-rewrite))]
+                             stages/step-scan
+                             stages/step-parse
+                             stages/step-expand-syntax-quotes
+                             stages/step-rewrite))]
        (reduce (fn [_ form] (eval-fn form)) nil forms)))))
 
 (defn- resolve-lang-run

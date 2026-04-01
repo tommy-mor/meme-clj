@@ -195,11 +195,19 @@
 ;; Resolution
 ;; ---------------------------------------------------------------------------
 
+(def ^:private legacy-names
+  "Backward-compatible aliases from the pre-lang naming."
+  {:classic :meme-classic
+   :rewrite :meme-rewrite
+   :ts-trs  :meme-trs})
+
 (defn resolve-lang
   "Resolve a lang by keyword name. Returns the lang map.
+   Accepts legacy names (:classic, :rewrite, :ts-trs).
    Checks user-registered langs first, then built-ins. Throws on unknown name."
   [lang-name]
   (let [n (or lang-name default-lang)
+        n (get legacy-names n n)
         user #?(:clj @user-langs :cljs nil)
         b #?(:clj @builtin :cljs builtin)]
     (or (get user n)

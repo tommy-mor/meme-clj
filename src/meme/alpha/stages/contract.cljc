@@ -1,4 +1,4 @@
-(ns meme.alpha.pipeline.contract
+(ns meme.alpha.stages.contract
   "Formal contract for the meme pipeline context map.
 
    Defines clojure.spec.alpha specs for the context at each stage boundary,

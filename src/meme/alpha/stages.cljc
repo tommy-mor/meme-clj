@@ -1,4 +1,4 @@
-(ns meme.alpha.pipeline
+(ns meme.alpha.stages
   "Explicit pipeline composition: source → step-scan → step-parse → step-expand-syntax-quotes → forms.
    Each stage is a ctx → ctx function operating on a shared context map.
 
@@ -22,16 +22,16 @@
    - Skip stages (e.g. skip expand for tooling that works with AST nodes)
    - Read intermediate state (e.g. :raw-tokens for syntax highlighting)
 
-   See meme.alpha.pipeline.contract for formal clojure.spec definitions of
+   See meme.alpha.stages.contract for formal clojure.spec definitions of
    the context map at each stage boundary. Enable runtime validation with:
-     (binding [meme.alpha.pipeline.contract/*validate* true]
+     (binding [meme.alpha.stages.contract/*validate* true]
        (pipeline/run source))"
   (:require [meme.alpha.forms :as forms]
             [meme.alpha.scan.tokenizer :as tokenizer]
             [meme.alpha.parse.reader :as reader]
             [meme.alpha.parse.expander :as expander]
             [meme.alpha.rewrite :as rewrite]
-            [meme.alpha.pipeline.contract :as contract]))
+            [meme.alpha.stages.contract :as contract]))
 
 ;; ---------------------------------------------------------------------------
 ;; Pipeline stages — each takes and returns a context map

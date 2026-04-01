@@ -1,9 +1,9 @@
-(ns meme.alpha.pipeline.contract-test
+(ns meme.alpha.stages.contract-test
   "Tests for the pipeline contract: specs, runtime validation, and explain."
   (:require [clojure.test :refer [deftest is testing]]
             [clojure.spec.alpha :as s]
-            [meme.alpha.pipeline :as pipeline]
-            [meme.alpha.pipeline.contract :as contract]))
+            [meme.alpha.stages :as stages]
+            [meme.alpha.stages.contract :as contract]))
 
 ;; ---------------------------------------------------------------------------
 ;; Token spec
@@ -85,29 +85,29 @@
 
 (deftest actual-scan-output-conforms
   (testing "scan output passes ::ctx-after-scan"
-    (let [ctx (pipeline/step-scan {:source "foo(1 2)"})]
+    (let [ctx (stages/step-scan {:source "foo(1 2)"})]
       (is (s/valid? ::contract/ctx-after-scan ctx)
           (s/explain-str ::contract/ctx-after-scan ctx)))))
 
 (deftest actual-scan-output-has-tokens
   (testing "scan output includes both :raw-tokens and :tokens"
-    (let [ctx (pipeline/step-scan {:source "foo(1 2)"})]
+    (let [ctx (stages/step-scan {:source "foo(1 2)"})]
       (is (= (:raw-tokens ctx) (:tokens ctx))))))
 
 (deftest actual-parse-output-conforms
   (testing "parse output passes ::ctx-after-parse"
-    (let [ctx (pipeline/run "foo(1 2)")]
+    (let [ctx (stages/run "foo(1 2)")]
       (is (s/valid? ::contract/ctx-after-parse ctx)
           (s/explain-str ::contract/ctx-after-parse ctx)))))
 
 (deftest actual-pipeline-empty-source
   (testing "empty source passes all stage specs"
-    (let [ctx (pipeline/run "")]
+    (let [ctx (stages/run "")]
       (is (s/valid? ::contract/ctx-after-parse ctx)))))
 
 (deftest actual-pipeline-complex-source
   (testing "complex source with multiple forms"
-    (let [ctx (pipeline/run "def(x 42)\nprintln(x)")]
+    (let [ctx (stages/run "def(x 42)\nprintln(x)")]
       (is (s/valid? ::contract/ctx-after-parse ctx)))))
 
 ;; ---------------------------------------------------------------------------
@@ -147,7 +147,7 @@
 (deftest validate-in-full-pipeline
   (testing "valid input passes with *validate* true"
     (binding [contract/*validate* true]
-      (let [ctx (pipeline/run "+(1 2)")]
+      (let [ctx (stages/run "+(1 2)")]
         (is (= '[(+ 1 2)] (:forms ctx)))))))
 
 ;; ---------------------------------------------------------------------------

@@ -1,6 +1,6 @@
 (ns meme.alpha.runtime.repl
   "meme REPL: read meme, eval as Clojure, print result."
-  (:require [meme.alpha.pipeline :as pipeline]
+  (:require [meme.alpha.stages :as stages]
             [meme.alpha.errors :as errors]
             [clojure.string :as str]
             #?(:clj [clojure.java.io :as io])
@@ -11,12 +11,12 @@
    :complete   — parsed successfully
    :incomplete — unclosed delimiter (EOF-related error), keep reading
    :invalid    — malformed literal or other non-recoverable error
-   opts are the same reader opts passed to pipeline/run (e.g. :resolve-keyword)
+   opts are the same reader opts passed to stages/run (e.g. :resolve-keyword)
    so that the completeness check uses the same reader configuration as eval."
   ([s] (input-state s nil))
   ([s opts]
    (try
-     (pipeline/run s opts)
+     (stages/run s opts)
      :complete
      (catch #?(:clj Exception :cljs :default) e
        (if (:incomplete (ex-data e))
@@ -29,7 +29,7 @@
    for malformed input. Single parse — no re-parsing needed."
   [s opts]
   (try
-    (let [result (pipeline/run s opts)]
+    (let [result (stages/run s opts)]
       {:state :complete :forms (:forms result)})
     (catch #?(:clj Exception :cljs :default) e
       (if (:incomplete (ex-data e))
@@ -103,7 +103,7 @@
      ;; Expand and eval prelude before REPL loop (must expand syntax-quotes,
      ;; matching the user-input path — raw parsed forms contain AST nodes)
      (when-let [prelude (seq (:prelude opts))]
-       (let [expanded (:forms (pipeline/step-expand-syntax-quotes
+       (let [expanded (:forms (stages/step-expand-syntax-quotes
                                 {:forms (vec prelude) :opts reader-opts}))]
          (doseq [form expanded]
            (eval-fn form))))
@@ -124,7 +124,7 @@
 
              (:forms parsed)
              (do (try
-                   (let [expanded (:forms (pipeline/step-expand-syntax-quotes {:forms (:forms parsed) :opts reader-opts}))]
+                   (let [expanded (:forms (stages/step-expand-syntax-quotes {:forms (:forms parsed) :opts reader-opts}))]
                      (doseq [form expanded]
                        (let [result (eval-fn form)]
                          (prn result))))

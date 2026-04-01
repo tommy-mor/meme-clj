@@ -81,3 +81,16 @@
          (doseq [[lang-name result] results]
            (is (= first-result result)
                (str lang-name " diverges on: " src)))))))
+
+;; ---------------------------------------------------------------------------
+;; Builtin lang integrity (catches CLJS drift)
+;; ---------------------------------------------------------------------------
+
+(deftest builtin-has-expected-langs
+  (let [b #?(:clj @lang/builtin :cljs lang/builtin)]
+    (is (contains? b :meme-classic))
+    (is (contains? b :meme-rewrite))
+    (is (contains? b :meme-trs))
+    (doseq [[n l] b]
+      (is (fn? (:convert l)) (str n " missing :convert"))
+      (is (fn? (:format l)) (str n " missing :format")))))

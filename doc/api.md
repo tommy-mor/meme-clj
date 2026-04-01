@@ -131,17 +131,17 @@ Convert a Clojure source string to meme source string. JVM/Babashka only. Equiva
 ;=> "defn(f [x] +(x 1))"
 ```
 
-### run-pipeline
+### run-stages
 
 ```clojure
-(meme.alpha.core/run-pipeline source)
-(meme.alpha.core/run-pipeline source opts)
+(meme.alpha.core/run-stages source)
+(meme.alpha.core/run-stages source opts)
 ```
 
 Run the full pipeline: source → scan → parse. Returns a context map with intermediate state. All platforms. Useful for tooling that needs access to raw tokens, tokens, or parsed forms.
 
 ```clojure
-(run-pipeline "foo(1 2)")
+(run-stages "foo(1 2)")
 ;=> {:source "foo(1 2)"
 ;    :opts nil
 ;    :raw-tokens [...tokenizer output with :ws...]
@@ -160,7 +160,7 @@ Low-level reader API.
 (meme.alpha.parse.reader/read-meme-string-from-tokens tokens opts source)
 ```
 
-Parse a token vector into Clojure forms. Used by `meme.alpha.pipeline/step-parse`. Most callers should use `meme.alpha.core/meme->forms` instead.
+Parse a token vector into Clojure forms. Used by `meme.alpha.stages/step-parse`. Most callers should use `meme.alpha.core/meme->forms` instead.
 
 - `tokens` — a token vector (output of `meme.alpha.scan.tokenizer/tokenize`)
 - `opts` — same options as `meme->forms` (e.g., `:resolve-keyword`)
@@ -265,7 +265,7 @@ Format a sequence of Clojure forms as canonical meme text, separated by blank li
 
 Returns the parse state of a meme input string: `:complete` (parsed successfully), `:incomplete` (unclosed delimiter — keep reading), or `:invalid` (malformed, non-recoverable error). Used internally by the REPL for multi-line input handling; also useful for editor integration.
 
-The optional `opts` map is forwarded to `pipeline/run` — useful for callers that need `::` keywords or custom parsers to be resolved during input validation.
+The optional `opts` map is forwarded to `stages/run` — useful for callers that need `::` keywords or custom parsers to be resolved during input validation.
 
 ```clojure
 (input-state "+(1 2)")      ;=> :complete
@@ -347,14 +347,14 @@ Automatically detects guest languages from file extension via `meme.alpha.lang/r
 ```
 
 
-## meme.alpha.pipeline
+## meme.alpha.stages
 
 Explicit pipeline composition. Each stage is a `ctx → ctx` function operating on a shared context map with keys `:source`, `:opts`, `:raw-tokens`, `:tokens`, `:forms`.
 
 ### step-scan
 
 ```clojure
-(meme.alpha.pipeline/step-scan ctx)
+(meme.alpha.stages/step-scan ctx)
 ```
 
 Tokenize source text into tokens with whitespace attachment. Reads `:source` from ctx, assocs both `:tokens` and `:raw-tokens` (identical; `:raw-tokens` retained for backward compatibility). Each token carries a `:ws` key with the leading whitespace and comments between it and the previous token. Trailing whitespace (after the last token) is stored as `:trailing-ws` metadata on the token vector. This is how the pretty-printer preserves comments.
@@ -362,7 +362,7 @@ Tokenize source text into tokens with whitespace attachment. Reads `:source` fro
 ### step-parse
 
 ```clojure
-(meme.alpha.pipeline/step-parse ctx)
+(meme.alpha.stages/step-parse ctx)
 ```
 
 Parse tokens into Clojure forms. Reads `:tokens`, `:opts`, `:source` from ctx, assocs `:forms`.
@@ -370,7 +370,7 @@ Parse tokens into Clojure forms. Reads `:tokens`, `:opts`, `:source` from ctx, a
 ### step-expand-syntax-quotes
 
 ```clojure
-(meme.alpha.pipeline/step-expand-syntax-quotes ctx)
+(meme.alpha.stages/step-expand-syntax-quotes ctx)
 ```
 
 Expand syntax-quote AST nodes (`MemeSyntaxQuote`) into plain Clojure forms (`seq`/`concat`/`list`). Also unwraps `MemeRaw` values. Only needed before eval — tooling paths work with AST nodes directly.
@@ -380,30 +380,30 @@ Note: `run` intentionally omits this stage so tooling can access the unexpanded 
 ### step-rewrite
 
 ```clojure
-(meme.alpha.pipeline/step-rewrite ctx)
+(meme.alpha.stages/step-rewrite ctx)
 ```
 
 Apply rewrite rules to `:forms`. Rules come from `(get-in ctx [:opts :rewrite-rules])`. No-op if no rules are provided. Each form is rewritten independently, bottom-up to fixpoint (bounded by `:rewrite-max-iters`, default 100).
 
-Used by `run-string` for guest language transforms. Not included in `pipeline/run` (tooling path).
+Used by `run-string` for guest language transforms. Not included in `stages/run` (tooling path).
 
 ### run
 
 ```clojure
-(meme.alpha.pipeline/run source)
-(meme.alpha.pipeline/run source opts)
+(meme.alpha.stages/run source)
+(meme.alpha.stages/run source opts)
 ```
 
 Run the pipeline: `step-scan → step-parse`. Returns the complete context map. Does **not** include `step-expand-syntax-quotes` — forms contain AST nodes (`MemeSyntaxQuote`, `MemeRaw`) for tooling access. Call `step-expand-syntax-quotes` separately if you need eval-ready forms.
 
 ```clojure
-(meme.alpha.pipeline/run "+(1 2)")
+(meme.alpha.stages/run "+(1 2)")
 ;=> {:source "+(1 2)", :opts nil,
 ;    :raw-tokens [...], :tokens [...], :forms [(+ 1 2)]}
 ```
 
 
-## meme.alpha.pipeline.contract
+## meme.alpha.stages.contract
 
 Formal contract for the pipeline context map. Provides `clojure.spec.alpha` specs for the context at each stage boundary, a toggleable runtime validator, and explain functions for debugging and tooling.
 
@@ -423,20 +423,20 @@ Formal contract for the pipeline context map. Provides `clojure.spec.alpha` spec
 ### \*validate\*
 
 ```clojure
-meme.alpha.pipeline.contract/*validate*
+meme.alpha.stages.contract/*validate*
 ```
 
 Dynamic var. When bound to `true`, pipeline stages validate context maps at input and output against the specs above. Default: `false` (zero overhead).
 
 ```clojure
-(binding [meme.alpha.pipeline.contract/*validate* true]
-  (pipeline/run "+(1 2)"))
+(binding [meme.alpha.stages.contract/*validate* true]
+  (stages/run "+(1 2)"))
 ```
 
 ### validate!
 
 ```clojure
-(meme.alpha.pipeline.contract/validate! stage phase ctx)
+(meme.alpha.stages.contract/validate! stage phase ctx)
 ```
 
 Check `ctx` against the contract for the given `stage` (`:scan`, `:parse`, `:expand`) and `phase` (`:input` or `:output`). Throws `ex-info` with `:stage`, `:phase`, and `:problems` in ex-data. No-op when `*validate*` is false.
@@ -444,7 +444,7 @@ Check `ctx` against the contract for the given `stage` (`:scan`, `:parse`, `:exp
 ### explain-context
 
 ```clojure
-(meme.alpha.pipeline.contract/explain-context :scan :input {:source 42})
+(meme.alpha.stages.contract/explain-context :scan :input {:source 42})
 ;=> "42 - failed: string? in: [:source] at: [:source] ..."
 ```
 
@@ -453,7 +453,7 @@ Return a human-readable explanation string, or `nil` if valid. Always runs (not 
 ### valid?
 
 ```clojure
-(meme.alpha.pipeline.contract/valid? :parse :output ctx) ;=> true/false
+(meme.alpha.stages.contract/valid? :parse :output ctx) ;=> true/false
 ```
 
 Check without throwing. Not gated by `*validate*`.
@@ -463,7 +463,7 @@ Check without throwing. Not gated by `*validate*`.
 A guest parser replacing the `parse` stage must produce a context map conforming to `::ctx-after-parse`:
 
 ```clojure
-(require '[meme.alpha.pipeline.contract :as contract])
+(require '[meme.alpha.stages.contract :as contract])
 
 (binding [contract/*validate* true]
   (let [ctx (-> {:source src :opts opts}

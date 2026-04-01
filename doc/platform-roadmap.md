@@ -112,8 +112,8 @@ Phase 0 + Phase 1 together already let people build guest languages that
 share meme's syntax but have their own core. This is the "many semantics,
 one syntax" model — useful before any parser pluggability exists.
 
-**Scope:** New namespace `meme.alpha.platform.registry`. Small changes to
-`runtime/run.cljc`, `runtime/repl.cljc`, `runtime/cli.meme`.
+**Scope:** Consolidated into `meme.alpha.lang` — `register!`, `resolve-by-extension`,
+`load-edn`. Guest language dispatch integrated into `runtime/run.cljc` and `runtime/cli.meme`.
 
 
 ### Phase 2: Pluggable parser

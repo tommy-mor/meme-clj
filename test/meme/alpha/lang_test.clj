@@ -7,6 +7,13 @@
 
 (def all-langs @lang/builtin)
 
+(defn- tmp-file
+  "Create a uniquely-named temp file with the given extension. Auto-deleted on JVM exit."
+  [prefix ext]
+  (let [f (java.io.File/createTempFile prefix ext)]
+    (.deleteOnExit f)
+    (str f)))
+
 (use-fixtures :each (fn [f] (lang/clear-user-langs!) (f) (lang/clear-user-langs!)))
 
 ;; ============================================================
@@ -114,10 +121,12 @@
 
 (deftest load-edn-run-evals-core-then-user
   (testing "EDN :run evals core.meme before user source"
-    (spit "/tmp/test-edn-lang-core.meme" "defn(double [x] *(2 x))")
-    (spit "/tmp/test-edn-lang.edn" "{:run \"/tmp/test-edn-lang-core.meme\"}")
-    (let [l (lang/load-edn "/tmp/test-edn-lang.edn")]
-      (is (= 84 ((:run l) "double(42)" {}))))))
+    (let [core-path (tmp-file "test-edn-core" ".meme")
+          edn-path (tmp-file "test-edn-lang" ".edn")]
+      (spit core-path "defn(double [x] *(2 x))")
+      (spit edn-path (str "{:run \"" core-path "\"}"))
+      (let [l (lang/load-edn edn-path)]
+        (is (= 84 ((:run l) "double(42)" {})))))))
 
 ;; ============================================================
 ;; User lang registration (migrated from registry_test)
@@ -140,8 +149,9 @@
   (testing "registered lang auto-loads prelude from extension via run-file"
     (lang/register! :calc {:extension ".calc"
                            :run "examples/languages/calc/core.meme"})
-    (spit "/tmp/test-lang-dispatch.calc" "simplify('+(*(1 x) 0))")
-    (is (= 'x (run/run-file "/tmp/test-lang-dispatch.calc")))))
+    (let [f (tmp-file "test-lang-dispatch" ".calc")]
+      (spit f "simplify('+(*(1 x) 0))")
+      (is (= 'x (run/run-file f))))))
 
 (deftest register-with-pre-resolved-fn
   (testing "register! accepts pre-resolved functions"
@@ -150,24 +160,27 @@
                                   (let [run-string @(resolve 'meme.alpha.runtime.run/run-string)]
                                     (run-string "defn(greet [n] str(\"Hi \" n))" opts)
                                     (run-string source opts)))})
-    (spit "/tmp/test-mini.mini" "greet(\"world\")")
-    (is (= "Hi world" (run/run-file "/tmp/test-mini.mini")))))
+    (let [f (tmp-file "test-mini" ".mini")]
+      (spit f "greet(\"world\")")
+      (is (= "Hi world" (run/run-file f))))))
 
 (deftest register-with-custom-parser
   (testing "registered lang with rewrite-based parser"
     (lang/register! :rwm {:extension ".rwm"
                           :run 'meme.alpha.runtime.run/run-string
                           :parser 'meme.alpha.rewrite.tree/rewrite-parser})
-    (spit "/tmp/test-rwm.rwm" "+(21 21)")
-    (is (= 42 (run/run-file "/tmp/test-rwm.rwm")))))
+    (let [f (tmp-file "test-rwm" ".rwm")]
+      (spit f "+(21 21)")
+      (is (= 42 (run/run-file f))))))
 
 (deftest run-with-explicit-lang
   (testing ":lang opt overrides extension detection"
     (lang/register! :calc {:extension ".calc"
                            :run "examples/languages/calc/core.meme"})
     ;; Run a .meme file AS calc (explicit lang, mismatched extension)
-    (spit "/tmp/test-explicit.meme" "simplify('+(0 42))")
-    (is (= 42 (run/run-file "/tmp/test-explicit.meme" {:lang :calc})))))
+    (let [f (tmp-file "test-explicit" ".meme")]
+      (spit f "simplify('+(0 42))")
+      (is (= 42 (run/run-file f {:lang :calc}))))))
 
 (deftest clear-user-langs-works
   (testing "clear-user-langs! empties user registry"

@@ -6,12 +6,12 @@
      form-to-text:  forms->clj (all platforms), clj->forms (JVM only)
      text-to-text:  meme->clj (all platforms), clj->meme (JVM only)
 
-   Pipeline:
-     meme.alpha.pipeline/run — full ctx->ctx pipeline with intermediate state"
+   Stages:
+     meme.alpha.stages/run — full ctx->ctx stages with intermediate state"
   (:require [meme.alpha.emit.formatter.flat :as fmt-flat]
             [meme.alpha.emit.formatter.canon :as fmt-canon]
             [meme.alpha.parse.expander :as expander]
-            [meme.alpha.pipeline :as pipeline]))
+            [meme.alpha.stages :as stages]))
 
 ;; ---------------------------------------------------------------------------
 ;; Text-to-form track
@@ -25,10 +25,10 @@
                         without it, since cljs.reader cannot resolve :: correctly).
      :read-cond       — :preserve to return ReaderConditional objects instead of
                         evaluating. Default: evaluate for current platform.
-   Note: returns only parsed forms. Use run-pipeline when you need
-   access to intermediate pipeline state (raw tokens, tokens, or forms)."
-  ([s] (:forms (pipeline/run s)))
-  ([s opts] (:forms (pipeline/run s opts))))
+   Note: returns only parsed forms. Use run-stages when you need
+   access to intermediate state (raw tokens, tokens, or forms)."
+  ([s] (:forms (stages/run s)))
+  ([s opts] (:forms (stages/run s opts))))
 
 (defn forms->meme
   "Print Clojure forms as meme source string (single-line per form)."
@@ -88,12 +88,12 @@
      (forms->meme (clj->forms clj-src))))
 
 ;; ---------------------------------------------------------------------------
-;; Pipeline access
+;; Stage access
 ;; ---------------------------------------------------------------------------
 
-(defn run-pipeline
-  "Run the full pipeline: source → scan → parse.
+(defn run-stages
+  "Run the full stage pipeline: source → scan → parse.
    Returns a context map with :source, :opts, :raw-tokens, :tokens, :forms.
-   Useful for tooling that needs intermediate pipeline state."
-  ([source] (pipeline/run source))
-  ([source opts] (pipeline/run source opts)))
+   Useful for tooling that needs intermediate state."
+  ([source] (stages/run source))
+  ([source opts] (stages/run source opts)))

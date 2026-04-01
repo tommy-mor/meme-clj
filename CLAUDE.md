@@ -57,7 +57,7 @@ clojure -T:build deploy
 .meme file → tokenizer → parser → Clojure forms → Babashka / Clojure JVM / ClojureScript
 ```
 
-The pipeline has composable stages (composed by `meme.alpha.pipeline`), each a `ctx → ctx` function:
+The pipeline has composable stages (composed by `meme.alpha.stages`), each a `ctx → ctx` function:
 1. **step-strip-shebang** — remove `#!` line from `:source` (for executable scripts). Defined in `runtime/run`, not part of the core pipeline.
 2. **step-scan** (`meme.alpha.scan.tokenizer`) — characters → flat token vector. Compound forms emit marker tokens.
 3. **step-parse** (`meme.alpha.parse.reader`) — recursive-descent parser, tokens → Clojure forms. Value resolution delegated to `meme.alpha.parse.resolve`.
@@ -84,9 +84,9 @@ The pipeline has composable stages (composed by `meme.alpha.pipeline`), each a `
 - `meme.alpha.emit.render` (.cljc) — Doc algebra and layout engine: `DocText`, `DocLine`, `DocCat`, `DocNest`, `DocGroup`, `DocIfBreak`, `layout` (Doc tree → string at given width). Pure, no meme-specific logic. Portable.
 - `meme.alpha.emit.formatter.flat` (.cljc) — Flat formatter: composes printer + render at infinite width. `format-form`, `format-forms`, `format-clj`. Single-line output. Portable.
 - `meme.alpha.emit.formatter.canon` (.cljc) — Canonical formatter: composes printer + render at target width. `format-form`, `format-forms`. Width-aware multi-line output. Used by `meme format` CLI. Portable.
-- `meme.alpha.pipeline` (.cljc) — Composable pipeline stages: `step-scan`, `step-parse`, `step-expand-syntax-quotes`, `step-rewrite`. Each is a `ctx → ctx` function. Stage boundaries validated by `pipeline.contract` when `*validate*` is true. Exposes intermediate state (`:raw-tokens`, `:tokens`, `:forms`) for tooling. Portable.
-- `meme.alpha.pipeline.contract` (.cljc) — Formal spec validation of the pipeline context map at each stage boundary. `*validate*` dynamic var, `validate!`, `explain-context`, `valid?`. Used for development, testing, and guest language debugging. Portable.
-- `meme.alpha.core` (.cljc) — Public API in three tracks: text-to-form (`meme->forms`, `forms->meme`), form-to-text (`forms->clj`, `clj->forms`), text-to-text (`meme->clj`, `clj->meme`). Also `format-meme` for width-aware formatting and `run-pipeline` for tooling access to intermediate pipeline state. `clj->forms` and `clj->meme` are JVM only.
+- `meme.alpha.stages` (.cljc) — Composable stages: `step-scan`, `step-parse`, `step-expand-syntax-quotes`, `step-rewrite`. Each is a `ctx → ctx` function. Stage boundaries validated by `stages.contract` when `*validate*` is true. Exposes intermediate state (`:raw-tokens`, `:tokens`, `:forms`) for tooling. Portable.
+- `meme.alpha.stages.contract` (.cljc) — Formal spec validation of the stage context map at each boundary. `*validate*` dynamic var, `validate!`, `explain-context`, `valid?`. Used for development, testing, and guest language debugging. Portable.
+- `meme.alpha.core` (.cljc) — Public API in three tracks: text-to-form (`meme->forms`, `forms->meme`), form-to-text (`forms->clj`, `clj->forms`), text-to-text (`meme->clj`, `clj->meme`). Also `format-meme` for width-aware formatting and `run-stages` for tooling access to intermediate state. `clj->forms` and `clj->meme` are JVM only.
 - `meme.alpha.runtime.resolve` (.cljc) — Default symbol resolution for syntax-quote. Matches Clojure's `SyntaxQuoteReader`: special forms stay unqualified, vars resolve to their defining namespace, unresolved symbols get current-ns qualification. JVM/Babashka only.
 - `meme.alpha.runtime.repl` (.cljc) — REPL. Requires `eval`; JVM/Babashka only by default, CLJS with injected `:eval`/`:read-line`.
 - `meme.alpha.runtime.run` (.cljc) — File runner. Requires `eval` + `slurp`; JVM/Babashka only by default.
@@ -108,7 +108,7 @@ The pipeline has composable stages (composed by `meme.alpha.pipeline`), each a `
 
 | Tier | Modules | Platforms |
 |------|---------|-----------|
-| Core translation | tokenizer, reader, expander, resolve, printer, render, formatter.flat, formatter.canon, pipeline, pipeline.contract, core, errors, forms, source, rewrite, rewrite.rules, rewrite.tree, rewrite.emit, lang, lang.meme-classic, lang.meme-rewrite, lang.meme-trs, lang.util, trs, convert | JVM, Babashka, ClojureScript |
+| Core translation | tokenizer, reader, expander, resolve, printer, render, formatter.flat, formatter.canon, stages, stages.contract, core, errors, forms, source, rewrite, rewrite.rules, rewrite.tree, rewrite.emit, lang, lang.meme-classic, lang.meme-rewrite, lang.meme-trs, lang.util, trs, convert | JVM, Babashka, ClojureScript |
 | Runtime | repl, run, runtime.resolve | JVM, Babashka (CLJS possible with injected eval) |
 | Test infra | test-runner, dogfood-test, vendor-roundtrip-test | JVM only |
 
@@ -155,11 +155,11 @@ The pipeline has composable stages (composed by `meme.alpha.pipeline`), each a `
 | `runtime/run_test` | File runner: `run-string`, `run-file`, shebang handling, custom eval-fn |
 | `examples_test` | Integration scenarios, multi-feature examples |
 | `dogfood_test` | Meta: meme roundtrips its own source files |
-| `pipeline_snapshot_test` | Characterization tests: exact token and form snapshots for the full pipeline. Regression net for pipeline refactoring. |
+| `pipeline_snapshot_test` | Characterization tests: exact token and form snapshots. Regression net for stage refactoring. |
 | `generative_test` | Property-based tests with test.check. Print→read roundtrip on generated forms. JVM only. |
 | `errors_test` | Error infrastructure: `source-context`, `meme-error`, `format-error` |
 | `vendor_roundtrip_test` | Vendor roundtrip: real-world Clojure libraries (git submodules in `test/vendor/`) roundtripped per-form through clj→meme→clj. JVM only. |
-| `pipeline/contract_test` | Pipeline spec validation: token and context-map specs at stage boundaries |
+| `stages/contract_test` | Stage spec validation: token and context-map specs at stage boundaries |
 | `rewrite_test` | Rewrite engine: pattern matching, substitution, splice variables, cycle detection |
 | `rewrite/rules_test` | Rewrite rules: S→M and M→S transformations |
 | `rewrite/tree_test` | Rewrite tree builder: tokens→tagged tree, cross-test vs main parser |
