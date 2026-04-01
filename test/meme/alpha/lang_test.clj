@@ -86,19 +86,19 @@
 
 (deftest load-edn-calc
   (testing "calc lang EDN loads and :run works"
-    (let [l (lang/load-edn "examples/languages/calc/pipeline.edn")]
+    (let [l (lang/load-edn "examples/languages/calc/lang.edn")]
       (is (fn? (:run l)))
       (is (fn? (:format l)))
       (is (= 'x ((:run l) "simplify('+(*(1 x) 0))" {}))))))
 
 (deftest load-edn-prefix
   (testing "prefix lang EDN loads and :run works"
-    (let [l (lang/load-edn "examples/languages/prefix/pipeline.edn")]
+    (let [l (lang/load-edn "examples/languages/prefix/lang.edn")]
       (is (fn? (:run l))))))
 
 (deftest load-edn-format-delegates
   (testing ":format :meme-classic in EDN resolves to built-in format"
-    (let [l (lang/load-edn "examples/languages/calc/pipeline.edn")]
+    (let [l (lang/load-edn "examples/languages/calc/lang.edn")]
       (is (= "def(x 42)" ((:format l) "def(x 42)" {}))))))
 
 (deftest load-edn-run-evals-core-then-user
