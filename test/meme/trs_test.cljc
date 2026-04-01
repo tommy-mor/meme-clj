@@ -2,6 +2,7 @@
   "Tests for the token-stream term rewriting system."
   (:require [clojure.test :refer [deftest is testing]]
             [meme.trs :as trs]
+            [meme.scan.tokenizer :as tok]
             [meme.lang :as lang]))
 
 ;; ---------------------------------------------------------------------------
@@ -117,3 +118,29 @@
          (is (= ((:to-clj (lang/resolve-lang :meme-classic)) src)
                 ((:to-clj (lang/resolve-lang :meme-trs)) src))
              (str "disagreement on: " src))))))
+
+;; ---------------------------------------------------------------------------
+;; nest-tokens validation
+;; ---------------------------------------------------------------------------
+
+(deftest nest-tokens-unclosed-delimiter
+  (testing "unclosed paren throws"
+    (let [tokens (tok/tokenize "f(x")]
+      (is (thrown-with-msg?
+           #?(:clj Exception :cljs js/Error)
+           #"Unclosed delimiter"
+           (trs/nest-tokens tokens)))))
+  (testing "unclosed bracket throws"
+    (let [tokens (tok/tokenize "[1 2")]
+      (is (thrown-with-msg?
+           #?(:clj Exception :cljs js/Error)
+           #"Unclosed delimiter"
+           (trs/nest-tokens tokens))))))
+
+(deftest nest-tokens-extra-closer
+  (testing "unmatched closer throws"
+    (let [tokens (tok/tokenize "x)")]
+      (is (thrown-with-msg?
+           #?(:clj Exception :cljs js/Error)
+           #"Unexpected closing delimiter"
+           (trs/nest-tokens tokens))))))

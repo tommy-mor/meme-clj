@@ -36,26 +36,38 @@
 (defn nest-tokens
   "Group balanced delimiters into nested vectors.
    Each delimited group becomes [opener-tok ...children closer-tok].
-   Children may themselves be nested groups or atom tokens."
+   Children may themselves be nested groups or atom tokens.
+   Throws on unbalanced delimiters."
   [tokens]
-  (loop [i 0
-         stack [[]]]
-    (if (>= i (count tokens))
-      (peek stack)
-      (let [tok (nth tokens i)
-            typ (:type tok)]
-        (cond
-          (openers typ)
-          (recur (inc i) (conj stack [tok]))
+  (let [stack
+        (loop [i 0
+               stack [[]]]
+          (if (>= i (count tokens))
+            stack
+            (let [tok (nth tokens i)
+                  typ (:type tok)]
+              (cond
+                (openers typ)
+                (recur (inc i) (conj stack [tok]))
 
-          (closers typ)
-          (let [current (conj (peek stack) tok)
-                parent-stack (pop stack)
-                parent (peek parent-stack)]
-            (recur (inc i) (conj (pop parent-stack) (conj parent current))))
+                (closers typ)
+                (do (when (< (count stack) 2)
+                      (throw (ex-info (str "Unexpected closing delimiter at line "
+                                           (:line tok) ", col " (:col tok))
+                                      {:type :unbalanced-close :token tok})))
+                    (let [current (conj (peek stack) tok)
+                          parent-stack (pop stack)
+                          parent (peek parent-stack)]
+                      (recur (inc i) (conj (pop parent-stack) (conj parent current)))))
 
-          :else
-          (recur (inc i) (conj (pop stack) (conj (peek stack) tok))))))))
+                :else
+                (recur (inc i) (conj (pop stack) (conj (peek stack) tok)))))))]
+    (when (> (count stack) 1)
+      (let [unclosed (first (peek stack))]
+        (throw (ex-info (str "Unclosed delimiter at line "
+                             (:line unclosed) ", col " (:col unclosed))
+                        {:type :unclosed :token unclosed}))))
+    (peek stack)))
 
 ;; ============================================================
 ;; Whitespace helpers for nested nodes
@@ -237,8 +249,10 @@
     ;; Scan left-to-right, apply first matching rule.
     ;; After a successful match, re-check the same position — the replacement
     ;; may produce a new head for a chained call (e.g., f(x)(y) → ((f x) y)).
+    ;; Per-position retry counter guards against non-terminating rules.
     (loop [i 0
-           children children]
+           children children
+           retries 0]
       (if (>= i (dec (count children)))
         children
         (let [match (some (fn [{:keys [pattern] :as r}]
@@ -246,13 +260,16 @@
                               (assoc m :rule r)))
                           rules)]
           (if match
-            (let [result (emit-replacement (:replacement (:rule match)) (:bindings match))
-                  width (:width match)
-                  before (subvec children 0 i)
-                  after (subvec children (+ i width))
-                  new-children (into [] cat [before result after])]
-              (recur i new-children))
-            (recur (inc i) children)))))))
+            (do (when (>= retries 100)
+                  (throw (ex-info "TRS rewrite loop did not terminate at position"
+                                  {:position i :retries retries})))
+                (let [result (emit-replacement (:replacement (:rule match)) (:bindings match))
+                      width (:width match)
+                      before (subvec children 0 i)
+                      after (subvec children (+ i width))
+                      new-children (into [] cat [before result after])]
+                  (recur i new-children (inc retries))))
+            (recur (inc i) children 0)))))))
 
 ;; ============================================================
 ;; Default rule set
