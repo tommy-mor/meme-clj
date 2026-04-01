@@ -88,6 +88,18 @@ $ bb meme format hello.meme                             # in-place
 $ bb meme format src/                                   # directory, recursive
 ```
 
+Macros work naturally — backtick uses meme syntax inside:
+
+```clojure
+;; define a macro
+defmacro(unless [test & body]
+  `if(not(~test) do(~@body)))
+
+;; use it
+unless(empty?(xs)
+  println(first(xs)))
+```
+
 Requires [Babashka](https://babashka.org) or [Clojure](https://clojure.org).
 
 ## Editor Support
