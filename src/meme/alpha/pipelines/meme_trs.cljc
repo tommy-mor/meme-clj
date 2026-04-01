@@ -13,8 +13,11 @@
             [meme.alpha.trs :as trs]
             #?(:clj [meme.alpha.runtime.run :as run])))
 
+(defn format-meme [source opts]
+  (fmt-canon/format-forms (core/meme->forms source) opts))
+
 #?(:clj
-   (defn- clj->meme [source]
+   (defn clj->meme [source]
      (let [forms (core/clj->forms source)
            tagged (mapv #(rw/rewrite rules/s->m-rules %) forms)
            tagged (mapv #(rules/rewrite-inside-reader-conditionals
@@ -22,17 +25,20 @@
                         tagged)]
        (remit/emit-forms tagged))))
 
+(defn convert [source opts]
+  (if (util/meme-source? source opts)
+    (trs/meme->clj-text source)
+    #?(:clj (clj->meme source)
+       :cljs (throw (ex-info "clj→meme requires JVM" {})))))
+
+#?(:clj
+   (defn run-source [source opts]
+     (let [clj-text (trs/meme->clj-text source)]
+       (run/run-string clj-text opts))))
+
 (def pipeline
   (merge
-   {:format  (fn [source opts]
-               (let [forms (core/meme->forms source)]
-                 (fmt-canon/format-forms forms opts)))
-    :convert (fn [source opts]
-               (if (util/meme-source? source opts)
-                 (trs/meme->clj-text source)
-                 #?(:clj (clj->meme source)
-                    :cljs (throw (ex-info "clj→meme requires JVM" {})))))}
-   #?(:clj {:run (fn [source opts]
-                    (let [clj-text (trs/meme->clj-text source)]
-                      (run/run-string clj-text opts)))})))
+   {:format  format-meme
+    :convert convert}
+   #?(:clj {:run run-source})))
    ;; no :repl — trs doesn't support it yet

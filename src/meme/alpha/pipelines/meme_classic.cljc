@@ -8,17 +8,18 @@
             #?(:clj [meme.alpha.runtime.run :as run])
             #?(:clj [meme.alpha.runtime.repl :as repl])))
 
+(defn format-meme [source opts]
+  (fmt-canon/format-forms (core/meme->forms source) opts))
+
+(defn convert [source opts]
+  (if (util/meme-source? source opts)
+    (core/meme->clj source opts)
+    #?(:clj (core/clj->meme source)
+       :cljs (throw (ex-info "clj→meme requires JVM" {})))))
+
 (def pipeline
   (merge
-   {:format  (fn [source opts]
-               (let [forms (core/meme->forms source)]
-                 (fmt-canon/format-forms forms opts)))
-    :convert (fn [source opts]
-               (if (util/meme-source? source opts)
-                 (core/meme->clj source opts)
-                 #?(:clj (core/clj->meme source)
-                    :cljs (throw (ex-info "clj→meme requires JVM" {})))))}
-   #?(:clj {:run  (fn [source opts]
-                     (run/run-string source opts))
-            :repl (fn [opts]
-                    (repl/start opts))})))
+   {:format  format-meme
+    :convert convert}
+   #?(:clj {:run  run/run-string
+            :repl repl/start})))

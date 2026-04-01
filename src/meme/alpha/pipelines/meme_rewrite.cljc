@@ -15,8 +15,17 @@
             #?(:clj [meme.alpha.runtime.run :as run])
             #?(:clj [meme.alpha.runtime.repl :as repl])))
 
+(def ^:private rewrite-opts {:parser tree/rewrite-parser})
+
+(defn format-meme [source opts]
+  (fmt-canon/format-forms (core/meme->forms source rewrite-opts) opts))
+
+(defn meme->clj [source opts]
+  (core/forms->clj
+   (:forms (pipeline/run source (merge opts rewrite-opts {:read-cond :preserve})))))
+
 #?(:clj
-   (defn- clj->meme [source]
+   (defn clj->meme [source]
      (let [forms (core/clj->forms source)
            tagged (mapv #(rw/rewrite rules/s->m-rules %) forms)
            tagged (mapv #(rules/rewrite-inside-reader-conditionals
@@ -24,19 +33,23 @@
                         tagged)]
        (remit/emit-forms tagged))))
 
+(defn convert [source opts]
+  (if (util/meme-source? source opts)
+    (meme->clj source opts)
+    #?(:clj (clj->meme source)
+       :cljs (throw (ex-info "clj→meme requires JVM" {})))))
+
+#?(:clj
+   (defn run-source [source opts]
+     (run/run-string source (merge opts rewrite-opts))))
+
+#?(:clj
+   (defn start-repl [opts]
+     (repl/start (merge opts rewrite-opts))))
+
 (def pipeline
   (merge
-   {:format  (fn [source opts]
-               (let [forms (core/meme->forms source {:parser tree/rewrite-parser})]
-                 (fmt-canon/format-forms forms opts)))
-    :convert (fn [source opts]
-               (if (util/meme-source? source opts)
-                 (core/forms->clj
-                  (:forms (pipeline/run source (merge opts {:parser tree/rewrite-parser
-                                                             :read-cond :preserve}))))
-                 #?(:clj (clj->meme source)
-                    :cljs (throw (ex-info "clj→meme requires JVM" {})))))}
-   #?(:clj {:run  (fn [source opts]
-                     (run/run-string source (assoc opts :parser tree/rewrite-parser)))
-            :repl (fn [opts]
-                    (repl/start (assoc opts :parser tree/rewrite-parser)))})))
+   {:format  format-meme
+    :convert convert}
+   #?(:clj {:run  run-source
+            :repl start-repl})))
