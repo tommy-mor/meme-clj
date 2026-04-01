@@ -7,10 +7,8 @@
   (:require [meme.core :as core]
             [meme.emit.formatter.canon :as fmt-canon]
             [meme.emit.formatter.flat :as fmt-flat]
-            [meme.rewrite :as rw]
-            [meme.rewrite.rules :as rules]
-            [meme.rewrite.emit :as remit]
-            [meme.trs :as trs]))
+            [meme.trs :as trs]
+            #?(:clj [meme.lang.shared :as shared])))
 
 (defn format-meme [source opts]
   (let [forms (core/meme->forms source)]
@@ -24,15 +22,7 @@
   ([source _opts] (to-clj source)))
 
 #?(:clj
-   (defn to-meme
-     ([source]
-      (let [forms (core/clj->forms source)
-            tagged (mapv #(rw/rewrite rules/s->m-rules %) forms)
-            tagged (mapv #(rules/rewrite-inside-reader-conditionals
-                            (fn [f] (rw/rewrite rules/s->m-rules f)) %)
-                         tagged)]
-        (remit/emit-forms tagged)))
-     ([source _opts] (to-meme source))))
+   (def to-meme shared/clj->meme-text))
 
 #?(:clj
    (defn run-source [source opts]

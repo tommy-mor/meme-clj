@@ -128,8 +128,15 @@
                              pairs))
                {:meme/ns ns-str}))
 
-           ;; Default: recurse into list
-           (apply list (xf head) (seq children))))
+           ;; Default: if this looks like a structural tag we missed, throw.
+           ;; Otherwise, recurse into a normal list form.
+           (do (when (and (symbol? head)
+                          (or (= "meme" (namespace head))
+                              (contains? #{'bracket 'brace 'set-lit 'anon-fn 'paren 'm-call}
+                                         head)))
+                 (throw (ex-info (str "Unrecognized structural tag: " head)
+                                 {:tag head :form form})))
+               (apply list (xf head) (seq children)))))
 
        (vector? form) (mapv xf form)
        (record? form) form
