@@ -4,6 +4,24 @@ All notable changes to meme-clj will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.13.0] — 2026-04-01
+
+### Added
+- **Map/set pattern matching**: rewrite engine `match-pattern` now matches map patterns by key (`{:k ?x}` matches `{:k 42}`) and set patterns by element presence
+- **Map/set traversal**: `rewrite-once` descends into maps (excluding records) and sets, so rules match subexpressions inside map values/keys and set elements
+- **TRS chained calls**: `f(x)(y)` → `((f x) y)` — fixed left-to-right scan in `rewrite-level` with re-check after match
+- **Comment preservation**: formatter never silently drops comments — forms with comments always break to multi-line
+- **CLJS generative parity**: 5 property-based tests (matrix roundtrip, mixed forms, error locations, unclosed-is-incomplete, formatter idempotency) now run on ClojureScript
+- **Formatter idempotency tests**: deterministic + property-based (300 trials) asserting `format(format(x)) == format(x)`
+- **Comment preservation fixture**: comprehensive `.meme` fixture covering Clojure/meme code in comments, multiple semicolons, commented-out code, mid-expression and trailing comments
+- **Three-pipeline benchmark**: `benchmark_test` now exercises classic, rewrite, and ts-trs across 11 fixtures and 7,526 vendor forms
+
+### Fixed
+- **Tokenizer EOF-after-backslash**: `"hello\` now reports "Incomplete escape sequence" instead of misleading "Unterminated string"
+- **Rewrite emitter regex escaping**: `"` inside regex now escaped in output, matching `printer.cljc` behavior
+- **Prelude spec**: `:meme.opts/prelude` corrected from `string?` to `(s/coll-of any?)` matching runtime type (vector of forms)
+- **Generative set duplicates**: `gen-meme-text` set generator now deduplicates elements, fixing intermittent `prop-meme-text-roundtrip` failure
+
 ## [0.12.0] — 2026-04-01
 
 ### Added
