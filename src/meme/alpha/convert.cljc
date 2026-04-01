@@ -8,7 +8,8 @@
             [meme.alpha.rewrite :as rw]
             [meme.alpha.rewrite.tree :as tree]
             [meme.alpha.rewrite.rules :as rules]
-            [meme.alpha.rewrite.emit :as remit]))
+            [meme.alpha.rewrite.emit :as remit]
+            [meme.alpha.trs :as trs]))
 
 ;; ---------------------------------------------------------------------------
 ;; Pipeline constants
@@ -37,10 +38,27 @@
                                               tagged)]
                              (remit/emit-forms tagged)))])})
 
+(def tok-stream-trs-pipeline
+  "Token-stream TRS: tokenizer → token-stream rewriting → text → forms."
+  {:name :tok-stream-trs
+   :parse (fn [src opts]
+            (let [clj-text (trs/meme->clj-text src)]
+              #?(:clj (core/clj->forms clj-text)
+                 :cljs (core/meme->forms clj-text opts))))
+   :meme->clj (fn [src _opts] (trs/meme->clj-text src))
+   #?@(:clj [:clj->meme (fn [src]
+                           (let [forms (core/clj->forms src)
+                                 tagged (mapv #(rw/rewrite rules/s->m-rules %) forms)
+                                 tagged (mapv #(rules/rewrite-inside-reader-conditionals
+                                                 (fn [f] (rw/rewrite rules/s->m-rules f)) %)
+                                              tagged)]
+                             (remit/emit-forms tagged)))])})
+
 (def pipelines
   "Available pipelines by keyword."
-  {:classic   classic-pipeline
-   :rewrite   rewrite-pipeline})
+  {:classic        classic-pipeline
+   :rewrite        rewrite-pipeline
+   :tok-stream-trs tok-stream-trs-pipeline})
 
 ;; ---------------------------------------------------------------------------
 ;; Public API
@@ -51,7 +69,7 @@
   [pipeline-name]
   (or (get pipelines pipeline-name)
       (throw (ex-info (str "Unknown pipeline: " pipeline-name
-                           " — must be one of: classic, rewrite") {}))))
+                           " — must be one of: classic, rewrite, tok-stream-trs") {}))))
 
 (defn meme->clj
   "Convert meme source to Clojure source using the named pipeline."
