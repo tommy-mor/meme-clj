@@ -215,14 +215,13 @@
       (is (re-find #"; body comment" formatted))
       (is (re-find #"defn\(foo" formatted)))))
 
-(deftest comment-roundtrip-mid-expression-flat
-  (testing "comment inside a form is dropped when format stays single-line"
+(deftest comment-roundtrip-mid-expression-wide
+  (testing "comment inside a form preserved even at wide width"
     (let [src "defn(foo\n  ; body comment\n  [x]\n  +(x 1))"
           forms (core/meme->forms src)
           formatted (canon/format-form (first forms) {:width 80})]
-      ;; DocIfBreak: flat mode drops comments — this is by design
-      (is (not (re-find #"; body comment" formatted)))
-      (is (= "defn(foo [x] +(x 1))" formatted)))))
+      (is (re-find #"; body comment" formatted))
+      (is (re-find #"defn\(foo" formatted)))))
 
 (deftest comment-roundtrip-forms-roundtrip
   (testing "formatted output with comments re-parses to same forms"

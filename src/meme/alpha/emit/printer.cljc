@@ -321,14 +321,13 @@
 
 (defn to-doc
   "Convert a Clojure form to a Doc tree, with comment attachment.
-   Comments from :ws metadata are emitted only in break context (via DocIfBreak).
+   Comments are always emitted — the hardline in comment-doc forces the
+   enclosing group to break, so comments are never silently dropped.
    mode is :meme (default) or :clj."
   ([form] (to-doc form :meme))
   ([form mode]
    (let [doc (to-doc-form form mode)
          comments (form-comments form)]
      (if comments
-       (render/if-break
-        (render/cat (comment-doc comments) doc) ; break: comments + form
-        doc)                                     ; flat: just form
+       (render/cat (comment-doc comments) doc)
        doc))))
