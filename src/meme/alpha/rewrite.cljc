@@ -118,6 +118,29 @@
           (= (vector? pattern) (vector? expr)))
      (match-seq (vec pattern) (vec expr) bindings)
 
+     ;; map pattern — keys are literal anchors, values may contain variables.
+     ;; Records are excluded (they are internal tagged types, not user data).
+     (and (map? pattern) (not (record? pattern))
+          (map? expr) (not (record? expr)))
+     (when (= (count pattern) (count expr))
+       (reduce-kv (fn [bindings pk pv]
+                    (when bindings
+                      (if-let [entry (find expr pk)]
+                        (match-pattern pv (val entry) bindings)
+                        nil)))
+                  bindings
+                  pattern))
+
+     ;; set pattern — literal element membership.
+     (and (set? pattern) (set? expr))
+     (when (= (count pattern) (count expr))
+       (reduce (fn [bindings p-elem]
+                 (when bindings
+                   (when (contains? expr p-elem)
+                     bindings)))
+               bindings
+               pattern))
+
      ;; literal equality
      (= pattern expr)
      bindings

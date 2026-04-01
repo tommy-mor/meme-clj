@@ -74,6 +74,8 @@ Rules rewrite the user's code after parsing, before eval. They are pattern → r
 | `_` | Match anything, don't bind |
 | `(f ?x ?y)` | Match a list with head `f` |
 | `[?a ?b]` | Match a vector |
+| `{:k ?x}` | Match a map by key, bind values |
+| `#{:a :b}` | Match a set by element presence |
 | `42`, `:foo` | Match literal values |
 
 `?x` appearing twice in a pattern enforces consistency — both must match the same value.

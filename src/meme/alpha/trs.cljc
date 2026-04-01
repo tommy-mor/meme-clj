@@ -220,8 +220,9 @@
 
 (defn rewrite-level
   "Rewrite one level of nested children.
-   Recurses into sub-groups first (bottom-up), then scans right-to-left
-   applying rules at this level."
+   Recurses into sub-groups first (bottom-up), then scans left-to-right
+   applying rules at this level. After a match, re-checks the same position
+   to support chained calls: f(x)(y) → ((f x) y)."
   [rules children]
   ;; Recurse into sub-groups
   (let [children (mapv (fn [c]
@@ -233,10 +234,12 @@
                              (into [opener] (conj rewritten closer)))
                            c))
                        children)]
-    ;; Scan right-to-left, apply first matching rule
-    (loop [i (- (count children) 2)
+    ;; Scan left-to-right, apply first matching rule.
+    ;; After a successful match, re-check the same position — the replacement
+    ;; may produce a new head for a chained call (e.g., f(x)(y) → ((f x) y)).
+    (loop [i 0
            children children]
-      (if (neg? i)
+      (if (>= i (dec (count children)))
         children
         (let [match (some (fn [{:keys [pattern] :as r}]
                             (when-let [m (match-pattern pattern children i)]
@@ -248,8 +251,8 @@
                   before (subvec children 0 i)
                   after (subvec children (+ i width))
                   new-children (into [] cat [before result after])]
-              (recur (dec i) new-children))
-            (recur (dec i) children)))))))
+              (recur i new-children))
+            (recur (inc i) children)))))))
 
 ;; ============================================================
 ;; Default rule set

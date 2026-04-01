@@ -69,11 +69,12 @@
     (is (= "(f (g (h (i x))))" (trs/meme->clj-text "f(g(h(i(x))))")))))
 
 (deftest trs-chained-calls
-  ;; NOTE: TRS does not yet support chained calls — classic pipeline produces
-  ;; ((f x) y) but TRS treats the second paren group independently.
-  ;; This test documents current behavior; update when chained calls land.
-  (testing "f(x)(y) — current TRS behavior (no chained call support)"
-    (is (= "(f (x) y)" (trs/meme->clj-text "f(x)(y)")))))
+  (testing "f(x)(y) → ((f x) y)"
+    (is (= "((f x) y)" (trs/meme->clj-text "f(x)(y)")))))
+
+(deftest trs-triple-chain
+  (testing "f(x)(y)(z) → (((f x) y) z)"
+    (is (= "(((f x) y) z)" (trs/meme->clj-text "f(x)(y)(z)")))))
 
 (deftest trs-prefix-on-call
   (testing "@f(x) → @(f x)"
@@ -103,7 +104,16 @@
                      "f()"
                      "'f(x)"
                      "[x](1)"
-                     ":key(map)"]]
+                     ":key(map)"
+                     ;; chained calls
+                     "f(x)(y)"
+                     "f(x)(y)(z)"
+                     ;; prefix + call
+                     "@f(x)"
+                     "^:foo f(x)"
+                     ;; calls inside collections
+                     "[f(x) g(y)]"
+                     "{:a f(x) :b g(y)}"]]
          (is (= (convert/meme->clj src :classic)
                 (convert/meme->clj src :ts-trs))
              (str "disagreement on: " src))))))

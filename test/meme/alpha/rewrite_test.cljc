@@ -122,6 +122,45 @@
              (rw/rewrite rules '(m-call f (args (m-call g (args x))))))))))
 
 ;; ============================================================
+;; Map and Set Pattern Matching
+;; ============================================================
+
+(deftest match-pattern-map-with-vars
+  (testing "map pattern with variable value"
+    (is (= '{x 42} (rw/match-pattern '{:k ?x} '{:k 42}))))
+  (testing "map pattern with multiple vars"
+    (is (= '{x 1 y 2} (rw/match-pattern '{:a ?x :b ?y} '{:a 1 :b 2})))))
+
+(deftest match-pattern-map-nested
+  (testing "nested expression in map value"
+    (is (= '{x 1} (rw/match-pattern '{:k (f ?x)} '{:k (f 1)})))))
+
+(deftest match-pattern-map-size-mismatch
+  (testing "different sizes don't match"
+    (is (nil? (rw/match-pattern '{:a ?x} '{:a 1 :b 2})))))
+
+(deftest match-pattern-map-key-mismatch
+  (testing "missing key doesn't match"
+    (is (nil? (rw/match-pattern '{:a ?x} '{:b 1})))))
+
+(deftest match-pattern-set-literal
+  (testing "set of literals matches"
+    (is (= {} (rw/match-pattern '#{:a :b} '#{:a :b}))))
+  (testing "set size mismatch fails"
+    (is (nil? (rw/match-pattern '#{:a :b} '#{:a :b :c})))))
+
+(deftest match-pattern-set-mismatch
+  (testing "different elements fail"
+    (is (nil? (rw/match-pattern '#{:a :b} '#{:a :c})))))
+
+(deftest rewrite-with-map-pattern
+  (let [rules [(rw/rule '{:op :add :l ?a :r ?b} '(+ ?a ?b))]]
+    (testing "map pattern rule rewrites to list"
+      (is (= '(+ 1 2) (rw/rewrite rules '{:op :add :l 1 :r 2}))))
+    (testing "map pattern inside list"
+      (is (= '(f (+ 1 2)) (rw/rewrite rules '(f {:op :add :l 1 :r 2})))))))
+
+;; ============================================================
 ;; Map and Set Traversal
 ;; ============================================================
 
