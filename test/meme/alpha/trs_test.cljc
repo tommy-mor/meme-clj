@@ -65,12 +65,12 @@
     (is (= "@atom" (trs/meme->clj-text "@atom")))))
 
 ;; ---------------------------------------------------------------------------
-;; Pipeline integration: tok-stream-trs agrees with classic
+;; Pipeline integration: ts-trs agrees with classic
 ;; ---------------------------------------------------------------------------
 
 #?(:clj
    (deftest pipeline-agreement
-     (testing "tok-stream-trs agrees with classic on basic cases"
+     (testing "ts-trs agrees with classic on basic cases"
        (doseq [src ["f(x y)"
                      "+(1 2)"
                      "defn(foo [x] +(x 1))"
@@ -80,5 +80,5 @@
                      "[x](1)"
                      ":key(map)"]]
          (is (= (convert/meme->clj src :classic)
-                (convert/meme->clj src :tok-stream-trs))
+                (convert/meme->clj src :ts-trs))
              (str "disagreement on: " src))))))

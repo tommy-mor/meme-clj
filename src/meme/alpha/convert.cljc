@@ -38,9 +38,9 @@
                                               tagged)]
                              (remit/emit-forms tagged)))])})
 
-(def tok-stream-trs-pipeline
+(def ts-trs-pipeline
   "Token-stream TRS: tokenizer → token-stream rewriting → text → forms."
-  {:name :tok-stream-trs
+  {:name :ts-trs
    :parse (fn [src opts]
             (let [clj-text (trs/meme->clj-text src)]
               #?(:clj (core/clj->forms clj-text)
@@ -58,7 +58,7 @@
   "Available pipelines by keyword."
   {:classic        classic-pipeline
    :rewrite        rewrite-pipeline
-   :tok-stream-trs tok-stream-trs-pipeline})
+   :ts-trs ts-trs-pipeline})
 
 ;; ---------------------------------------------------------------------------
 ;; Public API
@@ -69,7 +69,7 @@
   [pipeline-name]
   (or (get pipelines pipeline-name)
       (throw (ex-info (str "Unknown pipeline: " pipeline-name
-                           " — must be one of: classic, rewrite, tok-stream-trs") {}))))
+                           " — must be one of: classic, rewrite, ts-trs") {}))))
 
 (defn meme->clj
   "Convert meme source to Clojure source using the named pipeline."

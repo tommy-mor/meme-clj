@@ -25,13 +25,13 @@
   (testing "discard in collection"
     (is (= "[1 2]" (convert/meme->clj "[1 2 #_ 3]" :rewrite)))))
 
-(deftest meme->clj-tok-stream-trs
+(deftest meme->clj-ts-trs
   (testing "basic call syntax"
-    (is (= "(f x y)" (convert/meme->clj "f(x y)" :tok-stream-trs))))
+    (is (= "(f x y)" (convert/meme->clj "f(x y)" :ts-trs))))
   (testing "nested calls"
-    (is (= "(+ 1 (* 2 3))" (convert/meme->clj "+(1 *(2 3))" :tok-stream-trs))))
+    (is (= "(+ 1 (* 2 3))" (convert/meme->clj "+(1 *(2 3))" :ts-trs))))
   (testing "vector-as-head"
-    (is (= "([x] 1)" (convert/meme->clj "[x](1)" :tok-stream-trs)))))
+    (is (= "([x] 1)" (convert/meme->clj "[x](1)" :ts-trs)))))
 
 (deftest meme->clj-default-is-classic
   (testing "no pipeline arg defaults to :classic"
@@ -60,9 +60,9 @@
        (is (= "f(x y)" (convert/clj->meme "(f x y)" :rewrite))))))
 
 #?(:clj
-   (deftest clj->meme-tok-stream-trs
+   (deftest clj->meme-ts-trs
      (testing "basic S-expression"
-       (is (= "f(x y)" (convert/clj->meme "(f x y)" :tok-stream-trs))))))
+       (is (= "f(x y)" (convert/clj->meme "(f x y)" :ts-trs))))))
 
 #?(:clj
    (deftest clj->meme-unknown-pipeline-throws
@@ -83,8 +83,8 @@
                  "[1 2 3]"]]
       (let [classic (convert/meme->clj src :classic)
             rewrite (convert/meme->clj src :rewrite)
-            trs     (convert/meme->clj src :tok-stream-trs)]
+            trs     (convert/meme->clj src :ts-trs)]
         (is (= classic rewrite)
             (str "rewrite diverges from classic for: " src))
         (is (= classic trs)
-            (str "tok-stream-trs diverges from classic for: " src))))))
+            (str "ts-trs diverges from classic for: " src))))))
