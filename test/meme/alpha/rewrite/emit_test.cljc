@@ -64,6 +64,21 @@
     (is (= "##NaN" (emit/emit ##NaN)))))
 
 ;; ---------------------------------------------------------------------------
+;; Regex escaping: " inside regex must be escaped in output
+;; Bug: emit used (.pattern form) directly, producing invalid #"..." output
+;; when the regex contained a literal quote character. The main printer
+;; handles this; the rewrite emitter did not.
+;; ---------------------------------------------------------------------------
+
+(deftest emit-regex-with-quote
+  (testing "regex containing \" is escaped"
+    (is (= "#\"say \\\"hello\\\"\"" (emit/emit #"say \"hello\""))))
+  (testing "regex without quotes is unchanged"
+    (is (= "#\"\\d+\"" (emit/emit #"\d+"))))
+  (testing "regex with existing escape is preserved"
+    (is (= "#\"a\\.b\"" (emit/emit #"a\.b")))))
+
+;; ---------------------------------------------------------------------------
 ;; emit-forms — multiple forms
 ;; ---------------------------------------------------------------------------
 

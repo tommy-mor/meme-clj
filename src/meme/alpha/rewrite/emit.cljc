@@ -77,7 +77,8 @@
                   (str \\ form)))])
 
     (instance? #?(:clj java.util.regex.Pattern :cljs js/RegExp) form)
-    (str "#\"" #?(:clj (.pattern ^java.util.regex.Pattern form) :cljs (.-source form)) "\"")
+    (let [raw #?(:clj (.pattern ^java.util.regex.Pattern form) :cljs (.-source form))]
+      (str "#\"" (str/replace raw #"\\.|\"" (fn [m] (if (= m "\"") "\\\"" m))) "\""))
 
     ;; BigDecimal — preserve M suffix
     #?@(:clj [(decimal? form) (str form "M")

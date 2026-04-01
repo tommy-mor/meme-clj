@@ -68,7 +68,7 @@
 (s/def :meme.opts/parser ifn?)
 (s/def :meme.opts/rewrite-rules (s/coll-of ifn?))
 (s/def :meme.opts/rewrite-max-iters pos-int?)
-(s/def :meme.opts/prelude string?)
+(s/def :meme.opts/prelude (s/coll-of any?))
 (s/def :meme.opts/eval ifn?)
 (s/def :meme.opts/lang keyword?)
 

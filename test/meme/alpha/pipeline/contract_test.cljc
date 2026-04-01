@@ -52,6 +52,20 @@
     (is (not (s/valid? ::contract/opts {:read-cond :evaluate})))))
 
 ;; ---------------------------------------------------------------------------
+;; Opts specs — prelude is a vector of forms, not a string
+;; Bug: :meme.opts/prelude was specced as string? but runtime passes a vector
+;; of parsed forms. Dormant because *validate* defaults to false.
+;; ---------------------------------------------------------------------------
+
+(deftest prelude-spec-accepts-forms
+  (testing "prelude as vector of forms is valid"
+    (is (s/valid? :meme.opts/prelude ['(def x 1) '(def y 2)])))
+  (testing "prelude as empty vector is valid"
+    (is (s/valid? :meme.opts/prelude [])))
+  (testing "prelude as string is not valid"
+    (is (not (s/valid? :meme.opts/prelude "some code")))))
+
+;; ---------------------------------------------------------------------------
 ;; Context map specs
 ;; ---------------------------------------------------------------------------
 
