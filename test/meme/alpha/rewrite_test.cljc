@@ -122,6 +122,32 @@
              (rw/rewrite rules '(m-call f (args (m-call g (args x))))))))))
 
 ;; ============================================================
+;; Map and Set Traversal
+;; ============================================================
+
+(deftest rewrite-descends-into-map-values
+  (let [rules [(rw/rule '(+ ?a 0) '?a)]]
+    (testing "rule rewrites inside map values"
+      (is (= '{:k x} (rw/rewrite rules '{:k (+ x 0)}))))
+    (testing "rule rewrites deeply nested in map"
+      (is (= '{:k {:j x}} (rw/rewrite rules '{:k {:j (+ x 0)}}))))))
+
+(deftest rewrite-descends-into-map-keys
+  (let [rules [(rw/rule '(+ ?a 0) '?a)]]
+    (testing "rule rewrites a map key"
+      (is (= '{x 1} (rw/rewrite rules '{(+ x 0) 1}))))))
+
+(deftest rewrite-descends-into-sets
+  (let [rules [(rw/rule '(+ ?a 0) '?a)]]
+    (testing "rule rewrites inside set elements"
+      (is (= '#{x y} (rw/rewrite rules '#{(+ x 0) y}))))))
+
+(deftest rewrite-map-top-level-unchanged
+  (let [rules [(rw/rule '(+ ?a 0) '?a)]]
+    (testing "map itself does not match a sequential rule"
+      (is (= '{:a 1 :b 2} (rw/rewrite rules '{:a 1 :b 2}))))))
+
+;; ============================================================
 ;; Guard Rules
 ;; ============================================================
 

@@ -176,6 +176,43 @@
           re-parsed (core/meme->forms pp)]
       (is (= forms re-parsed)))))
 
+;; ---------------------------------------------------------------------------
+;; Idempotency: format(format(x)) == format(x)
+;; ---------------------------------------------------------------------------
+
+(deftest format-idempotent-flat
+  (testing "forms that fit on one line are idempotent"
+    (doseq [form ['(def x 42)
+                  '(+ 1 2)
+                  '(f x y z)
+                  '[1 2 3]
+                  '{:a 1 :b 2}]]
+      (let [fmt1 (canon/format-form form {:width 80})
+            reparsed (first (core/meme->forms fmt1))
+            fmt2 (canon/format-form reparsed {:width 80})]
+        (is (= fmt1 fmt2) (str "not idempotent: " (pr-str form)))))))
+
+(deftest format-idempotent-multiline
+  (testing "multi-line forms are idempotent"
+    (doseq [form ['(defn greet [name] (println (str "Hello " name)))
+                  '(let [x 1 y 2 z 3] (+ x y z))
+                  '(cond (> x 0) "pos" (< x 0) "neg" :else "zero")]]
+      (let [fmt1 (canon/format-form form {:width 30})
+            reparsed (first (core/meme->forms fmt1))
+            fmt2 (canon/format-form reparsed {:width 30})]
+        (is (= fmt1 fmt2) (str "not idempotent: " (pr-str form)))))))
+
+(deftest format-idempotent-nested
+  (testing "deeply nested forms are idempotent"
+    (let [form '(defn process [items]
+                  (let [result (for [item items]
+                                 (if (even? item) (* item 2) item))]
+                    (reduce + 0 result)))
+          fmt1 (canon/format-form form {:width 40})
+          reparsed (first (core/meme->forms fmt1))
+          fmt2 (canon/format-form reparsed {:width 40})]
+      (is (= fmt1 fmt2)))))
+
 (deftest format-exact-indentation
   (testing "let body indented by 2"
     (is (= "let(\n  [x 1]\n  +(x 1))"

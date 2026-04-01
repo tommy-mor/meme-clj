@@ -64,6 +64,31 @@
   (testing "@atom passthrough"
     (is (= "@atom" (trs/meme->clj-text "@atom")))))
 
+(deftest trs-deeply-nested
+  (testing "f(g(h(i(x)))) → (f (g (h (i x))))"
+    (is (= "(f (g (h (i x))))" (trs/meme->clj-text "f(g(h(i(x))))")))))
+
+(deftest trs-chained-calls
+  ;; NOTE: TRS does not yet support chained calls — classic pipeline produces
+  ;; ((f x) y) but TRS treats the second paren group independently.
+  ;; This test documents current behavior; update when chained calls land.
+  (testing "f(x)(y) — current TRS behavior (no chained call support)"
+    (is (= "(f (x) y)" (trs/meme->clj-text "f(x)(y)")))))
+
+(deftest trs-prefix-on-call
+  (testing "@f(x) → @(f x)"
+    (is (= "@(f x)" (trs/meme->clj-text "@f(x)"))))
+  (testing "'f(x) covers prefix + call"
+    (is (= "'(f x)" (trs/meme->clj-text "'f(x)")))))
+
+(deftest trs-metadata-on-call
+  (testing "^:foo f(x) preserves metadata prefix"
+    (is (= "^:foo (f x)" (trs/meme->clj-text "^:foo f(x)")))))
+
+(deftest trs-reader-conditional-passthrough
+  (testing "#?(:clj x :cljs y) passes through"
+    (is (= "#?(:clj x :cljs y)" (trs/meme->clj-text "#?(:clj x :cljs y)")))))
+
 ;; ---------------------------------------------------------------------------
 ;; Pipeline integration: ts-trs agrees with classic
 ;; ---------------------------------------------------------------------------

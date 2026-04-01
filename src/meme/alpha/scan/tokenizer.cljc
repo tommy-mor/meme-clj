@@ -115,7 +115,11 @@
       (sb-append! sb ch)
       (cond
         (= ch \") nil
-        (= ch \\) (do (when-not (seof? sc) (sb-append! sb (sadvance! sc)))
+        (= ch \\) (do (when (seof? sc)
+                        (errors/meme-error
+                         "Incomplete escape sequence at end of string"
+                         (assoc loc :incomplete true)))
+                      (sb-append! sb (sadvance! sc))
                       (recur))
         :else (recur)))))
 

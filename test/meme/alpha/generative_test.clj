@@ -15,6 +15,7 @@
             [clojure.test.check.generators :as gen]
             [clojure.test.check.properties :as prop]
             [meme.alpha.core :as core]
+            [meme.alpha.emit.formatter.canon :as fmt-canon]
             [meme.alpha.emit.formatter.flat :as fmt-flat]))
 
 ;; ===========================================================================
@@ -556,3 +557,14 @@
                   (core/meme->forms meme-str)
                   true
                   (catch Exception _ false))))
+
+;; ===========================================================================
+;; Formatter idempotency: format(format(x)) == format(x)
+;; ===========================================================================
+
+(defspec prop-canon-formatter-idempotent 300
+  (prop/for-all [form gen-form]
+    (let [fmt1 (fmt-canon/format-forms [form] {:width 80})
+          reparsed (core/meme->forms fmt1)
+          fmt2 (fmt-canon/format-forms reparsed {:width 80})]
+      (= fmt1 fmt2))))

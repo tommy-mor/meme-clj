@@ -22,6 +22,7 @@
       (errors/meme-error (str "Invalid unicode escape in string — expected 4 hex digits after \\u, got " consumed)
                          loc))
     (let [hex (subs raw (inc idx) end)
+          ;; Hex digit validation: parseInt/parseInt throws for non-hex chars
           code (try #?(:clj (Integer/parseInt hex 16)
                        :cljs (let [n (js/parseInt hex 16)]
                                (when (js/isNaN n) (throw (ex-info "NaN" {})))

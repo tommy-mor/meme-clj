@@ -501,6 +501,27 @@
        (is (= "##NaN" (fmt-flat/format-forms (core/meme->forms "##NaN")))))))
 
 ;; ---------------------------------------------------------------------------
+;; EOF after backslash in string/regex — misleading error message.
+;; Bug: "hello\ reported "Unterminated string — missing closing \"" instead of
+;; "Incomplete escape sequence". The real problem is a trailing backslash, not
+;; a missing quote. Must also signal :incomplete for REPL continuation.
+;; ---------------------------------------------------------------------------
+
+(deftest eof-after-backslash-in-string-incomplete
+  (testing "\"hello\\ at EOF signals :incomplete with escape-specific message"
+    (let [ex (try (core/meme->forms "\"hello\\")
+                  (catch #?(:clj Exception :cljs :default) e e))]
+      (is (:incomplete (ex-data ex)))
+      (is (re-find #"(?i)escape" (ex-message ex))))))
+
+(deftest eof-after-backslash-in-regex-incomplete
+  (testing "#\"hello\\ at EOF signals :incomplete with escape-specific message"
+    (let [ex (try (core/meme->forms "#\"hello\\")
+                  (catch #?(:clj Exception :cljs :default) e e))]
+      (is (:incomplete (ex-data ex)))
+      (is (re-find #"(?i)escape" (ex-message ex))))))
+
+;; ---------------------------------------------------------------------------
 ;; The group stage was collapsed into scan (it was a pass-through).
 ;; This scar tissue is retained as a note; the original bug is no longer
 ;; possible since scan validates :source and writes both :raw-tokens and :tokens.

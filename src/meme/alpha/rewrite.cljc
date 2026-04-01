@@ -213,7 +213,8 @@
   "One bottom-up pass: try to rewrite each node, innermost first.
    Returns [changed? result]."
   [rules expr]
-  (if (sequential? expr)
+  (cond
+    (sequential? expr)
     ;; first, rewrite children
     (let [was-list (list? expr)
           children (if was-list (vec expr) expr)
@@ -229,7 +230,29 @@
         [true result]
         (let [changed (not= rebuilt expr)]
           [changed rebuilt])))
+
+    (and (map? expr) (not (record? expr)))
+    (let [rewritten (into {} (map (fn [[k v]]
+                                    (let [[_ rk] (rewrite-once rules k)
+                                          [_ rv] (rewrite-once rules v)]
+                                      [rk rv]))
+                                  expr))
+          result (apply-rules rules rewritten)]
+      (if result
+        [true result]
+        [(not= rewritten expr) rewritten]))
+
+    (set? expr)
+    (let [rewritten (set (map (fn [el]
+                                (let [[_ r] (rewrite-once rules el)] r))
+                              expr))
+          result (apply-rules rules rewritten)]
+      (if result
+        [true result]
+        [(not= rewritten expr) rewritten]))
+
     ;; leaf node — try to rewrite
+    :else
     (if-let [result (apply-rules rules expr)]
       [true result]
       [false expr])))
