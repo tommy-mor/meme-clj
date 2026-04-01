@@ -306,8 +306,9 @@
                               (gen/vector (gen/fmap #(str ":" (name %)) gen-keyword) 0 3))
               vals  (gen/vector gen-meme-atom (count keys))]
       (str "{" (str/join " " (interleave keys vals)) "}"))
-     ;; set
-    (gen/let [elems (gen/vector (gen/fmap str gen-simple-symbol) 0 3)]
+     ;; set — distinct elements to avoid "Duplicate element in set literal"
+    (gen/let [elems (gen/fmap #(into [] (distinct) %)
+                              (gen/vector (gen/fmap str gen-simple-symbol) 0 3))]
       (str "#{" (str/join " " elems) "}"))
      ;; chained call: f(x)(y)
     (gen/let [head (gen/fmap str gen-simple-symbol)
