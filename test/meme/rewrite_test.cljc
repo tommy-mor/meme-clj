@@ -213,3 +213,40 @@
            #?(:clj Exception :cljs js/Error)
            #"cycle"
            (rw/rewrite rules '(a)))))))
+
+;; ============================================================
+;; Metadata Preservation
+;; ============================================================
+
+(deftest rewrite-once-preserves-list-metadata
+  (testing "metadata on lists survives rewrite-once"
+    (let [rules [(rw/rule '(nonexistent) '(also-nonexistent))]
+          expr (with-meta (list 'a 'b) {:meme/sugar true :custom "val"})
+          [_ result] (rw/rewrite-once rules expr)]
+      (is (= {:meme/sugar true :custom "val"} (meta result)))))
+
+  (testing "metadata on lists survives when children are rewritten"
+    (let [rules [(rw/rule 'old 'new)]
+          expr (with-meta (list 'old 'b) {:meme/sugar true})
+          [changed? result] (rw/rewrite-once rules expr)]
+      ;; children changed (old→new), but list metadata preserved
+      (is changed?)
+      (is (= {:meme/sugar true} (meta result))))))
+
+(deftest rewrite-once-preserves-vector-metadata
+  (let [rules [(rw/rule 'old 'new)]
+        expr (with-meta ['old 'b] {:my-key 1})
+        [_ result] (rw/rewrite-once rules expr)]
+    (is (= {:my-key 1} (meta result)))))
+
+(deftest rewrite-once-preserves-map-metadata
+  (let [rules [(rw/rule 'old 'new)]
+        expr (with-meta {'old 1} {:my-key 2})
+        [_ result] (rw/rewrite-once rules expr)]
+    (is (= {:my-key 2} (meta result)))))
+
+(deftest rewrite-once-preserves-set-metadata
+  (let [rules [(rw/rule 'old 'new)]
+        expr (with-meta #{'old 'b} {:my-key 3})
+        [_ result] (rw/rewrite-once rules expr)]
+    (is (= {:my-key 3} (meta result)))))
