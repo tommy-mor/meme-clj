@@ -10,7 +10,12 @@
             [meme.trs :as trs]
             #?(:clj [meme.lang.shared :as shared])))
 
-(defn format-meme [source opts]
+(defn format-meme
+  ;; NOTE: uses classic parser (core/meme->forms) because the canonical formatter
+  ;; requires Clojure forms, not tokens. The TRS pipeline produces tokens, not forms.
+  ;; If TRS and classic ever diverge on parsing, this would format using classic's
+  ;; interpretation. The lang-agreement test suite guards against such divergence.
+  [source opts]
   (let [forms (core/meme->forms source)]
     (case (:style opts)
       "flat" (fmt-flat/format-forms forms)
