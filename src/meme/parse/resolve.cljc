@@ -218,7 +218,19 @@
                  bi (java.math.BigInteger. digits (int radix))
                  bi (if negative? (.negate bi) bi)
                  val (if (< (.bitLength bi) 64) (.longValue bi) (clojure.lang.BigInt/fromBigInteger bi))]
-             (forms/->MemeRaw val raw))]
+             (forms/->MemeRaw val raw))
+
+           ;; Invalid octal — starts with 0, not hex/float/valid-octal, contains 8 or 9.
+           ;; Clojure rejects these (e.g. 08, 09, 0189). Must error before the plain integer fallback.
+           (and (or (str/starts-with? raw "0") (str/starts-with? raw "-0") (str/starts-with? raw "+0"))
+                (> (count raw) 1)
+                (not (str/starts-with? raw "0x")) (not (str/starts-with? raw "0X"))
+                (not (str/starts-with? raw "+0x")) (not (str/starts-with? raw "+0X"))
+                (not (str/starts-with? raw "-0x")) (not (str/starts-with? raw "-0X"))
+                (not (str/includes? raw "."))
+                (not (str/includes? raw "e")) (not (str/includes? raw "E"))
+                (re-matches #"[+-]?0\d+" raw))
+           (errors/meme-error (str "Invalid number: " raw) loc)]
 
           :cljs
           [;; BigInt N suffix — not supported in CLJS
@@ -252,7 +264,18 @@
                 (not (str/includes? raw "."))
                 (not (str/includes? raw "e")) (not (str/includes? raw "E"))
                 (re-matches #"[+-]?0[0-7]+" raw))
-           (errors/meme-error "Octal literals are not supported in ClojureScript" loc)])
+           (errors/meme-error "Octal literals are not supported in ClojureScript" loc)
+
+           ;; Invalid octal — starts with 0, contains 8 or 9 (e.g. 08, 09)
+           (and (or (str/starts-with? raw "0") (str/starts-with? raw "-0") (str/starts-with? raw "+0"))
+                (> (count raw) 1)
+                (not (str/starts-with? raw "0x")) (not (str/starts-with? raw "0X"))
+                (not (str/starts-with? raw "+0x")) (not (str/starts-with? raw "+0X"))
+                (not (str/starts-with? raw "-0x")) (not (str/starts-with? raw "-0X"))
+                (not (str/includes? raw "."))
+                (not (str/includes? raw "e")) (not (str/includes? raw "E"))
+                (re-matches #"[+-]?0\d+" raw))
+           (errors/meme-error (str "Invalid number: " raw) loc)])
 
       ;; Float (contains . or e/E) — wrap in MemeRaw when scientific notation
       (or (str/includes? raw ".") (str/includes? raw "e") (str/includes? raw "E"))

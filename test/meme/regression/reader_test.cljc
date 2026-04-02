@@ -124,6 +124,36 @@
       (is (= 8 (count (second form)))))))
 
 ;; ---------------------------------------------------------------------------
+;; Scar tissue: leading-zero integers with digits 8/9 must error, not silently
+;; parse as decimal. Clojure rejects 08, 09, 019, etc. (P0-1 parallel team)
+;; ---------------------------------------------------------------------------
+
+(deftest invalid-octal-digits-rejected
+  (testing "08 and 09 are invalid — Clojure errors on these"
+    (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
+                          #"Invalid number: 08"
+                          (core/meme->forms "08")))
+    (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
+                          #"Invalid number: 09"
+                          (core/meme->forms "09"))))
+  (testing "multi-digit invalid octal"
+    (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
+                          #"Invalid number: 019"
+                          (core/meme->forms "019"))))
+  (testing "signed invalid octals"
+    (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
+                          #"Invalid number"
+                          (core/meme->forms "+08")))
+    (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
+                          #"Invalid number"
+                          (core/meme->forms "-09"))))
+  (testing "valid octals still work"
+    (is (= 7 (:value (first (core/meme->forms "07")))))
+    (is (= 255 (:value (first (core/meme->forms "0377"))))))
+  (testing "plain 0 is not octal"
+    (is (= 0 (first (core/meme->forms "0"))))))
+
+;; ---------------------------------------------------------------------------
 ;; Scar tissue: deeply nested input must not crash with StackOverflowError.
 ;; ---------------------------------------------------------------------------
 
