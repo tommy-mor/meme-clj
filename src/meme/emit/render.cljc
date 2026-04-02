@@ -49,8 +49,9 @@
   [doc]
   (when doc (->DocGroup doc)))
 
-(defn if-break
-  "Render break-doc when broken, flat-doc when flat."
+(defn ^:no-doc if-break
+  "Render break-doc when broken, flat-doc when flat.
+   Currently unused by the printer — available for future use or extensions."
   [break-doc flat-doc]
   (->DocIfBreak break-doc flat-doc))
 

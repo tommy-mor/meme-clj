@@ -581,3 +581,39 @@
     (let [forms (core/meme->forms "def(x 1)")
           result (fmt-flat/format-forms forms)]
       (is (= "def(x 1)" result)))))
+
+;; ---------------------------------------------------------------------------
+;; Scar tissue: printer must not hang on infinite or very large lazy sequences.
+;; RT3-F1: flat/format-form on (range) previously caused OOM.
+;; ---------------------------------------------------------------------------
+
+(deftest printer-handles-infinite-seq
+  (testing "infinite lazy seq does not hang — produces bounded output"
+    (let [result (fmt-flat/format-form (list 'foo (range)))]
+      (is (string? result) "should produce a string, not hang")
+      (is (str/starts-with? result "foo(") "should start with call head")))
+  (testing "large lazy seq is bounded by *print-length*"
+    (binding [*print-length* 5]
+      (let [result (fmt-flat/format-form (cons '+ (range 1000)))]
+        (is (string? result))
+        (is (str/includes? result "...") "should contain truncation marker"))))
+  (testing "small seq within bounds is not truncated"
+    (let [result (fmt-flat/format-form '(+ 1 2 3))]
+      (is (= "+(1 2 3)" result))
+      (is (not (str/includes? result "...")) "should not be truncated"))))
+
+;; ---------------------------------------------------------------------------
+;; Scar tissue: letfn uses n-head=0 formatting like let (RT3-F25)
+;; ---------------------------------------------------------------------------
+
+(deftest letfn-formatting-matches-let
+  (testing "letfn flat output is correct"
+    (let [form '(letfn [(f [x] (+ x 1)) (g [y] y)] (f (g 1)))
+          result (fmt-flat/format-form form)]
+      (is (str/starts-with? result "letfn("))
+      (is (str/includes? result "f([x]") "should use vector-as-head for arity clauses")))
+  (testing "letfn breaks at narrow width like let"
+    (let [form '(letfn [(process [data] (map inc data)) (validate [x] (pos? x))] (validate (first (process items))))
+          result (fmt-canon/format-form form 30)]
+      (is (str/starts-with? result "letfn("))
+      (is (str/includes? result "\n") "should break at narrow width"))))

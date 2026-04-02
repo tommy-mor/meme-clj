@@ -107,6 +107,9 @@
 
 (s/def ::ctx-after-expand ::ctx-after-parse)
 
+;; RT3-F19: rewrite stage has the same context shape as expand
+(s/def ::ctx-after-rewrite ::ctx-after-parse)
+
 ;; ---------------------------------------------------------------------------
 ;; Stage ↔ spec lookup
 ;; ---------------------------------------------------------------------------
@@ -115,13 +118,15 @@
   "Map from stage keyword to the spec its input context must satisfy."
   {:scan          ::ctx-input
    :parse         ::ctx-after-scan
-   :expand        ::ctx-after-parse})
+   :expand        ::ctx-after-parse
+   :rewrite       ::ctx-after-expand})
 
 (def stage-output-spec
   "Map from stage keyword to the spec its output context must satisfy."
   {:scan          ::ctx-after-scan
    :parse         ::ctx-after-parse
-   :expand        ::ctx-after-expand})
+   :expand        ::ctx-after-expand
+   :rewrite       ::ctx-after-rewrite})
 
 ;; ---------------------------------------------------------------------------
 ;; Toggle

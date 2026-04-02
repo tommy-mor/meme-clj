@@ -149,7 +149,8 @@
 
 (defn- parse-forms-until
   ([p end-type] (parse-forms-until p end-type nil))
-  ([p end-type open-loc]
+  ([p end-type open-loc] (parse-forms-until p end-type open-loc nil))
+  ([p end-type open-loc collection-ctx]
    (let [end-pred #(= end-type (:type %))]
      (loop [forms []]
        (when (peof? p)
@@ -182,7 +183,13 @@
            (let [form (parse-form p)]
              (cond
                (discard-sentinel? form) (recur forms)
-               (splice-result? form) (recur (into forms form))
+               ;; RT3-F15: reject #?@ splice inside maps and sets
+               (splice-result? form)
+               (if collection-ctx
+                 (errors/meme-error
+                  (str "Splicing reader conditional #?@ is not allowed inside " collection-ctx " literals")
+                  (error-data p (or open-loc (plast-loc p))))
+                 (recur (into forms form)))
                :else (recur (conj forms form))))))))))
 
 (defn- parse-vector [p]
@@ -193,7 +200,7 @@
 (defn- parse-map [p]
   (let [loc (select-keys (ppeek p) [:line :col])]
     (padvance! p) ; {
-    (let [forms (parse-forms-until p :close-brace loc)]
+    (let [forms (parse-forms-until p :close-brace loc "map")]
       (when (odd? (count forms))
         (errors/meme-error (str "Map literal requires an even number of forms, but got " (count forms))
                            (error-data p (assoc loc :hint "Maps need key-value pairs — check for a missing key or value"))))
@@ -210,7 +217,7 @@
 (defn- parse-set [p]
   (let [loc (select-keys (ppeek p) [:line :col])]
     (padvance! p) ; #{
-    (let [forms (parse-forms-until p :close-brace loc)
+    (let [forms (parse-forms-until p :close-brace loc "set")
           s (set forms)]
       (when (not= (count s) (count forms))
         (let [seen (volatile! #{})
@@ -259,6 +266,10 @@
   "Parse #?(...) or #?@(...) in preserve mode — collect all branches,
    return a ReaderConditional object."
   [p loc splice?]
+  ;; RT3-F14: reject empty #?() — Clojure requires at least one branch
+  (when (tok-type? (ppeek p) :close-paren)
+    (errors/meme-error "Reader conditional requires at least one platform/value pair"
+                       (error-data p loc)))
   (loop [pairs []]
     (cond
       (peof? p)
@@ -288,6 +299,10 @@
 (defn- parse-reader-cond-eval
   "Parse #?(...) or #?@(...) in evaluate mode — return matching platform's form."
   [p loc splice?]
+  ;; RT3-F14: reject empty #?() — Clojure requires at least one branch
+  (when (tok-type? (ppeek p) :close-paren)
+    (errors/meme-error "Reader conditional requires at least one platform/value pair"
+                       (error-data p loc)))
   (let [platform #?(:clj :clj :cljs :cljs)]
     ;; Use discard-sentinel as the "no match" marker — nil can be a valid form value.
     (loop [matched discard-sentinel]
@@ -338,7 +353,12 @@
                                (peof? p) (assoc :incomplete true)))))
             (let [form (parse-form p)]
               (if (or (= platform-key platform) (= platform-key :default))
-                (recur form)
+                ;; RT3-F38: when branch value was discarded by #_, error instead of silently dropping
+                (if (discard-sentinel? form)
+                  (errors/meme-error
+                   (str "Reader conditional branch " platform-key " value was discarded by #_ — each branch requires a value")
+                   (error-data p (select-keys key-tok [:line :col])))
+                  (recur form))
                 (recur matched)))))))))
 
 (defn- metadatable?
@@ -356,6 +376,10 @@
   (let [inner (parse-form p)]
     (when (discard-sentinel? inner)
       (errors/meme-error discard-msg (error-data p (select-keys tok [:line :col]))))
+    (when (splice-result? inner)
+      (errors/meme-error
+       (str "Splicing reader conditional #?@ cannot be used with " wrapper-sym)
+       (error-data p (select-keys tok [:line :col]))))
     (with-meta (list wrapper-sym inner) {:meme/sugar true})))
 
 (defn- parse-form-base
@@ -500,6 +524,9 @@
             (when (discard-sentinel? inner)
               (errors/meme-error "Var-quote target was discarded by #_ — nothing to reference"
                                  (error-data p (select-keys tok [:line :col]))))
+            (when (splice-result? inner)
+              (errors/meme-error "Splicing reader conditional #?@ cannot be used with #'"
+                                 (error-data p (select-keys tok [:line :col]))))
             (when (seq? inner)
               (errors/meme-error
                 (str "#' (var-quote) requires a symbol, not a call expression — got " (pr-str inner))
@@ -591,6 +618,10 @@
                 params (forms/find-percent-params body)
                 _ (when (contains? params 0)
                     (errors/meme-error "%0 is not a valid parameter — use %1 or % for the first argument"
+                                       (error-data p (select-keys tok [:line :col]))))
+                ;; RT3-F13: reject %-1, %foo, etc.
+                _ (when-let [bad (forms/find-invalid-percent-symbols body)]
+                    (errors/meme-error (str bad " is not a valid parameter — use %, %N (positive integer), or %&")
                                        (error-data p (select-keys tok [:line :col]))))
                 has-bare? (contains? params :bare)
                 param-vec (forms/build-anon-fn-params params)

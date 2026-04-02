@@ -390,3 +390,49 @@ Token-stream term rewriting (`meme.trs`). For the meme→clj direction, bypasses
 
 All three backends are cross-checked: `benchmark_test.clj` verifies they produce the same Clojure forms for all fixture files and vendor roundtrip forms. `trs_test.cljc` explicitly tests agreement between meme-classic and meme-trs for representative inputs.
 
+## Known divergences from Clojure's reader
+
+### Leading-dot floats (`.5`, `.5M`, `.5e1`)
+
+Clojure reads `.5` as the float `0.5`. Meme tokenizes `.5` as a symbol because `.` is the Java interop prefix (`.method`). The tokenizer enters number mode only when the current character is a digit. This is an intentional divergence — in meme, `.foo` is always an interop method call, and leading-dot floats must be written with an explicit zero: `0.5`.
+
+### Surrogate pairs in string Unicode escapes
+
+Clojure accepts `"\uD800\uDC00"` (a valid UTF-16 surrogate pair encoding U+10000) and produces the supplementary character. Meme rejects each `\uXXXX` escape individually — if the code point falls in the surrogate range (U+D800..U+DFFF), it errors regardless of whether the next escape forms a valid pair. This is a defensive choice that prevents isolated surrogates from entering the output. Users can include supplementary characters directly as literal UTF-8 in source text.
+
+### Map key ordering for maps with >8 entries
+
+Clojure's `array-map` preserves insertion order for up to 8 entries. Beyond that, it promotes to `PersistentHashMap` which does not preserve order. Since the meme parser builds maps via `(apply array-map forms)`, maps with 9+ keys may have their key order shuffled in output. Sets preserve order via `:meme/order` metadata, but maps do not have an equivalent mechanism. This is a Clojure platform limitation, not a meme design choice.
+
+### Comments on primitive map keys
+
+Comments in meme source (`;; comment`) are attached as `:ws` metadata to the following form. However, primitive types (keywords, numbers, strings, booleans) do not implement `IMeta` in Clojure and cannot carry metadata. When a comment appears before a keyword map key (e.g., `{; comment\n :a 1}`), the comment is lost because `:a` cannot store metadata. This is a fundamental Clojure platform limitation. Comments before symbols, vectors, maps, and sets are preserved correctly.
+
+### End-of-line comment repositioning
+
+The meme formatter uses a "comment attaches to next form" model inherited from the tokenizer. An end-of-line comment like `foo(x ;; note\n y)` is attached to `y` (the next form), not to `x` (the preceding form). When formatted, the comment appears before `y` rather than after `x`. This preserves comment content but changes its visual position. This is an inherent consequence of the "attach to next token" architecture.
+
+### `defrule` / `ruleset` macros are JVM-only
+
+The `defrule`, `defrule-guard`, and `ruleset` macros in `meme.rewrite` are only available on JVM/Babashka. On ClojureScript, use the function API (`make-rule`, `rewrite`) directly.
+
+### Sorted collections lose ordering through roundtrip
+
+`sorted-map` and `sorted-set` have no literal syntax in Clojure. When printed, they appear as regular maps/sets. Re-parsing produces `PersistentArrayMap`/`PersistentHashSet`, losing the sorted property. This matches Clojure's own limitation.
+
+### `@f(x)` is `@(f x)`, not `(@f x)`
+
+The `@` deref prefix applies to the next complete form. `@f(x)` parses as `(deref (f x))` — the deref wraps the call expression `f(x)`. This is correct and consistent with how all prefix operators work in meme: they bind to the next form, including any adjacent call arguments.
+
+### Regex flags not preserved in printer output
+
+The printer accesses the regex pattern via `.pattern` (JVM) or `.-source` (CLJS), which returns only the pattern body without flags. If a regex was constructed programmatically with flags (e.g., `re-pattern` with inline flags), the flags appear in the pattern string itself (e.g., `(?i)...`) and are preserved. External flag objects are not representable in `#"..."` literal syntax.
+
+### TRS behavioral differences
+
+The token-stream term rewriting backend (`meme-trs`) operates at the text level and does NOT:
+- Expand syntax-quote to `seq`/`concat`/`list` — preserves `` ` `` notation in output
+- Evaluate reader conditionals (`#?`) — preserves them verbatim
+- Normalize whitespace — preserves original formatting
+
+These are inherent to the text-level rewriting approach. The classic backend (`meme-classic`) does expand syntax-quote and evaluate reader conditionals. Use classic for eval paths and TRS for text-to-text conversion.

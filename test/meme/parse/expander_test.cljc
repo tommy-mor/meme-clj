@@ -355,3 +355,37 @@
           expanded (expander/expand-forms forms)]
       ;; The expansion should not crash — reader conditional is passed through
       (is (some? expanded)))))
+
+;; ---------------------------------------------------------------------------
+;; Scar tissue: syntax-quote preserves metadata on collections (RT3-F3)
+;; Previously: `^:foo [1 2] lost metadata — no with-meta emitted.
+;; ---------------------------------------------------------------------------
+
+(deftest syntax-quote-preserves-collection-metadata
+  (testing "`^:foo [1 2] — metadata on vector preserved via with-meta"
+    (let [forms (core/meme->forms "`^:foo [1 2]")
+          expanded (expander/expand-forms forms)
+          result (first expanded)]
+      ;; The expansion should wrap in (with-meta ... {:foo true})
+      (is (seq? result) "expansion should be a list form")
+      (is (= 'clojure.core/with-meta (first result))
+          "should emit with-meta wrapper")))
+  (testing "`[1 2] — no metadata, no with-meta"
+    (let [forms (core/meme->forms "`[1 2]")
+          expanded (expander/expand-forms forms)
+          result (first expanded)]
+      (is (seq? result))
+      (is (not= 'clojure.core/with-meta (first result))
+          "should NOT emit with-meta when no user metadata"))))
+
+;; ---------------------------------------------------------------------------
+;; Scar tissue: ~@ in set literal rejected in syntax-quote (RT3-F16)
+;; Previously: silently accepted and expanded.
+;; ---------------------------------------------------------------------------
+
+(deftest splice-in-set-rejected-in-syntax-quote
+  (testing "`#{~@xs} — unquote-splice in set should error"
+    (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
+                          #"not supported in set"
+                          (let [forms (core/meme->forms "`#{~@xs}")]
+                            (expander/expand-forms forms))))))

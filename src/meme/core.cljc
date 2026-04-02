@@ -18,20 +18,25 @@
 ;; ---------------------------------------------------------------------------
 
 (defn meme->forms
-  "Read meme source string, return a vector of Clojure forms.
+  "Read meme source string, return a vector of parsed forms.
+   The returned forms may contain meme-internal AST record types
+   (MemeRaw, MemeAutoKeyword, MemeSyntaxQuote) that preserve notation.
+   Use forms->meme to print them, or expand-forms to get plain Clojure values.
    opts map:
      :resolve-keyword — fn that resolves auto-resolve keyword strings (\"::foo\")
                         to keywords at read time. Required on CLJS (errors
                         without it, since cljs.reader cannot resolve :: correctly).
      :read-cond       — :preserve to return ReaderConditional objects instead of
                         evaluating. Default: evaluate for current platform.
-   Note: returns only parsed forms. Use run-stages when you need
+   Note: returns only parsed forms. Use stages/run when you need
    access to intermediate state (raw tokens, tokens, or forms)."
   ([s] (:forms (stages/run s)))
   ([s opts] (:forms (stages/run s opts))))
 
 (defn forms->meme
-  "Print Clojure forms as meme source string (single-line per form)."
+  "Print Clojure forms as meme source string (single-line per form).
+   Takes a SEQUENCE of forms (vector or seq), not a single form.
+   To print a single form, wrap it: (forms->meme [my-form])."
   [forms]
   (fmt-flat/format-forms forms))
 
@@ -87,3 +92,10 @@
      [clj-src]
      (forms->meme (clj->forms clj-src))))
 
+;; RT3-F40: expose run-stages in public API (documented in api.md but was missing)
+(defn run-stages
+  "Run the reader pipeline, returning the full context map with intermediate state.
+   Useful for tooling that needs access to :raw-tokens, :tokens, or :forms.
+   opts map: same as meme->forms."
+  ([source] (stages/run source))
+  ([source opts] (stages/run source opts)))

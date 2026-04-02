@@ -98,17 +98,19 @@
                  param-vec (forms/build-anon-fn-params params)]
              (with-meta (list 'fn param-vec body) {:meme/sugar true}))
 
+           ;; RT3-F7: On CLJS, preserve tag+data as a map (CLJS has no TaggedLiteral type)
            meme/tagged
            #?(:clj  (tagged-literal (first children) (second children))
-              :cljs (first children))
+              :cljs {:tag (first children) :data (second children)})
 
+           ;; RT3-F8: no-match returns nil (discard) instead of wrapping in RC
            meme/reader-cond
            (if preserve?
              (forms/make-reader-conditional (apply list children) false)
              (let [platform #?(:clj :clj :cljs :cljs)
                    pairs (partition 2 children)
                    matched (some (fn [[k v]] (when (or (= k platform) (= k :default)) v)) pairs)]
-               (if matched matched (forms/make-reader-conditional (vec children) false))))
+               matched))
 
            meme/reader-cond-splicing
            (if preserve?
@@ -116,7 +118,7 @@
              (let [platform #?(:clj :clj :cljs :cljs)
                    pairs (partition 2 children)
                    matched (some (fn [[k v]] (when (or (= k platform) (= k :default)) v)) pairs)]
-               (if matched matched (forms/make-reader-conditional (vec children) true))))
+               matched))
 
            meme/ns-map
            (let [ns-sym (first children)

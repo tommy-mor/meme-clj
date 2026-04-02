@@ -54,9 +54,11 @@
          reader-opts (default-reader-opts opts)]
      ;; Expand and eval prelude before user code (must expand syntax-quotes,
      ;; matching the user-code path — raw parsed forms contain AST nodes)
+     ;; RT3-F18: provide full context map so stage contract validation succeeds
      (when-let [prelude (seq (:prelude opts))]
        (let [expanded (:forms (stages/step-expand-syntax-quotes
-                                {:forms (vec prelude) :opts reader-opts}))]
+                                {:source "" :raw-tokens [] :tokens []
+                                 :forms (vec prelude) :opts reader-opts}))]
          (doseq [form expanded]
            (eval-fn form))))
      (let [forms (:forms (-> {:source s :opts reader-opts}

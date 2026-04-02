@@ -490,8 +490,11 @@
   (testing "splicing non-matching produces no form"
     #?(:clj  (is (= [] (core/meme->forms "#?@(:cljs [1 2])")))
        :cljs (is (= [] (core/meme->forms "#?@(:clj [1 2])")))))
-  (testing "#?() empty — no branches, no form"
-    (is (= [] (core/meme->forms "#?()")))))
+  ;; RT3-F14: #?() is now rejected (was silently accepted)
+  (testing "#?() empty — now errors instead of silently producing no form"
+    (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
+                          #"[Rr]eader conditional requires"
+                          (core/meme->forms "#?()")))))
 
 ;; ---------------------------------------------------------------------------
 ;; Scar tissue: non-matching reader conditional with adjacent call args must
@@ -661,11 +664,12 @@
            (core/meme->forms #?(:clj  "[1 #?@(:clj [2 3]) 4]"
                                 :cljs "[1 #?@(:cljs [2 3]) 4]")))
         "#?@ should splice elements into the vector"))
-  (testing "#?@ splices into surrounding map (pairs)"
-    (is (= [{:a 1 :b 2}]
-           (core/meme->forms #?(:clj  "{#?@(:clj [:a 1 :b 2])}"
-                                :cljs "{#?@(:cljs [:a 1 :b 2])}")))
-        "#?@ should splice key-value pairs into the map"))
+  ;; RT3-F15: #?@ inside map/set literals is now rejected (matches Clojure)
+  (testing "#?@ inside map literal is rejected"
+    (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
+                          #"not allowed inside map"
+                          (core/meme->forms #?(:clj  "{#?@(:clj [:a 1 :b 2])}"
+                                               :cljs "{#?@(:cljs [:a 1 :b 2])}")))))
   (testing "#?@ at top level returns individual forms"
     (is (= [1 2]
            (core/meme->forms #?(:clj  "#?@(:clj [1 2])"
@@ -941,3 +945,154 @@
     ;; If depth wasn't decremented, the second would fail with "Nested #()"
     (is (thrown? #?(:clj Exception :cljs js/Error) (core/meme->forms "#(")))
     (is (some? (core/meme->forms "#(+(% 1))")))))
+
+;; ---------------------------------------------------------------------------
+;; Scar tissue: #?@ splice result must not leak through prefix operators (RT3-F4)
+;; Previously: splice metadata silently passed through quote, deref, var-quote.
+;; ---------------------------------------------------------------------------
+
+(deftest splice-result-rejected-in-prefix-operators
+  (testing "quote of splice should error"
+    (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
+                          #"[Ss]plicing reader conditional"
+                          (core/meme->forms #?(:clj  "'#?@(:clj [1 2])"
+                                               :cljs "'#?@(:cljs [1 2])")))))
+  (testing "deref of splice should error"
+    (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
+                          #"[Ss]plicing reader conditional"
+                          (core/meme->forms #?(:clj  "@#?@(:clj [a b])"
+                                               :cljs "@#?@(:cljs [a b])")))))
+  (testing "var-quote of splice should error"
+    (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
+                          #"[Ss]plicing reader conditional"
+                          (core/meme->forms #?(:clj  "#'#?@(:clj [foo])"
+                                               :cljs "#'#?@(:cljs [foo])"))))))
+
+;; ---------------------------------------------------------------------------
+;; Scar tissue: empty #?() must be rejected (RT3-F14)
+;; Previously: silently accepted, produced empty string output.
+;; ---------------------------------------------------------------------------
+
+(deftest empty-reader-conditional-rejected
+  (testing "#?() — empty reader conditional should error"
+    (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
+                          #"[Rr]eader conditional requires"
+                          (core/meme->forms "#?()"))))
+  (testing "#?@() — empty splicing reader conditional should error"
+    (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
+                          #"[Rr]eader conditional requires"
+                          (core/meme->forms "#?@()")))))
+
+;; ---------------------------------------------------------------------------
+;; Scar tissue: #?@ splice inside map/set literals must be rejected (RT3-F15)
+;; Previously: silently accepted where Clojure would reject.
+;; ---------------------------------------------------------------------------
+
+(deftest splice-in-map-set-rejected
+  (testing "#?@ inside map literal should error"
+    (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
+                          #"not allowed inside map"
+                          (core/meme->forms #?(:clj  "{#?@(:clj [:a 1])}"
+                                               :cljs "{#?@(:cljs [:a 1])}")))))
+  (testing "#?@ inside set literal should error"
+    (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
+                          #"not allowed inside set"
+                          (core/meme->forms #?(:clj  "#{#?@(:clj [1 2])}"
+                                               :cljs "#{#?@(:cljs [1 2])}"))))))
+
+;; ---------------------------------------------------------------------------
+;; Scar tissue: #?(:clj #_ x) — discarded branch value errors (RT3-F38)
+;; Previously: silently produced no form instead of erroring.
+;; ---------------------------------------------------------------------------
+
+(deftest discarded-branch-value-errors
+  (testing "discard of matching branch value should error"
+    (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
+                          #"discarded by #_"
+                          (core/meme->forms #?(:clj  "#?(:clj #_ x)"
+                                               :cljs "#?(:cljs #_ x)"))))))
+
+;; ---------------------------------------------------------------------------
+;; Scar tissue: octal string escapes \0-\377 accepted on JVM (RT3-F11)
+;; Previously: rejected with "Unsupported escape sequence".
+;; ---------------------------------------------------------------------------
+
+#?(:clj
+   (deftest octal-string-escapes
+     (testing "\\0 is null byte"
+       (let [forms (core/meme->forms "\"\\0\"")]
+         (is (= 1 (count (str (:value (first forms))))))
+         (is (= 0 (int (first (str (:value (first forms)))))))))
+     (testing "\\101 is 'A' (octal 101 = 65)"
+       (let [forms (core/meme->forms "\"\\101\"")]
+         (is (= "A" (:value (first forms))))))
+     (testing "\\377 is max octal (255)"
+       (let [forms (core/meme->forms "\"\\377\"")]
+         (is (= 1 (count (str (:value (first forms))))))))
+     (testing "\\7 single octal digit"
+       (let [forms (core/meme->forms "\"\\7\"")]
+         (is (= 1 (count (str (:value (first forms))))))))))
+
+;; ---------------------------------------------------------------------------
+;; Scar tissue: %-1, %foo etc. rejected inside #() (RT3-F13)
+;; Previously: silently accepted as regular symbols.
+;; ---------------------------------------------------------------------------
+
+(deftest negative-percent-param-rejected
+  (testing "%-1 inside #() should error"
+    (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
+                          #"not a valid parameter"
+                          (core/meme->forms "#(+(% %-1))"))))
+  (testing "%-2 inside #() should error"
+    (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
+                          #"not a valid parameter"
+                          (core/meme->forms "#(%-2)"))))
+  (testing "valid %1 %2 %& still work"
+    (is (some? (core/meme->forms "#(+(% %2))")))
+    (is (some? (core/meme->forms "#(apply(+ %&))")))))
+
+;; ---------------------------------------------------------------------------
+;; Scar tissue: plain integers > Long.MAX_VALUE auto-promote to BigInt (RT3-F2)
+;; Previously: threw "Invalid number" instead of promoting.
+;; ---------------------------------------------------------------------------
+
+#?(:clj
+   (deftest plain-integer-bigint-promotion
+     (testing "integer beyond Long.MAX_VALUE auto-promotes to BigInt"
+       (let [forms (core/meme->forms "9999999999999999999")]
+         (is (= 1 (count forms)))
+         (is (= 9999999999999999999N (first forms)))
+         (is (instance? clojure.lang.BigInt (first forms)))))
+     (testing "negative integer beyond Long range auto-promotes"
+       (let [forms (core/meme->forms "-9999999999999999999")]
+         (is (= -9999999999999999999N (first forms)))))
+     (testing "Long.MAX_VALUE stays Long"
+       (let [forms (core/meme->forms "9223372036854775807")]
+         (is (instance? Long (first forms)))))
+     (testing "Long.MAX_VALUE + 1 promotes to BigInt"
+       (let [forms (core/meme->forms "9223372036854775808")]
+         (is (instance? clojure.lang.BigInt (first forms)))
+         (is (= 9223372036854775808N (first forms)))))))
+
+;; ---------------------------------------------------------------------------
+;; Scar tissue: ratio-to-integer produces Long, not BigInt (RT3-F12)
+;; Previously: 6/3 → 2N (BigInt), should be 2 (Long) to match Clojure.
+;; ---------------------------------------------------------------------------
+
+#?(:clj
+   (deftest ratio-integer-produces-long
+     (testing "6/3 produces Long 2, not BigInt 2N"
+       (let [forms (core/meme->forms "6/3")]
+         (is (= 2 (first forms)))
+         (is (instance? Long (first forms)))))
+     (testing "0/1 produces Long 0"
+       (let [forms (core/meme->forms "0/1")]
+         (is (= 0 (first forms)))
+         (is (instance? Long (first forms)))))
+     (testing "100/10 produces Long 10"
+       (let [forms (core/meme->forms "100/10")]
+         (is (= 10 (first forms)))
+         (is (instance? Long (first forms)))))
+     (testing "non-integer ratio stays Ratio"
+       (let [forms (core/meme->forms "1/3")]
+         (is (ratio? (first forms)))))))

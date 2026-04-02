@@ -176,6 +176,17 @@
 ;; Centralizing here prevents behavioral divergence between the two paths.
 ;; ---------------------------------------------------------------------------
 
+(defn invalid-percent-symbol?
+  "Return true if sym looks like a % param but isn't valid.
+   RT3-F13: catches %-1, %foo, %1a, etc. Clojure rejects these."
+  [sym]
+  (when (symbol? sym)
+    (let [n (name sym)]
+      (and (str/starts-with? n "%")
+           (> (count n) 1)
+           (not= n "%&")
+           (nil? (percent-param-type sym))))))
+
 (defn find-percent-params
   "Walk form collecting % param types. Skips nested (fn ...) bodies."
   [form]
@@ -208,6 +219,24 @@
               (find-percent-params (.-form form))])
 
     :else #{}))
+
+(defn find-invalid-percent-symbols
+  "Walk form collecting symbols that look like % params but aren't valid.
+   RT3-F13: %-1, %foo, etc. Returns first found or nil."
+  [form]
+  (cond
+    (invalid-percent-symbol? form) form
+    (and (seq? form) (= 'fn (first form))) nil
+    (seq? form) (some find-invalid-percent-symbols form)
+    (vector? form) (some find-invalid-percent-symbols form)
+    (raw? form) nil
+    (syntax-quote? form) (find-invalid-percent-symbols (:form form))
+    (unquote? form) (find-invalid-percent-symbols (:form form))
+    (unquote-splicing? form) (find-invalid-percent-symbols (:form form))
+    (map? form) (some (fn [[k v]] (or (find-invalid-percent-symbols k)
+                                      (find-invalid-percent-symbols v))) form)
+    (set? form) (some find-invalid-percent-symbols form)
+    :else nil))
 
 (defn normalize-bare-percent
   "Replace bare % with %1 in form. Skips nested (fn ...) bodies."

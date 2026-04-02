@@ -44,7 +44,8 @@
   (contract/validate! :scan :input ctx)
   (let [source (:source ctx)]
     (when-not (string? source)
-      (throw (ex-info (str "Pipeline :source must be a string, got " (if (nil? source) "nil" (type source)))
+      (throw (ex-info (str "Pipeline :source must be a string, got "
+                          (if (nil? source) "nil" #?(:clj (.getName (class source)) :cljs (pr-str (type source)))))
                       {:type :meme/pipeline-error :stage :scan})))
     (let [tokens (tokenizer/attach-whitespace (tokenizer/tokenize source) source)
           result (assoc ctx :raw-tokens tokens :tokens tokens)]
@@ -76,7 +77,10 @@
   (contract/validate! :expand :input ctx)
   (when-not (:forms ctx)
     (throw (ex-info "Pipeline :forms missing — run parse before expand" {:type :meme/pipeline-error :stage :expand})))
-  (let [opts (assoc (:opts ctx) :expand-auto-keywords true)
+  ;; RT3-F20: respect existing :expand-auto-keywords if explicitly set to false
+  (let [opts (cond-> (or (:opts ctx) {})
+               (not (contains? (:opts ctx) :expand-auto-keywords))
+               (assoc :expand-auto-keywords true))
         result (assoc ctx :forms (expander/expand-forms (:forms ctx) opts))]
     (contract/validate! :expand :output result)
     result))
@@ -85,9 +89,16 @@
   "Apply rewrite rules to :forms. Rules come from :rewrite-rules in :opts.
    No-op if no rules are provided. Each form is rewritten independently."
   [ctx]
+  ;; RT3-F19: validate input context
+  (contract/validate! :rewrite :input ctx)
+  ;; RT3-F29: guard missing :forms
+  (when-not (:forms ctx)
+    (throw (ex-info "Pipeline :forms missing — run parse before rewrite" {:type :meme/pipeline-error :stage :rewrite})))
   (if-let [rules (get-in ctx [:opts :rewrite-rules])]
-    (let [max-iters (or (get-in ctx [:opts :rewrite-max-iters]) 100)]
-      (assoc ctx :forms (mapv #(rewrite/rewrite rules % max-iters) (:forms ctx))))
+    (let [max-iters (or (get-in ctx [:opts :rewrite-max-iters]) 100)
+          result (assoc ctx :forms (mapv #(rewrite/rewrite rules % max-iters) (:forms ctx)))]
+      (contract/validate! :rewrite :output result)
+      result)
     ctx))
 
 ;; ---------------------------------------------------------------------------

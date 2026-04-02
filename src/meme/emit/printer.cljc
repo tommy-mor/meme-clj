@@ -48,7 +48,7 @@
    'defn 1, 'defn- 1, 'defmacro 1, 'defmulti 1, 'defmethod 2,
    'defprotocol 1, 'defrecord 1, 'deftype 1,
    'fn 0,
-   'let 0, 'loop 0, 'binding 0, 'doseq 0, 'for 0,
+   'let 0, 'letfn 0, 'loop 0, 'binding 0, 'doseq 0, 'for 0,
    'if 1, 'if-not 1, 'if-let 0, 'if-some 0,
    'when 1, 'when-not 1, 'when-let 0, 'when-some 0, 'when-first 0,
    'cond 0, 'condp 2, 'case 1, 'cond-> 1, 'cond->> 1,
@@ -107,6 +107,26 @@
 (def ^:private doc-backtick    (render/text "`"))
 (def ^:private doc-unquote     (render/text "~"))
 (def ^:private doc-unquote-splicing (render/text "~@"))
+
+;; ---------------------------------------------------------------------------
+;; Sequence realization guard
+;; ---------------------------------------------------------------------------
+
+(def ^:private ^:const max-print-elements
+  "Hard cap on elements realized from lazy sequences to prevent OOM.
+   Overridden by *print-length* when bound."
+  10000)
+
+(defn- bounded-vec
+  "Realize a sequence into a vector with a bounded element count.
+   Uses *print-length* if bound, else max-print-elements.
+   Returns [items truncated?]."
+  [s]
+  (let [limit (or *print-length* max-print-elements)
+        items (into [] (take limit) s)
+        next-item (first (drop limit s))
+        truncated? (some? next-item)]
+    [items truncated?]))
 
 ;; ---------------------------------------------------------------------------
 ;; Doc helpers for building common structures
@@ -282,9 +302,13 @@
         (and (= head 'var) (:meme/sugar (meta form)))
         (render/cat doc-var-quote (to-doc (second form) mode))
 
-        ;; Regular call
+        ;; Regular call — bounded realization for safety against infinite seqs
         :else
-        (call-doc head (vec (rest form)) mode)))
+        (let [[args truncated?] (bounded-vec (rest form))
+              args (if truncated?
+                     (conj args (symbol "..."))
+                     args)]
+          (call-doc head args mode))))
 
     ;; Syntax-quote / unquote / unquote-splicing AST nodes
     ;; Must be before map? (defrecords satisfy map?)

@@ -49,18 +49,39 @@
         (loop [i 0 sb #?(:clj (StringBuilder.) :cljs #js [])]
           (if (>= i len)
             #?(:clj (.toString sb) :cljs (.join sb ""))
-            (let [ch (.charAt inner i)]
+            (let [ch (nth inner i)]
               (if (= ch \\)
                 (if (>= (inc i) len)
                   (errors/meme-error "Unterminated escape sequence in string" loc)
-                  (let [esc (.charAt inner (inc i))]
+                  (let [esc (nth inner (inc i))]
                     (if-let [replacement (get string-escapes esc)]
                       (recur (+ i 2) #?(:clj (.append sb replacement) :cljs (do (.push sb replacement) sb)))
                       (if (= esc \u)
                         (let [[ch' new-i] (parse-unicode-escape inner (inc i) loc)]
                           (vreset! has-unicode? true)
                           (recur new-i #?(:clj (.append sb ch') :cljs (do (.push sb ch') sb))))
-                        (errors/meme-error (str "Unsupported escape sequence \\" esc " in string") loc)))))
+                        ;; RT3-F11: octal escapes \0-\377 in strings (JVM only, matches Clojure)
+                        #?(:clj
+                           (let [esc-int (int esc)]
+                             (if (and (>= esc-int (int \0)) (<= esc-int (int \7)))
+                               ;; Read up to 3 octal digits
+                               (let [start (inc i)
+                                     end (min (+ start 3) len)
+                                     oct-end (loop [j (inc start)]
+                                               (if (and (< j end)
+                                                        (let [c (int (nth inner j))]
+                                                          (and (>= c (int \0)) (<= c (int \7)))))
+                                                 (recur (inc j))
+                                                 j))
+                                     oct-str (subs inner start oct-end)
+                                     code (Integer/parseInt oct-str 8)]
+                                 (when (> code 0377)
+                                   (errors/meme-error (str "Octal escape out of range: \\" oct-str) loc))
+                                 (vreset! has-unicode? true)
+                                 (recur oct-end (.append sb (char code))))
+                               (errors/meme-error (str "Unsupported escape sequence \\" esc " in string") loc)))
+                           :cljs
+                           (errors/meme-error (str "Unsupported escape sequence \\" esc " in string") loc))))))
                 (recur (inc i) #?(:clj (.append sb ch) :cljs (do (.push sb (str ch)) sb)))))))]
     (if @has-unicode?
       (forms/->MemeRaw resolved raw)
@@ -79,8 +100,11 @@
   [raw loc]
   (let [name-part (subs raw 1)] ; strip leading backslash
     (cond
+      ;; RT3-F5: use nth instead of .charAt for portability (nth returns char on JVM,
+      ;; single-char string on CLJS — both work for downstream comparisons).
+      ;; Note: on CLJS, char values are JS strings — this is a known platform limitation.
       (= 1 (count name-part))
-      (.charAt name-part 0)
+      (nth name-part 0)
 
       (contains? named-chars name-part)
       (get named-chars name-part)
@@ -143,14 +167,19 @@
 
            ;; Ratio — use BigInteger to handle arbitrary-precision components
            ;; Strip leading + from numerator (BigInteger rejects it)
+           ;; When ratio simplifies to an integer, produce Long (not BigInt) to match Clojure
            (str/includes? raw "/")
            (let [idx   (str/index-of raw "/")
                  num-s (subs raw 0 idx)
                  num-s (cond-> num-s (str/starts-with? num-s "+") (subs 1))
                  num   (java.math.BigInteger. num-s)
-                 den   (java.math.BigInteger. (subs raw (inc idx)))]
-             (/ (clojure.lang.BigInt/fromBigInteger num)
-                (clojure.lang.BigInt/fromBigInteger den)))
+                 den   (java.math.BigInteger. (subs raw (inc idx)))
+                 result (/ (clojure.lang.BigInt/fromBigInteger num)
+                           (clojure.lang.BigInt/fromBigInteger den))]
+             (cond
+               (not (integer? result)) result
+               (and (<= Long/MIN_VALUE result) (<= result Long/MAX_VALUE)) (long result)
+               :else result))
 
            ;; Hex — wrap in MemeRaw to preserve notation
            (or (str/starts-with? raw "0x") (str/starts-with? raw "0X")
@@ -232,9 +261,12 @@
           (forms/->MemeRaw val raw)
           val))
 
-      ;; Plain integer
+      ;; Plain integer — auto-promote to BigInt if too large for Long (JVM)
       :else
-      #?(:clj (Long/parseLong raw) :cljs (js/parseInt raw 10)))
+      #?(:clj (try (Long/parseLong raw)
+                   (catch NumberFormatException _
+                     (clojure.lang.BigInt/fromBigInteger (java.math.BigInteger. raw))))
+         :cljs (js/parseInt raw 10)))
     (catch #?(:clj Exception :cljs :default) e
       (if (instance? #?(:clj clojure.lang.ExceptionInfo :cljs ExceptionInfo) e)
         (throw e) ; re-throw meme errors

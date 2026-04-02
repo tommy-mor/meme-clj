@@ -40,6 +40,27 @@
 ;; expand-sq — core syntax-quote expansion
 ;; ---------------------------------------------------------------------------
 
+(declare ^:private expand-sq)
+
+(defn- expand-sq-meta
+  "If a form has user-visible metadata, expand it into a map literal suitable
+   for (with-meta expansion meta-map). Mirrors Clojure's SyntaxQuoteReader
+   which emits (with-meta ...) for metadata-annotated collections."
+  [form opts loc]
+  (when-let [m (not-empty (forms/strip-internal-meta (meta form)))]
+    (let [items (into [] (mapcat (fn [[k v]]
+                                   [(list 'clojure.core/list (expand-sq k opts loc))
+                                    (list 'clojure.core/list (expand-sq v opts loc))]))
+                      m)]
+      (list 'clojure.core/apply 'clojure.core/hash-map (cons 'clojure.core/concat items)))))
+
+(defn- maybe-with-meta
+  "Wrap expansion in (with-meta expansion meta-expansion) when user metadata is present."
+  [expansion form opts loc]
+  (if-let [meta-expr (expand-sq-meta form opts loc)]
+    (list 'clojure.core/with-meta expansion meta-expr)
+    expansion))
+
 (defn- expand-sq
   "Walk a form parsed inside syntax-quote and produce the expansion.
    Mirrors Clojure's SyntaxQuoteReader behavior.
@@ -50,9 +71,10 @@
     (forms/unquote? form)
     (:form form)
 
-    ;; UnquoteSplicing at top level is an error (must be inside a collection)
+    ;; UnquoteSplicing at top level is an error (must be inside a list or vector)
+    ;; RT3-F17: improved message — map/set ~@ is caught by their own branches
     (forms/unquote-splicing? form)
-    (errors/meme-error "Unquote-splicing (~@) not in collection"
+    (errors/meme-error "Unquote-splicing (~@) must be inside a list or vector in syntax-quote"
                        (let [form-loc (select-keys (meta form) [:line :col])]
                          (if (seq form-loc) form-loc loc)))
 
@@ -79,6 +101,7 @@
         (list 'clojure.core/seq (cons 'clojure.core/concat items))))
 
     ;; Vector — expand to (vec (concat ...))
+    ;; RT3-F3: wrap in with-meta when user metadata is present
     (vector? form)
     (let [items (mapv (fn [item]
                         (cond
@@ -88,8 +111,9 @@
                           (list 'clojure.core/list (:form item))
                           :else
                           (list 'clojure.core/list (expand-sq item opts loc))))
-                      form)]
-      (list 'clojure.core/apply 'clojure.core/vector (cons 'clojure.core/concat items)))
+                      form)
+          expansion (list 'clojure.core/apply 'clojure.core/vector (cons 'clojure.core/concat items))]
+      (maybe-with-meta expansion form opts loc))
 
     ;; MemeRaw — unwrap to plain value for expansion
     ;; Must be before map? because defrecords satisfy (map? x)
@@ -117,23 +141,31 @@
     form
 
     ;; Map — expand to (apply hash-map (concat ...))
+    ;; RT3-F3: wrap in with-meta when user metadata is present
     (map? form)
     (let [items (into [] (mapcat (fn [[k v]]
                                    [(list 'clojure.core/list (expand-sq k opts loc))
                                     (list 'clojure.core/list (expand-sq v opts loc))]))
-                      form)]
-      (list 'clojure.core/apply 'clojure.core/hash-map (cons 'clojure.core/concat items)))
+                      form)
+          expansion (list 'clojure.core/apply 'clojure.core/hash-map (cons 'clojure.core/concat items))]
+      (maybe-with-meta expansion form opts loc))
 
     ;; Set — expand to (apply hash-set (concat ...))
+    ;; RT3-F3: wrap in with-meta when user metadata is present
+    ;; RT3-F16: reject ~@ in sets to match Clojure behavior
     (set? form)
     (let [items (mapv (fn [item]
                         (cond
                           (forms/unquote-splicing? item)
-                          (:form item)
+                          (errors/meme-error
+                           "Unquote-splicing (~@) not supported in set literals"
+                           (let [form-loc (select-keys (meta item) [:line :col])]
+                             (if (seq form-loc) form-loc loc)))
                           :else
                           (list 'clojure.core/list (expand-sq item opts loc))))
-                      form)]
-      (list 'clojure.core/apply 'clojure.core/hash-set (cons 'clojure.core/concat items)))
+                      form)
+          expansion (list 'clojure.core/apply 'clojure.core/hash-set (cons 'clojure.core/concat items))]
+      (maybe-with-meta expansion form opts loc))
 
     ;; Keyword, number, string, char, nil, boolean — self-quoting
     :else form))
