@@ -42,50 +42,54 @@
    Wraps in MemeRaw when the string contains unicode escapes (\\uNNNN) that would
    be lost through pr-str roundtrip."
   [raw loc]
-  (let [inner (subs raw 1 (dec (count raw))) ; strip surrounding quotes
-        len (count inner)
-        has-unicode? (volatile! false)
-        resolved
-        (loop [i 0 sb #?(:clj (StringBuilder.) :cljs #js [])]
-          (if (>= i len)
-            #?(:clj (.toString sb) :cljs (.join sb ""))
-            (let [ch (nth inner i)]
-              (if (= ch \\)
-                (if (>= (inc i) len)
-                  (errors/meme-error "Unterminated escape sequence in string" loc)
-                  (let [esc (nth inner (inc i))]
-                    (if-let [replacement (get string-escapes esc)]
-                      (recur (+ i 2) #?(:clj (.append sb replacement) :cljs (do (.push sb replacement) sb)))
-                      (if (= esc \u)
-                        (let [[ch' new-i] (parse-unicode-escape inner (inc i) loc)]
-                          (vreset! has-unicode? true)
-                          (recur new-i #?(:clj (.append sb ch') :cljs (do (.push sb ch') sb))))
-                        ;; RT3-F11: octal escapes \0-\377 in strings (JVM only, matches Clojure)
-                        #?(:clj
-                           (let [esc-int (int esc)]
-                             (if (and (>= esc-int (int \0)) (<= esc-int (int \7)))
-                               ;; Read up to 3 octal digits
-                               (let [start (inc i)
-                                     end (min (+ start 3) len)
-                                     oct-end (loop [j (inc start)]
-                                               (if (and (< j end)
-                                                        (let [c (int (nth inner j))]
-                                                          (and (>= c (int \0)) (<= c (int \7)))))
-                                                 (recur (inc j))
-                                                 j))
-                                     oct-str (subs inner start oct-end)
-                                     code (Integer/parseInt oct-str 8)]
-                                 (when (> code 0377)
-                                   (errors/meme-error (str "Octal escape out of range: \\" oct-str) loc))
-                                 (vreset! has-unicode? true)
-                                 (recur oct-end (.append sb (char code))))
-                               (errors/meme-error (str "Unsupported escape sequence \\" esc " in string") loc)))
-                           :cljs
-                           (errors/meme-error (str "Unsupported escape sequence \\" esc " in string") loc))))))
-                (recur (inc i) #?(:clj (.append sb ch) :cljs (do (.push sb (str ch)) sb)))))))]
-    (if @has-unicode?
-      (forms/->MemeRaw resolved raw)
-      resolved)))
+  (let [inner (subs raw 1 (dec (count raw)))] ; strip surrounding quotes
+    ;; Fast path: most strings have no escapes — skip char-by-char loop
+    (if (not (str/includes? inner "\\"))
+      inner
+      ;; Slow path: has escapes, process char-by-char
+      (let [len (count inner)
+            has-unicode? (volatile! false)
+            resolved
+            (loop [i 0 sb #?(:clj (StringBuilder.) :cljs #js [])]
+              (if (>= i len)
+                #?(:clj (.toString sb) :cljs (.join sb ""))
+                (let [ch (nth inner i)]
+                  (if (= ch \\)
+                    (if (>= (inc i) len)
+                      (errors/meme-error "Unterminated escape sequence in string" loc)
+                      (let [esc (nth inner (inc i))]
+                        (if-let [replacement (get string-escapes esc)]
+                          (recur (+ i 2) #?(:clj (.append sb replacement) :cljs (do (.push sb replacement) sb)))
+                          (if (= esc \u)
+                            (let [[ch' new-i] (parse-unicode-escape inner (inc i) loc)]
+                              (vreset! has-unicode? true)
+                              (recur new-i #?(:clj (.append sb ch') :cljs (do (.push sb ch') sb))))
+                            ;; RT3-F11: octal escapes \0-\377 in strings (JVM only, matches Clojure)
+                            #?(:clj
+                               (let [esc-int (int esc)]
+                                 (if (and (>= esc-int (int \0)) (<= esc-int (int \7)))
+                                   ;; Read up to 3 octal digits
+                                   (let [start (inc i)
+                                         end (min (+ start 3) len)
+                                         oct-end (loop [j (inc start)]
+                                                   (if (and (< j end)
+                                                            (let [c (int (nth inner j))]
+                                                              (and (>= c (int \0)) (<= c (int \7)))))
+                                                     (recur (inc j))
+                                                     j))
+                                         oct-str (subs inner start oct-end)
+                                         code (Integer/parseInt oct-str 8)]
+                                     (when (> code 0377)
+                                       (errors/meme-error (str "Octal escape out of range: \\" oct-str) loc))
+                                     (vreset! has-unicode? true)
+                                     (recur oct-end (.append sb (char code))))
+                                   (errors/meme-error (str "Unsupported escape sequence \\" esc " in string") loc)))
+                               :cljs
+                               (errors/meme-error (str "Unsupported escape sequence \\" esc " in string") loc))))))
+                    (recur (inc i) #?(:clj (.append sb ch) :cljs (do (.push sb (str ch)) sb)))))))]
+        (if @has-unicode?
+          (forms/->MemeRaw resolved raw)
+          resolved)))))
 
 ;; ---------------------------------------------------------------------------
 ;; Character resolution
@@ -153,6 +157,19 @@
       (= raw "##Inf")  #?(:clj Double/POSITIVE_INFINITY :cljs js/Infinity)
       (= raw "##-Inf") #?(:clj Double/NEGATIVE_INFINITY :cljs (- js/Infinity))
       (= raw "##NaN")  #?(:clj Double/NaN :cljs js/NaN)
+
+      ;; Fast path: plain decimal integer (most common number type)
+      ;; Matches 42, -7, +123 but NOT 0x.., 07 (leading zero), 42N, 3.14, 1/2, etc.
+      (re-matches #"[+-]?[1-9]\d*" raw)
+      #?(:clj (try (Long/parseLong raw)
+                   (catch NumberFormatException _
+                     (clojure.lang.BigInt/fromBigInteger (java.math.BigInteger. raw))))
+         :cljs (let [n (js/parseInt raw 10)]
+                 (when (> (js/Math.abs n) 9007199254740991)
+                   (errors/meme-error
+                    (str "Integer " raw " exceeds JavaScript safe integer range (Number.MAX_SAFE_INTEGER) — value would lose precision")
+                    loc))
+                 n))
 
       #?@(:clj
           [;; BigDecimal

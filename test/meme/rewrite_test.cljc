@@ -191,6 +191,30 @@
       (is (= '{:a 1 :b 2} (rw/rewrite rules '{:a 1 :b 2}))))))
 
 ;; ============================================================
+;; check-suspicious-vars! coverage
+;; ============================================================
+
+(deftest check-suspicious-vars-catches-map-keys
+  (testing "?& in map key of pattern is caught"
+    (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
+                          #"splice"
+                          (rw/make-rule 'r '{?&k 1} '?x))))
+  (testing "?& in map value of pattern is caught"
+    (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
+                          #"splice"
+                          (rw/make-rule 'r '{:a ?&v} '?x)))))
+
+(deftest check-suspicious-vars-catches-replacement
+  (testing "?& in replacement template is caught"
+    (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
+                          #"splice"
+                          (rw/make-rule 'r '?x '?&y))))
+  (testing "?& in nested replacement is caught"
+    (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
+                          #"splice"
+                          (rw/make-rule 'r '?x '(f ?&z))))))
+
+;; ============================================================
 ;; Guard Rules
 ;; ============================================================
 

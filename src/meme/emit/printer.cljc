@@ -55,20 +55,17 @@
 
 (def ^:private head-line-args
   "How many args to keep on the first line with the head.
-   nil means no special treatment (default: all args in body)."
+   Absent keys default to all args in body (same as 0)."
   {'def 1, 'def- 1,
    'defn 1, 'defn- 1, 'defmacro 1, 'defmulti 1, 'defmethod 2,
    'defprotocol 1, 'defrecord 1, 'deftype 1,
-   'fn 0,
-   'let 0, 'letfn 0, 'loop 0, 'binding 0, 'doseq 0, 'for 0,
-   'if 1, 'if-not 1, 'if-let 0, 'if-some 0,
-   'when 1, 'when-not 1, 'when-let 0, 'when-some 0, 'when-first 0,
-   'cond 0, 'condp 2, 'case 1, 'cond-> 1, 'cond->> 1,
-   'try 0, 'catch 2, 'finally 0,
-   'do 0,
+   'if 1, 'if-not 1,
+   'when 1, 'when-not 1,
+   'condp 2, 'case 1, 'cond-> 1, 'cond->> 1,
+   'catch 2,
    'ns 1,
    '-> 1, '->> 1, 'some-> 1, 'some->> 1, 'as-> 2,
-   'deftest 1, 'testing 1, 'is 0, 'are 0})
+   'deftest 1, 'testing 1})
 
 (defn- anon-fn-shorthand?
   "Can (fn [params] body) be printed as #(body)?

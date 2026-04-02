@@ -211,25 +211,36 @@
 ;; ============================================================
 
 (defn- check-suspicious-vars!
-  "L8/L14: warn about confusing pattern variable usage."
-  [pattern rule-name]
-  (when (sequential? pattern)
-    (doseq [p pattern]
-      ;; L8: ?&foo looks like a splice var but isn't — user probably meant ??foo
-      (when (and (symbol? p) (str/starts-with? (name p) "?&"))
-        (throw (ex-info (str "Pattern variable " p " in rule " (pr-str rule-name)
-                             " starts with ?& — did you mean ?? for a splice variable?")
-                        {:rule rule-name :var p})))
-      (check-suspicious-vars! p rule-name))))
+  "L8/L14: warn about confusing pattern/replacement variable usage.
+   Checks for ?& (should be ??) in patterns, replacements, map keys, and sets."
+  [form rule-name]
+  ;; Check the form itself if it's a symbol
+  (when (and (symbol? form) (str/starts-with? (name form) "?&"))
+    (throw (ex-info (str "Pattern variable " form " in rule " (pr-str rule-name)
+                         " starts with ?& — did you mean ?? for a splice variable?")
+                    {:rule rule-name :var form})))
+  ;; Recurse into containers
+  (when (sequential? form)
+    (doseq [child form]
+      (check-suspicious-vars! child rule-name)))
+  (when (and (map? form) (not (record? form)))
+    (doseq [[k v] form]
+      (check-suspicious-vars! k rule-name)
+      (check-suspicious-vars! v rule-name)))
+  (when (set? form)
+    (doseq [elem form]
+      (check-suspicious-vars! elem rule-name))))
 
 (defn make-rule
   "Create a rule from a pattern and replacement template.
    Optionally takes a guard function. See also `rule` for a shorthand."
   ([rule-name pattern replacement]
    (check-suspicious-vars! pattern rule-name)
+   (check-suspicious-vars! replacement rule-name)
    {:name rule-name :pattern pattern :replacement replacement})
   ([rule-name pattern replacement guard]
    (check-suspicious-vars! pattern rule-name)
+   (check-suspicious-vars! replacement rule-name)
    {:name rule-name :pattern pattern :replacement replacement :guard guard}))
 
 ;; PT-F4: sentinel for "rule did not match" — distinguishes from nil as a valid

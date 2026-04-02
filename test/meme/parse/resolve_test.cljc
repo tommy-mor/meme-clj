@@ -40,6 +40,16 @@
   (is (= "hello" (resolve/resolve-string "\"hello\"" {:line 1 :col 1})))
   (is (= "a\nb" (resolve/resolve-string "\"a\\nb\"" {:line 1 :col 1}))))
 
+(deftest resolve-string-fast-path
+  (testing "escape-free strings use fast path — result identical"
+    (is (= "hello world" (resolve/resolve-string "\"hello world\"" {:line 1 :col 1})))
+    (is (= "" (resolve/resolve-string "\"\"" {:line 1 :col 1})))
+    (is (= "no escapes here" (resolve/resolve-string "\"no escapes here\"" {:line 1 :col 1}))))
+  (testing "strings with escapes still resolve correctly"
+    (is (= "a\tb" (resolve/resolve-string "\"a\\tb\"" {:line 1 :col 1})))
+    (is (= "a\"b" (resolve/resolve-string "\"a\\\"b\"" {:line 1 :col 1})))
+    (is (= "a\\b" (resolve/resolve-string "\"a\\\\b\"" {:line 1 :col 1})))))
+
 ;; ---------------------------------------------------------------------------
 ;; Characters
 ;; ---------------------------------------------------------------------------
