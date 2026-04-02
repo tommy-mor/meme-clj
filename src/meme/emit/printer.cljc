@@ -84,6 +84,26 @@
     :else form))
 
 ;; ---------------------------------------------------------------------------
+;; Doc constants — avoid per-form allocation of common Doc nodes (P6)
+;; ---------------------------------------------------------------------------
+
+(def ^:private doc-open-paren  (render/text "("))
+(def ^:private doc-close-paren (render/text ")"))
+(def ^:private doc-open-bracket  (render/text "["))
+(def ^:private doc-close-bracket (render/text "]"))
+(def ^:private doc-open-brace  (render/text "{"))
+(def ^:private doc-close-brace (render/text "}"))
+(def ^:private doc-open-set    (render/text "#{"))
+(def ^:private doc-space       (render/text " "))
+(def ^:private doc-caret       (render/text "^"))
+(def ^:private doc-at          (render/text "@"))
+(def ^:private doc-quote       (render/text "'"))
+(def ^:private doc-var-quote   (render/text "#'"))
+(def ^:private doc-backtick    (render/text "`"))
+(def ^:private doc-unquote     (render/text "~"))
+(def ^:private doc-unquote-splicing (render/text "~@"))
+
+;; ---------------------------------------------------------------------------
 ;; Doc helpers for building common structures
 ;; ---------------------------------------------------------------------------
 
@@ -114,7 +134,7 @@
          (symbol? (:tag m)))
     (render/text (str "^" (:tag m)))
     :else
-    (render/cat (render/text "^") (to-doc-form m mode))))
+    (render/cat doc-caret (to-doc-form m mode))))
 
 (defn- call-doc
   "Build Doc for a call form. Handles head-line-args and meme/clj modes."
@@ -124,18 +144,18 @@
     (if (= mode :clj)
       ;; Clojure mode: (head arg1 arg2)
       (if (empty? arg-docs)
-        (render/group (render/cat (render/text "(") head-doc (render/text ")")))
+        (render/group (render/cat doc-open-paren head-doc doc-close-paren))
         (render/group
          (render/cat
-          (render/text "(") head-doc
+          doc-open-paren head-doc
           (render/nest 2 (render/cat render/line (intersperse render/line arg-docs)))
-          (render/text ")"))))
+          doc-close-paren)))
       ;; Meme mode: head(arg1 arg2) with head-line-args
       (let [n-head (get head-line-args head)]
           (cond
             ;; Zero args: head()
             (empty? arg-docs)
-            (render/group (render/cat head-doc (render/text "(") (render/text ")")))
+            (render/group (render/cat head-doc doc-open-paren doc-close-paren))
 
             ;; Head-line args: keep n args on head line, rest in body
             (and n-head (pos? n-head) (> (count arg-docs) n-head))
@@ -143,20 +163,20 @@
                   body (subvec arg-docs n-head)]
               (render/group
                (render/cat
-                head-doc (render/text "(")
+                head-doc doc-open-paren
                 (render/nest 2
                              (render/cat
                               (render/group (render/cat render/line0 (intersperse render/line hl)))
                               (reduce (fn [acc d] (render/cat acc render/line d)) nil body)))
-                (render/text ")"))))
+                doc-close-paren)))
 
             ;; Default: all args in body
             :else
             (render/group
              (render/cat
-              head-doc (render/text "(")
+              head-doc doc-open-paren
               (render/nest 2 (render/cat render/line0 (intersperse render/line arg-docs)))
-              (render/text ")"))))))))
+              doc-close-paren)))))))
 
 (defn- collection-doc
   "Build Doc for a delimited collection: [elems], #{elems}, #(body)."
@@ -177,7 +197,7 @@
   (if (empty? entries)
     (render/text (str open close))
     (let [pair-docs (mapv (fn [[k v]]
-                            (render/cat (to-doc k mode) (render/text " ") (to-doc v mode)))
+                            (render/cat (to-doc k mode) doc-space (to-doc v mode)))
                           entries)]
       (render/group
        (render/cat
@@ -203,10 +223,10 @@
                         (mapv #(emit-meta-prefix-doc % mode) (reverse chain))
                         [(emit-meta-prefix-doc (forms/strip-internal-meta (meta form)) mode)])
           ;; L12: compose prefix Docs with spaces, then the form Doc
-          prefix-doc (reduce (fn [acc d] (render/cat acc (render/text " ") d))
+          prefix-doc (reduce (fn [acc d] (render/cat acc doc-space d))
                              (first prefix-docs)
                              (rest prefix-docs))]
-      (render/cat prefix-doc (render/text " ") (to-doc-form stripped mode)))
+      (render/cat prefix-doc doc-space (to-doc-form stripped mode)))
 
     ;; Raw value wrapper — emit original source text
     (forms/raw? form) (render/text (:raw form))
@@ -247,15 +267,15 @@
       (cond
         ;; @deref sugar
         (and (= head 'clojure.core/deref) (:meme/sugar (meta form)))
-        (render/cat (render/text "@") (to-doc (second form) mode))
+        (render/cat doc-at (to-doc (second form) mode))
 
         ;; 'quote sugar
         (and (= head 'quote) (:meme/sugar (meta form)))
-        (render/cat (render/text "'") (to-doc (second form) mode))
+        (render/cat doc-quote (to-doc (second form) mode))
 
         ;; #'var sugar
         (and (= head 'var) (:meme/sugar (meta form)))
-        (render/cat (render/text "#'") (to-doc (second form) mode))
+        (render/cat doc-var-quote (to-doc (second form) mode))
 
         ;; Regular call
         :else
@@ -264,13 +284,13 @@
     ;; Syntax-quote / unquote / unquote-splicing AST nodes
     ;; Must be before map? (defrecords satisfy map?)
     (forms/syntax-quote? form)
-    (render/cat (render/text "`") (to-doc (:form form) mode))
+    (render/cat doc-backtick (to-doc (:form form) mode))
 
     (forms/unquote? form)
-    (render/cat (render/text "~") (to-doc (:form form) mode))
+    (render/cat doc-unquote (to-doc (:form form) mode))
 
     (forms/unquote-splicing? form)
-    (render/cat (render/text "~@") (to-doc (:form form) mode))
+    (render/cat doc-unquote-splicing (to-doc (:form form) mode))
 
     ;; Reader conditional — must be before map?
     (forms/meme-reader-conditional? form)
