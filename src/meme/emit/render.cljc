@@ -164,10 +164,15 @@
               (recur col (cons [(+ i (:indent d)) mode (:doc d)] rest-work))
 
               DocGroup
-              (let [flat-work (cons [i :flat (:doc d)] rest-work)]
-                (if (fits? (- width col) flat-work)
-                  (recur col flat-work)
-                  (recur col (cons [i :break (:doc d)] rest-work))))
+              ;; P1: when width is ##Inf (flat rendering), skip fits? entirely —
+              ;; everything fits flat. Previously fits? traversed the entire
+              ;; remaining work-list for each group → O(n²).
+              (if (infinite? width)
+                (recur col (cons [i :flat (:doc d)] rest-work))
+                (let [flat-work (cons [i :flat (:doc d)] rest-work)]
+                  (if (fits? (- width col) flat-work)
+                    (recur col flat-work)
+                    (recur col (cons [i :break (:doc d)] rest-work)))))
 
               DocIfBreak
               (if (= mode :flat)

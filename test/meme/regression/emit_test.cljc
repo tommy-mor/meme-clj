@@ -650,3 +650,18 @@
     (let [raw-form (meme.forms/->MemeRaw 15 "017")
           emitted (remit/emit raw-form)]
       (is (= "017" emitted) "should use :raw notation, not numeric value"))))
+
+;; ---------------------------------------------------------------------------
+;; Scar tissue: layout at ##Inf must be O(n) not O(n²) (P1)
+;; Previously: fits? traversed entire remaining work-list for every DocGroup.
+;; ---------------------------------------------------------------------------
+
+(deftest layout-infinite-width-performance
+  (testing "flat formatting many-arg call completes quickly"
+    (let [;; Wide form: f(a0 a1 ... a999) — many siblings to stress layout
+          form (cons 'f (map #(symbol (str "a" %)) (range 1000)))
+          start #?(:clj (System/nanoTime) :cljs (js/Date.now))
+          result (fmt-flat/format-form form)
+          elapsed #?(:clj (/ (- (System/nanoTime) start) 1e6) :cljs (- (js/Date.now) start))]
+      (is (string? result))
+      (is (< elapsed 500) (str "flat formatting should be fast, took " elapsed "ms")))))
