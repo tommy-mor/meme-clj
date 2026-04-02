@@ -162,3 +162,25 @@
           source "first\r\nsecond\r\nthird"
           result (errors/format-error e source)]
       (is (re-find #"first" result)))))
+
+;; ---------------------------------------------------------------------------
+;; format-error with :secondary locations — detailed verification
+;; ---------------------------------------------------------------------------
+
+(deftest format-error-secondary-with-caret-and-label
+  (testing ":secondary locations render line, caret, and label"
+    (let [source "open(\n  body\n  close)"
+          e (ex-info "mismatched delimiter"
+                     {:line 3 :col 3
+                      :secondary [{:line 1 :col 1 :label "opening paren here"}]})
+          result (errors/format-error e source)]
+      (testing "primary error message present"
+        (is (re-find #"mismatched delimiter" result)))
+      (testing "primary line shown"
+        (is (re-find #"3 \|" result)))
+      (testing "secondary line shown"
+        (is (re-find #"1 \|" result)))
+      (testing "secondary label present"
+        (is (re-find #"opening paren here" result)))
+      (testing "secondary caret present"
+        (is (re-find #"\^ opening paren here" result))))))

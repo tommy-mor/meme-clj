@@ -125,3 +125,87 @@
 (deftest notation-meta-keys-subset-of-internal
   (testing "notation keys are a subset of internal keys"
     (is (every? forms/internal-meta-keys forms/notation-meta-keys))))
+
+;; ============================================================
+;; find-percent-params
+;; ============================================================
+
+(deftest find-percent-params-bare
+  (is (= #{:bare} (forms/find-percent-params '%))))
+
+(deftest find-percent-params-numbered
+  (is (= #{1 2} (forms/find-percent-params '(+ %1 %2)))))
+
+(deftest find-percent-params-rest
+  (is (= #{:rest} (forms/find-percent-params '%&))))
+
+(deftest find-percent-params-mixed
+  (is (= #{:bare :rest} (forms/find-percent-params '(apply str % %&)))))
+
+(deftest find-percent-params-in-vector
+  (is (= #{1 2} (forms/find-percent-params '[%1 %2]))))
+
+(deftest find-percent-params-in-map
+  (is (= #{1 2} (forms/find-percent-params '{%1 %2}))))
+
+(deftest find-percent-params-in-set
+  (is (= #{1} (forms/find-percent-params '#{%1}))))
+
+(deftest find-percent-params-nested-containers
+  (is (= #{1 2 3} (forms/find-percent-params '[[%1] {%2 :a} #{%3}]))))
+
+(deftest find-percent-params-skips-nested-fn
+  (testing "nested (fn ...) body is not walked"
+    (is (= #{1} (forms/find-percent-params '(+ %1 (fn [x] %2)))))))
+
+(deftest find-percent-params-empty
+  (is (= #{} (forms/find-percent-params '(+ 1 2)))))
+
+;; ============================================================
+;; normalize-bare-percent
+;; ============================================================
+
+(deftest normalize-bare-percent-simple
+  (is (= '%1 (forms/normalize-bare-percent '%))))
+
+(deftest normalize-bare-percent-in-list
+  (is (= '(+ %1 1) (forms/normalize-bare-percent '(+ % 1)))))
+
+(deftest normalize-bare-percent-rest-unchanged
+  (is (= '%& (forms/normalize-bare-percent '%&))))
+
+(deftest normalize-bare-percent-numbered-unchanged
+  (is (= '%2 (forms/normalize-bare-percent '%2))))
+
+(deftest normalize-bare-percent-nested-containers
+  (is (= '[%1 {%1 :a}] (forms/normalize-bare-percent '[% {% :a}]))))
+
+(deftest normalize-bare-percent-skips-nested-fn
+  (testing "nested (fn ...) body is not walked — bare % inside fn is untouched"
+    (is (= '(+ %1 (fn [x] %))
+           (forms/normalize-bare-percent '(+ % (fn [x] %)))))))
+
+;; ============================================================
+;; restore-bare-percent
+;; ============================================================
+
+(deftest restore-bare-percent-simple
+  (is (= '% (forms/restore-bare-percent '%1))))
+
+(deftest restore-bare-percent-in-list
+  (is (= '(+ % 1) (forms/restore-bare-percent '(+ %1 1)))))
+
+(deftest restore-bare-percent-numbered-stays
+  (testing "%2 is not converted to bare %"
+    (is (= '%2 (forms/restore-bare-percent '%2)))))
+
+(deftest restore-bare-percent-rest-stays
+  (is (= '%& (forms/restore-bare-percent '%&))))
+
+(deftest restore-bare-percent-nested-containers
+  (is (= '[% {% :a}] (forms/restore-bare-percent '[%1 {%1 :a}]))))
+
+(deftest restore-bare-percent-skips-nested-fn
+  (testing "nested (fn ...) body is not walked — %1 inside fn is untouched"
+    (is (= '(+ % (fn [x] %1))
+           (forms/restore-bare-percent '(+ %1 (fn [x] %1)))))))

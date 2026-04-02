@@ -80,28 +80,7 @@
        (= 3 (count form))
        (vector? (second form))))
 
-(defn- restore-bare-percent
-  "Replace %1 with % in a form tree. Used when :meme/bare-percent metadata
-   indicates the user wrote bare % (normalized to %1 for eval correctness).
-   M15/B2: recurses into maps, sets, and AST nodes, mirroring normalize-bare-percent.
-   D53: skip nested (fn ...) bodies — matches normalize-bare-percent guard."
-  [form]
-  (cond
-    (and (symbol? form) (= (name form) "%1") (nil? (namespace form))) (symbol "%")
-    ;; D53: skip nested fn bodies — inner %1 belongs to the inner fn, not the outer #()
-    (and (seq? form) (= 'fn (first form))) form
-    (seq? form) (with-meta (apply list (map restore-bare-percent form)) (meta form))
-    (vector? form) (with-meta (mapv restore-bare-percent form) (meta form))
-    ;; AST node defrecords satisfy (map? x) — check before map?
-    (forms/raw? form) form
-    (forms/syntax-quote? form) (forms/->MemeSyntaxQuote (restore-bare-percent (:form form)))
-    (forms/unquote? form) (forms/->MemeUnquote (restore-bare-percent (:form form)))
-    (forms/unquote-splicing? form) (forms/->MemeUnquoteSplicing (restore-bare-percent (:form form)))
-    (map? form) (with-meta
-                  (into {} (map (fn [[k v]] [(restore-bare-percent k) (restore-bare-percent v)]) form))
-                  (meta form))
-    (set? form) (with-meta (set (map restore-bare-percent form)) (meta form))
-    :else form))
+;; restore-bare-percent moved to meme.forms (co-located with normalize-bare-percent)
 
 ;; ---------------------------------------------------------------------------
 ;; Doc constants — avoid per-form allocation of common Doc nodes (P6)
@@ -288,7 +267,7 @@
          (or (not= mode :clj) (seq? (nth form 2))))
     (let [raw-body (nth form 2)
           body (if (:meme/bare-percent (meta form))
-                 (restore-bare-percent raw-body)
+                 (forms/restore-bare-percent raw-body)
                  raw-body)]
       (if (and (= mode :clj) (seq? body))
         ;; :clj mode: unwrap body list to avoid double parens.

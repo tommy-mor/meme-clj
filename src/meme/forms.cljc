@@ -196,88 +196,78 @@
            (not= n "%&")
            (nil? (percent-param-type sym))))))
 
+(defn walk-anon-fn-body
+  "Generic walker over anonymous function body forms. Skips nested (fn ...) bodies.
+   Handles AST node types (raw, syntax-quote, unquote, unquote-splicing), maps,
+   sets, tagged literals, seqs, and vectors.
+
+   `f` is called on every non-container form and returns the walked result.
+   For containers, the walker recurses and rebuilds the structure.
+   Use this to avoid duplicating the form-type dispatch across multiple walkers."
+  [f form]
+  (cond
+    ;; Nested fn boundary — don't recurse
+    (and (seq? form) (= 'fn (first form))) (f form)
+    ;; Sequential containers
+    (seq? form) (with-meta (apply list (map #(walk-anon-fn-body f %) form)) (meta form))
+    (vector? form) (with-meta (mapv #(walk-anon-fn-body f %) form) (meta form))
+    ;; AST nodes — before map? since defrecords satisfy map?
+    (raw? form) (f form)
+    (syntax-quote? form) (->MemeSyntaxQuote (walk-anon-fn-body f (:form form)))
+    (unquote? form) (->MemeUnquote (walk-anon-fn-body f (:form form)))
+    (unquote-splicing? form) (->MemeUnquoteSplicing (walk-anon-fn-body f (:form form)))
+    ;; Maps and sets
+    (map? form) (with-meta
+                  (into {} (map (fn [[k v]] [(walk-anon-fn-body f k) (walk-anon-fn-body f v)]) form))
+                  (meta form))
+    (set? form) (with-meta (set (map #(walk-anon-fn-body f %) form)) (meta form))
+    ;; Tagged literals (JVM only)
+    #?@(:clj [(tagged-literal? form)
+              (tagged-literal (.-tag form) (walk-anon-fn-body f (.-form form)))])
+    ;; Leaf
+    :else (f form)))
+
 (defn find-percent-params
   "Walk form collecting % param types. Skips nested (fn ...) bodies."
   [form]
-  (cond
-    (symbol? form)
-    (if-let [p (percent-param-type form)] #{p} #{})
-
-    (and (seq? form) (= 'fn (first form)))
-    #{} ; don't recurse into nested fn / inner #()
-
-    (seq? form)
-    (reduce into #{} (map find-percent-params form))
-
-    (vector? form)
-    (reduce into #{} (map find-percent-params form))
-
-    ;; AST node defrecords satisfy (map? x) — check before map?
-    (raw? form) #{} ; raw values (numbers, chars) contain no % params
-    (syntax-quote? form) (find-percent-params (:form form))
-    (unquote? form) (find-percent-params (:form form))
-    (unquote-splicing? form) (find-percent-params (:form form))
-
-    (map? form)
-    (reduce into #{} (mapcat (fn [[k v]] [(find-percent-params k) (find-percent-params v)]) form))
-
-    (set? form)
-    (reduce into #{} (map find-percent-params form))
-
-    #?@(:clj [(tagged-literal? form)
-              (find-percent-params (.-form form))])
-
-    :else #{}))
+  (let [result (volatile! #{})]
+    (walk-anon-fn-body
+     (fn [f]
+       (when-let [p (percent-param-type f)] (vswap! result conj p))
+       f)
+     form)
+    @result))
 
 (defn find-invalid-percent-symbols
-  "Walk form collecting symbols that look like % params but aren't valid.
+  "Walk form finding first symbol that looks like a % param but isn't valid.
    RT3-F13: %-1, %foo, etc. Returns first found or nil."
   [form]
-  (cond
-    (invalid-percent-symbol? form) form
-    (and (seq? form) (= 'fn (first form))) nil
-    (seq? form) (some find-invalid-percent-symbols form)
-    (vector? form) (some find-invalid-percent-symbols form)
-    (raw? form) nil
-    (syntax-quote? form) (find-invalid-percent-symbols (:form form))
-    (unquote? form) (find-invalid-percent-symbols (:form form))
-    (unquote-splicing? form) (find-invalid-percent-symbols (:form form))
-    (map? form) (some (fn [[k v]] (or (find-invalid-percent-symbols k)
-                                      (find-invalid-percent-symbols v))) form)
-    (set? form) (some find-invalid-percent-symbols form)
-    :else nil))
+  (let [found (volatile! nil)]
+    (walk-anon-fn-body
+     (fn [f]
+       (when (and (nil? @found) (invalid-percent-symbol? f))
+         (vreset! found f))
+       f)
+     form)
+    @found))
 
 (defn normalize-bare-percent
   "Replace bare % with %1 in form. Skips nested (fn ...) bodies."
   [form]
-  (cond
-    (and (symbol? form) (= "%" (name form))) (symbol "%1")
+  (walk-anon-fn-body
+   (fn [f]
+     (if (and (symbol? f) (= "%" (name f))) (symbol "%1") f))
+   form))
 
-    (and (seq? form) (= 'fn (first form)))
-    form ; don't recurse into nested fn
-
-    (seq? form)
-    (apply list (map normalize-bare-percent form))
-
-    (vector? form)
-    (mapv normalize-bare-percent form)
-
-    ;; AST node defrecords satisfy (map? x) — check before map?
-    (raw? form) form ; pass through unchanged
-    (syntax-quote? form) (->MemeSyntaxQuote (normalize-bare-percent (:form form)))
-    (unquote? form) (->MemeUnquote (normalize-bare-percent (:form form)))
-    (unquote-splicing? form) (->MemeUnquoteSplicing (normalize-bare-percent (:form form)))
-
-    (map? form)
-    (into {} (map (fn [[k v]] [(normalize-bare-percent k) (normalize-bare-percent v)]) form))
-
-    (set? form)
-    (set (map normalize-bare-percent form))
-
-    #?@(:clj [(tagged-literal? form)
-              (tagged-literal (.-tag form) (normalize-bare-percent (.-form form)))])
-
-    :else form))
+(defn restore-bare-percent
+  "Replace %1 with % in a form tree. Used when :meme/bare-percent metadata
+   indicates the user wrote bare % (normalized to %1 for eval correctness).
+   Skips nested (fn ...) bodies — matches normalize-bare-percent guard."
+  [form]
+  (walk-anon-fn-body
+   (fn [f]
+     (if (and (symbol? f) (= (name f) "%1") (nil? (namespace f))) (symbol "%") f))
+   form))
 
 (defn build-anon-fn-params
   "Build [%1 %2 ...] or [%1 & %&] param vector from collected param types."
