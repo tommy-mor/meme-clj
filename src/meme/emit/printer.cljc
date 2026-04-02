@@ -71,12 +71,17 @@
 (defn- restore-bare-percent
   "Replace %1 with % in a form tree. Used when :meme/bare-percent metadata
    indicates the user wrote bare % (normalized to %1 for eval correctness).
-   M15: recurses into maps and sets, mirroring normalize-bare-percent in forms.cljc."
+   M15/B2: recurses into maps, sets, and AST nodes, mirroring normalize-bare-percent."
   [form]
   (cond
     (and (symbol? form) (= (name form) "%1") (nil? (namespace form))) (symbol "%")
     (seq? form) (with-meta (apply list (map restore-bare-percent form)) (meta form))
     (vector? form) (with-meta (mapv restore-bare-percent form) (meta form))
+    ;; AST node defrecords satisfy (map? x) — check before map?
+    (forms/raw? form) form
+    (forms/syntax-quote? form) (forms/->MemeSyntaxQuote (restore-bare-percent (:form form)))
+    (forms/unquote? form) (forms/->MemeUnquote (restore-bare-percent (:form form)))
+    (forms/unquote-splicing? form) (forms/->MemeUnquoteSplicing (restore-bare-percent (:form form)))
     (map? form) (with-meta
                   (into {} (map (fn [[k v]] [(restore-bare-percent k) (restore-bare-percent v)]) form))
                   (meta form))

@@ -559,6 +559,11 @@
     (let [src "#(#{%})"
           forms (core/meme->forms src)
           back (core/forms->meme forms)]
+      (is (= src back))))
+  (testing "#(`~%) roundtrips preserving bare % through AST nodes"
+    (let [src "#(`~%)"
+          forms (core/meme->forms src)
+          back (core/forms->meme forms)]
       (is (= src back)))))
 
 ;; ---------------------------------------------------------------------------
