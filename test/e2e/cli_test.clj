@@ -81,7 +81,7 @@
 (deftest inspect-test
   (let [{:keys [out exit]} (bb-meme "inspect")]
     (is (zero? exit))
-    (is (str/includes? out "Lang: meme-classic"))
+    (is (str/includes? out "Lang: meme"))
     (is (str/includes? out "run"))
     (is (str/includes? out "format"))
     (is (str/includes? out "to-clj"))
