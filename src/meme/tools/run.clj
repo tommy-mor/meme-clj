@@ -89,8 +89,6 @@
                                              (str/starts-with? source "\uFEFF"))
                                        (subs source 1) source)]
                           (-> {:source source :opts opts}
-                              stages/step-scan
-                              stages/step-trivia
                               stages/step-parse
                               stages/step-read
                               stages/step-expand-syntax-quotes))))

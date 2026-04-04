@@ -17,7 +17,7 @@
 
 (defn meme->forms
   "Read meme source string. Returns a vector of Clojure forms.
-   step-scan → step-trivia → step-parse → step-read"
+   step-parse → step-read"
   ([s] (meme->forms s nil))
   ([s opts]
    {:pre [(string? s)]}

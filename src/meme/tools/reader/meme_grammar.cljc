@@ -1,50 +1,56 @@
 (ns meme.tools.reader.meme-grammar
-  "Meme language grammar for the Pratt parser.
+  "Meme language grammar spec.
 
-   Maps token types to parselets — the complete syntactic specification
-   of M-expression syntax. Uses factory functions from the parser engine
-   for common patterns, and custom parselets from meme-parselets for
-   meme-specific constructs."
+   Maps characters to scanlets — the complete syntactic specification
+   of M-expression syntax as data. Lexlets provide the scanning layer,
+   parselets provide the compound constructs, and the parser engine
+   provides generic factories."
   (:require [meme.tools.pratt.parser :as pratt]
+            [meme.tools.reader.meme-lexlets :as lex]
             [meme.tools.reader.meme-parselets :as mp]))
 
 (def grammar
-  "Meme language grammar: token types → parselets."
+  "Meme language grammar: characters → scanlets."
   {:nud
-   {;; Atoms
-    :symbol        (pratt/nud-atom :atom)
-    :number        (pratt/nud-atom :atom)
-    :string        (pratt/nud-atom :atom)
-    :keyword       (pratt/nud-atom :atom)
-    :char-literal  (pratt/nud-atom :atom)
-    :regex         (pratt/nud-atom :atom)
-
-    ;; Collections
-    :open-bracket  (pratt/nud-delimited :vector :close-bracket)
-    :open-brace    (pratt/nud-delimited :map :close-brace)
-    :open-paren    (pratt/nud-empty-or-error :list :close-paren
-                     "Bare parentheses not allowed — every (...) needs a head")
+   {;; Delimiters
+    \(  (lex/single-char-scanlet :open-paren
+          (pratt/nud-empty-or-error :list \) :close-paren
+            "Bare parentheses not allowed — every (...) needs a head"))
+    \[  (lex/delimited-scanlet :vector :open-bracket \] :close-bracket)
+    \{  (lex/delimited-scanlet :map :open-brace \} :close-brace)
 
     ;; Prefix operators
-    :quote            (pratt/nud-prefix :quote)
-    :deref            (pratt/nud-prefix :deref)
-    :syntax-quote     (pratt/nud-prefix :syntax-quote)
-    :unquote          (pratt/nud-prefix :unquote)
-    :unquote-splicing (pratt/nud-prefix :unquote-splicing)
-    :meta             (pratt/nud-prefix-two :meta :meta :target)
+    \'  (lex/single-char-scanlet :quote (pratt/nud-prefix :quote))
+    \@  (lex/single-char-scanlet :deref (pratt/nud-prefix :deref))
+    \`  (lex/single-char-scanlet :syntax-quote (pratt/nud-prefix :syntax-quote))
+    \^  (lex/single-char-scanlet :meta (pratt/nud-prefix-two :meta :meta :target))
+    \~  mp/tilde-scanlet
 
-    ;; Dispatch prefixes
-    :var-quote       (pratt/nud-prefix :var-quote)
-    :discard         (pratt/nud-prefix :discard)
-    :hashtag-symbol  (pratt/nud-prefix :tagged)
-    :open-set        (pratt/nud-delimited :set :close-brace)
-    :open-anon-fn    (pratt/nud-delimited :anon-fn :close-paren)
-    :namespaced-map  (pratt/nud-prefixed-delimited :namespaced-map :open-brace :close-brace)
-    :reader-cond     (pratt/nud-prefixed-delimited :reader-cond :open-paren :close-paren
-                                                   mp/reader-cond-extra)}
+    ;; Content atoms
+    \\  (lex/atom-scanlet :char-literal lex/consume-char-literal)
+    \"  (lex/atom-scanlet :string lex/consume-string)
+    \:  (lex/atom-scanlet :keyword lex/consume-keyword)
+
+    ;; Dispatch
+    \#  mp/dispatch-scanlet}
+
+   :nud-pred
+   [[(fn [ch _e] (lex/digit? ch))                          (lex/atom-scanlet :number lex/consume-number)]
+    [(fn [ch e] (mp/sign-followed-by-digit? e ch))          (lex/atom-scanlet :number lex/consume-number)]
+    [(fn [ch _e] (lex/symbol-start? ch))                    (lex/atom-scanlet :symbol lex/consume-symbol)]]
+
+   :trivia
+   {\space   lex/ws-consumer
+    \tab     lex/ws-consumer
+    \,       lex/ws-consumer
+    \newline lex/newline-consumer
+    \return  lex/newline-consumer
+    \;       lex/comment-consumer
+    \uFEFF   lex/bom-consumer}
+
+   :trivia-pred
+   [[lex/whitespace-char? lex/ws-consumer]
+    [lex/newline-char?    lex/newline-consumer]]
 
    :led
-   [{:token-type :open-paren
-     :bp 100
-     :when mp/no-trivia?
-     :fn (pratt/led-call :call :close-paren)}]})
+   [{:char \( :bp 100 :open-type :open-paren :when mp/adjacent? :fn mp/call-scanlet}]})

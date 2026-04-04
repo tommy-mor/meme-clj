@@ -897,7 +897,7 @@
 
 (deftest repl-expand-context-valid
   (testing "context like REPL builds works with step-expand-syntax-quotes"
-    (let [ctx {:source "" :raw-tokens [] :tokens [] :cst []
+    (let [ctx {:source "" :cst []
                :forms (vec (lang/meme->forms "def(x 42)")) :opts {}}]
       (is (some? (stages/step-expand-syntax-quotes ctx))))))
 
@@ -1032,8 +1032,6 @@
    (deftest expanded-reader-conditional-form-is-list
      (testing "reader-conditional form is a list after expansion"
        (let [ctx (-> {:source "#?(:clj 1 :cljs 2)" :opts {:read-cond :preserve}}
-                     (stages/step-scan)
-                     (stages/step-trivia)
                      (stages/step-parse)
                      (stages/step-read)
                      (stages/step-expand-syntax-quotes))

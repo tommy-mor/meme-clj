@@ -1,46 +1,33 @@
 (ns meme.tools.reader.stages
   "Composable pipeline stages for the lossless reader.
 
-   Pipeline: step-scan → step-trivia → step-parse → step-read
+   Pipeline: step-parse → step-read
 
    Each stage is a ctx → ctx function operating on a shared context map:
 
    | Key          | Type           | Written by  | Read by          |
    |--------------|----------------|-------------|------------------|
-   | :source      | String         | caller      | scan             |
-   | :opts        | Map or nil     | caller      | read             |
-   | :raw-tokens  | Vector         | scan        | trivia, (tooling)|
-   | :tokens      | Vector         | trivia      | parse            |
+   | :source      | String         | caller      | parse            |
+   | :opts        | Map or nil     | caller      | parse, read      |
    | :cst         | Vector         | parse       | read, (tooling)  |
    | :forms       | Vector         | read        | caller           |
 
    Stages are independent. Compose in any order respecting dependencies.
-   Skip step-read for tooling that works with CST directly.
-   Skip step-trivia to get raw token stream without trivia attachment."
+   Skip step-read for tooling that works with CST directly."
   (:require [clojure.string :as str]
-            [meme.tools.reader.tokenizer :as scanner]
             [meme.tools.reader.meme-grammar :as grammar]
             [meme.tools.reader.cst-reader :as cst-reader]
             [meme.tools.parse.expander :as expander]
-            [meme.tools.pratt.trivia :as trivia]
             [meme.tools.pratt.parser :as pratt]))
-
-;; ---------------------------------------------------------------------------
-;; Default trivia set for parsing
-;; ---------------------------------------------------------------------------
-
-(def parse-trivia
-  "Trivia types for the parsing pipeline. Comments, BOM, and shebang are
-   trivia for parsing but not for all consumers (formatters, LSP, docs)."
-  (into trivia/default-trivia-types [:comment :bom :shebang]))
 
 ;; ---------------------------------------------------------------------------
 ;; Pipeline stages
 ;; ---------------------------------------------------------------------------
 
-(defn step-scan
-  "Scan source into raw tokens. Exhaustive, never throws.
-   Writes :raw-tokens to ctx."
+(defn step-parse
+  "Parse source string into CST using the unified Pratt parser.
+   Uses meme grammar by default, or (:grammar opts) if provided.
+   Reads :source, writes :cst."
   [ctx]
   (let [source (:source ctx)]
     (when-not (string? source)
@@ -48,24 +35,9 @@
                            (if (nil? source) "nil"
                                #?(:clj (.getName (class source))
                                   :cljs (pr-str (type source)))))
-                      {:type :meme/pipeline-error :stage :scan})))
-    (assoc ctx :raw-tokens (scanner/tokenize source))))
-
-(defn step-trivia
-  "Attach trivia to semantic tokens. Uses parse-trivia by default,
-   or (:trivia-types opts) if provided.
-   Reads :raw-tokens, writes :tokens."
-  [ctx]
-  (let [trivia-types (or (get-in ctx [:opts :trivia-types]) parse-trivia)]
-    (assoc ctx :tokens (trivia/attach-trivia (:raw-tokens ctx) trivia-types))))
-
-(defn step-parse
-  "Parse trivia-attached tokens into CST using the Pratt parser.
-   Uses meme grammar by default, or (:grammar opts) if provided.
-   Reads :tokens, writes :cst."
-  [ctx]
-  (let [spec (or (get-in ctx [:opts :grammar]) grammar/grammar)]
-    (assoc ctx :cst (pratt/parse (:tokens ctx) spec))))
+                      {:type :meme/pipeline-error :stage :parse})))
+    (let [spec (or (get-in ctx [:opts :grammar]) grammar/grammar)]
+      (assoc ctx :cst (pratt/parse source spec)))))
 
 (defn step-read
   "Lower CST to Clojure forms via the CST reader.
@@ -92,7 +64,7 @@
    full pipeline context map."
   [forms opts]
   (:forms (step-expand-syntax-quotes
-            {:source "" :raw-tokens [] :tokens [] :cst [] :forms (vec forms) :opts opts})))
+            {:source "" :cst [] :forms (vec forms) :opts opts})))
 
 ;; ---------------------------------------------------------------------------
 ;; Convenience: full pipeline
@@ -107,11 +79,9 @@
     source))
 
 (defn run
-  "Run the full pipeline: source → tokens → CST → forms."
+  "Run the full pipeline: source → CST → forms."
   ([source] (run source nil))
   ([source opts]
    (-> {:source (strip-shebang source) :opts opts}
-       step-scan
-       step-trivia
        step-parse
        step-read)))

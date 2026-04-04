@@ -24,8 +24,6 @@
   (testing "context contains expected keys"
     (let [ctx (stages/run "+(1 2)")]
       (is (string? (:source ctx)))
-      (is (vector? (:raw-tokens ctx)))
-      (is (vector? (:tokens ctx)))
       (is (vector? (:cst ctx)))
       (is (vector? (:forms ctx))))))
 

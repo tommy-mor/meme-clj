@@ -4,11 +4,7 @@
    tagged literals, reader conditionals, namespaced maps."
   (:require [clojure.test :refer [deftest is testing]]
             [meme.langs.meme :as lang]
-            [meme.tools.forms :as forms]
-            [meme.tools.reader.tokenizer :as tokenizer]))
-
-(defn- tokenize [s]
-  (tokenizer/tokenize s))
+            [meme.tools.forms :as forms]))
 
 ;; ---------------------------------------------------------------------------
 ;; Prefix reader macros: @, ^, ', #'
@@ -242,13 +238,14 @@
 ;; ---------------------------------------------------------------------------
 
 #?(:cljs
-   (deftest cljs-form-tokenization
-     (testing "tokenizer handles reader conditionals on CLJS"
-       (let [tokens (tokenize "#?(:clj x :cljs y)")]
-         (is (= :reader-cond (:type (first tokens))))))
-     (testing "tokenizer handles namespaced maps on CLJS"
-       (let [tokens (tokenize "#:user{:name \"x\"}")]
-         (is (= :namespaced-map (:type (first tokens))))))))
+   (deftest cljs-form-parsing
+     (testing "reader conditionals parse on CLJS"
+       (let [forms (lang/meme->forms "#?(:clj x :cljs y)")]
+         (is (= 1 (count forms)))
+         (is (= 'y (first forms)))))
+     (testing "namespaced maps parse on CLJS"
+       (let [forms (lang/meme->forms "#:user{:name \"x\"}")]
+         (is (= [{:user/name "x"}] forms))))))
 
 #?(:cljs
    (deftest cljs-reader-paths
