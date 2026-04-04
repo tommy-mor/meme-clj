@@ -592,3 +592,202 @@
           reparsed (lang/meme->forms fmt1)
           fmt2 (fmt-canon/format-forms reparsed {:width 80})]
       (= fmt1 fmt2))))
+
+;; ===========================================================================
+;; NEW: Char literal edge cases
+;; Regression bugs: \u0041/\o101 split, \u00g1 invalid hex, bare \, control chars
+;; ===========================================================================
+
+(def gen-char-literal-text
+  "Generate char literal text strings, including edge cases."
+  (gen/one-of
+   [;; Named chars
+    (gen/elements ["\\a" "\\b" "\\z" "\\newline" "\\tab" "\\space"
+                   "\\return" "\\backspace" "\\formfeed"])
+    ;; Unicode escapes — valid
+    (gen/let [cp (gen/choose 0x20 0x7E)]
+      (format "\\u%04X" cp))
+    ;; Octal escapes — valid (0-377)
+    (gen/let [cp (gen/choose 0 255)]
+      (format "\\o%03o" cp))]))
+
+(def gen-invalid-char-literal-text
+  "Generate char literal text that should produce an error.
+   Only includes sequences that START a unicode/octal escape but have wrong digits."
+  (gen/elements
+   ["\\u00g1"      ; starts unicode escape, non-hex digit at position 3
+    "\\u00"         ; starts unicode escape, truncated (only 2 hex digits)
+    "\\u0"          ; starts unicode escape, truncated (only 1 hex digit)
+    ]))
+
+(defspec prop-char-literal-roundtrip 200
+  (prop/for-all [char-text gen-char-literal-text]
+    (try
+      (let [forms (lang/meme->forms char-text)]
+        (and (= 1 (count forms))
+             (char? (let [f (first forms)]
+                      (if (instance? meme_lang.forms.MemeRaw f) (:value f) f)))))
+      (catch Exception _ false))))
+
+(defspec prop-invalid-char-literal-errors 100
+  (prop/for-all [char-text gen-invalid-char-literal-text]
+    (try
+      (lang/meme->forms char-text)
+      false  ;; should have thrown
+      (catch clojure.lang.ExceptionInfo e
+        (let [data (ex-data e)]
+          (and (integer? (:line data)) (integer? (:col data)))))
+      (catch Exception _ false))))
+
+;; ===========================================================================
+;; NEW: Reader conditional & namespaced map generators
+;; Regression bugs: bracket depth with chars/comments inside, #() inside #?
+;; ===========================================================================
+
+(def gen-reader-cond-text
+  "Generate reader conditional text with various inner forms."
+  (gen/let [clj-form gen-meme-atom
+            cljs-form gen-meme-atom]
+    (str "#?(:clj " clj-form " :cljs " cljs-form ")")))
+
+(def gen-reader-cond-with-tricky-content
+  "Reader conditionals with chars, strings, comments that contain delimiters."
+  (gen/one-of
+   [(gen/return "#?(:clj \\) :cljs \\x)")
+    (gen/return "#?(:clj \")\" :cljs nil)")
+    (gen/return "#?(:clj ; comment with )\n 1 :cljs 2)")
+    (gen/let [clj-form gen-meme-call cljs-form gen-meme-call]
+      (str "#?(:clj " clj-form " :cljs " cljs-form ")"))
+    (gen/let [clj-form gen-meme-atom]
+      (str "#?(:clj #(inc(%))" " :cljs " clj-form ")"))]))
+
+(def gen-namespaced-map-text
+  "Generate namespaced map text."
+  (gen/let [ns-name (gen/fmap #(apply str %) (gen/vector (gen/elements (seq "abcdefg")) 1 5))
+            keys (gen/fmap #(into [] (distinct) %)
+                           (gen/vector (gen/fmap #(str ":" (name %)) gen-keyword) 1 3))
+            vals (gen/vector gen-meme-atom (count keys))]
+    (str "#:" ns-name "{" (str/join " " (interleave keys vals)) "}")))
+
+(defspec prop-reader-cond-parses 200
+  (prop/for-all [text gen-reader-cond-text]
+    (try
+      (lang/meme->forms text)
+      true
+      (catch Exception _ false))))
+
+(defspec prop-reader-cond-tricky-parses 200
+  (prop/for-all [text gen-reader-cond-with-tricky-content]
+    (try
+      (lang/meme->forms text)
+      true
+      (catch Exception _ false))))
+
+(defspec prop-namespaced-map-roundtrip 200
+  (prop/for-all [text gen-namespaced-map-text]
+    (try
+      (let [forms (lang/meme->forms text)
+            printed (fmt-flat/format-forms forms)
+            re-read (lang/meme->forms printed)]
+        (= (pr-str forms) (pr-str re-read)))
+      (catch Exception _ false))))
+
+;; ===========================================================================
+;; NEW: Signed number vs operator ambiguity
+;; Regression bug: -1 (number) vs -(1 2) (operator call)
+;; ===========================================================================
+
+(def gen-signed-number-context
+  "Generate text where signed numbers appear near call syntax."
+  (gen/one-of
+   [(gen/elements ["-1" "+1" "-3.14" "+3.14" "-1/2" "+1/2"
+                   "-1N" "+1N" "-1.5M" "+1.5M"])
+    ;; Operator call: -(1 2), +(x y)
+    (gen/let [op (gen/elements ["-" "+"])
+              args (gen/vector gen-meme-atom 1 3)]
+      (str op "(" (str/join " " args) ")"))
+    ;; Signed number in a vector
+    (gen/let [n (gen/elements ["-1" "+2" "-3.14"])]
+      (str "[" n " 42]"))
+    ;; Signed number as call arg
+    (gen/let [h (gen/fmap str gen-simple-symbol)
+              n (gen/elements ["-1" "+2" "-3.14"])]
+      (str h "(" n ")"))]))
+
+(defspec prop-signed-number-parses 200
+  (prop/for-all [text gen-signed-number-context]
+    (try
+      (lang/meme->forms text)
+      true
+      (catch Exception _ false))))
+
+(defspec prop-signed-number-roundtrip 200
+  (prop/for-all [text gen-signed-number-context]
+    (try
+      (let [forms (lang/meme->forms text)
+            printed (fmt-flat/format-forms forms)
+            re-read (lang/meme->forms printed)]
+        (= (pr-str forms) (pr-str re-read)))
+      (catch Exception _ false))))
+
+;; ===========================================================================
+;; NEW: Radix numbers
+;; Regression bug: 36rZ split, bases 17-36 need letters G-Z
+;; ===========================================================================
+
+(def gen-radix-number-text
+  "Generate valid radix number literals."
+  (gen/one-of
+   [(gen/elements ["2r1010" "2r0" "2r11111111"
+                   "8r77" "8r0" "8r377"
+                   "16rFF" "16r0" "16rABCD"
+                   "36rZ" "36rHELLO" "36r0"])]))
+
+(defspec prop-radix-number-roundtrip 100
+  (prop/for-all [text gen-radix-number-text]
+    (try
+      (let [forms (lang/meme->forms text)
+            printed (fmt-flat/format-forms forms)
+            re-read (lang/meme->forms printed)]
+        (= (pr-str forms) (pr-str re-read)))
+      (catch Exception _ false))))
+
+;; ===========================================================================
+;; NEW: Canon formatter at narrow widths
+;; Regression bugs: width constraints ignored, comment indentation, metadata
+;; ===========================================================================
+
+(defspec prop-canon-narrow-width-idempotent 200
+  (prop/for-all [form gen-form
+                 width (gen/choose 20 60)]
+    (let [fmt1 (fmt-canon/format-forms [form] {:width width})
+          reparsed (lang/meme->forms fmt1)
+          fmt2 (fmt-canon/format-forms reparsed {:width width})]
+      (= fmt1 fmt2))))
+
+;; ===========================================================================
+;; NEW: Arbitrary string no-crash (fuzzer-inspired)
+;; Property: parser never throws raw JVM exceptions on any input
+;; ===========================================================================
+
+(def gen-meme-char-soup
+  "Generate strings from syntax-significant characters."
+  (gen/fmap
+   #(apply str %)
+   (gen/vector
+    (gen/one-of
+     [(gen/elements (seq "()[]{}#@^'`~:;,\"\\/ \t\n"))
+      (gen/elements (seq "abcdefghijklmnopqrstuvwxyz"))
+      (gen/elements (seq "0123456789"))
+      (gen/elements (seq "+-*!?._<>=&%"))
+      gen/char-ascii])
+    0 50)))
+
+(defspec prop-arbitrary-string-no-raw-exception 500
+  (prop/for-all [s gen-meme-char-soup]
+    (try
+      (lang/meme->forms s)
+      true
+      (catch clojure.lang.ExceptionInfo _ true)  ;; meme errors OK
+      (catch StackOverflowError _ true)           ;; depth limit OK
+      (catch Exception _ false))))                ;; raw JVM exception = FAIL
