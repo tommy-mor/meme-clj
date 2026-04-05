@@ -136,6 +136,27 @@
     (is (some? (lang/meme->forms "#(+(% 1))")))))
 
 ;; ---------------------------------------------------------------------------
+;; Scar tissue: unquote (~) outside syntax-quote must error at expansion time.
+;; Bug: MemeUnquote/MemeUnquoteSplicing nodes survived expansion untouched.
+;; Fix: expand-syntax-quotes errors on bare unquote/unquote-splicing nodes.
+;; ---------------------------------------------------------------------------
+
+(deftest bare-unquote-rejected-at-expansion
+  (testing "~x outside syntax-quote errors during expansion"
+    (let [forms (lang/meme->forms "~x")]
+      (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
+                            #"[Uu]nquote"
+                            (expander/expand-forms forms)))))
+  (testing "~@x outside syntax-quote errors during expansion"
+    (let [forms (lang/meme->forms "~@x")]
+      (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
+                            #"[Uu]nquote"
+                            (expander/expand-forms forms)))))
+  (testing "~x inside syntax-quote still works"
+    (let [forms (lang/meme->forms "`map(~f xs)")]
+      (is (some? (expander/expand-forms forms))))))
+
+;; ---------------------------------------------------------------------------
 ;; Scar tissue: bare (...) without a head is a parse error.
 ;; ---------------------------------------------------------------------------
 

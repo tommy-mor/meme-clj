@@ -76,7 +76,7 @@
     ;; MemeRaw values (e.g. 0xFF → {:value 255 :raw "0xFF"}) are unwrapped
     ;; and nested MemeSyntaxQuote nodes (e.g. `~`x) are properly expanded.
     (forms/unquote? form)
-    (expand-syntax-quotes (:form form) opts)
+    (expand-syntax-quotes (:form form) (assoc opts :inside-sq true))
 
     ;; NOTE: ~@ rejection moved to bottom of cond — maps handle ~@ values via splice.
 
@@ -239,10 +239,14 @@
          expanded))
 
      (forms/unquote? form)
-     (forms/->MemeUnquote (expand-syntax-quotes (:form form) opts))
+     (if (:inside-sq opts)
+       (forms/->MemeUnquote (expand-syntax-quotes (:form form) opts))
+       (errors/meme-error "Unquote (~) not in syntax-quote" {}))
 
      (forms/unquote-splicing? form)
-     (forms/->MemeUnquoteSplicing (expand-syntax-quotes (:form form) opts))
+     (if (:inside-sq opts)
+       (forms/->MemeUnquoteSplicing (expand-syntax-quotes (:form form) opts))
+       (errors/meme-error "Unquote-splicing (~@) not in syntax-quote" {}))
 
      ;; MemeReaderConditional (CLJS defrecord) — recurse into :form while
      ;; preserving the record type. Must be before map? since defrecords satisfy map?.

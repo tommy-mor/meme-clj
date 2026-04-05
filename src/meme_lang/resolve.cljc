@@ -357,8 +357,9 @@
 (defn resolve-regex
   "Resolve a regex literal token to a regex value."
   [raw loc]
-  (when (< (count raw) 3)
-    (errors/meme-error "Unterminated regex literal" loc))
+  (when (or (< (count raw) 3)
+            (not= (.charAt ^String raw (dec (count raw))) \"))
+    (errors/meme-error "Unterminated regex literal" (assoc loc :incomplete true)))
   (let [pattern (subs raw 2 (dec (count raw)))] ; strip #" and "
     (try #?(:clj (java.util.regex.Pattern/compile pattern)
             :cljs (js/RegExp. pattern))

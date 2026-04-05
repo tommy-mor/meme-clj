@@ -597,7 +597,19 @@
   (testing "unterminated regex does not crash"
     (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
                           #"Unterminated regex"
-                          (lang/meme->forms "#\"")))))
+                          (lang/meme->forms "#\""))))
+  (testing "multi-char unterminated regex errors instead of truncating"
+    (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
+                          #"Unterminated regex"
+                          (lang/meme->forms "#\"hello"))))
+  (testing "two-char unterminated regex errors"
+    (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
+                          #"Unterminated regex"
+                          (lang/meme->forms "#\"ab"))))
+  (testing "unterminated regex with trailing backslash errors"
+    (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
+                          #"Unterminated regex"
+                          (lang/meme->forms "#\"hello\\\\")))))
 
 ;; ---------------------------------------------------------------------------
 ;; Scar tissue: invalid keyword forms must be rejected (Clojure compatibility).

@@ -57,6 +57,14 @@
   (testing "unclosed call"
     (is (= :incomplete (input-state "defn(f [x] +(x 1)")))))
 
+(deftest input-state-incomplete-strings
+  (testing "unterminated string is :incomplete"
+    (is (= :incomplete (input-state "\"unterminated"))))
+  (testing "unterminated string with content is :incomplete"
+    (is (= :incomplete (input-state "\"hello world"))))
+  (testing "unterminated regex is :incomplete"
+    (is (= :incomplete (input-state "#\"pattern")))))
+
 (deftest input-state-invalid
   (testing "1/ is invalid, not incomplete — malformed number"
     (is (= :invalid (input-state "1/"))))
