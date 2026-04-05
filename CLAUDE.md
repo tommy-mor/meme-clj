@@ -98,7 +98,7 @@ The generic parser engine, scanlet builders, and render engine live in `meme.too
 - `meme-lang.stages` (.cljc) — Composable pipeline stages: `step-parse`, `step-read`, `step-expand-syntax-quotes`. Each is `ctx → ctx`. Also provides `run` which composes parse → read. Portable.
 - `meme-lang.cst-reader` (.cljc) — CST reader: walks CST nodes and produces Clojure forms. Handles value resolution, metadata, syntax-quote AST nodes, anonymous functions, namespaced maps, reader conditionals. Portable.
 - `meme-lang.forms` (.cljc) — Shared form-level predicates, constructors, and constants. Cross-stage contracts that both the parser and printer depend on (e.g. deferred auto-resolve keyword encoding, `percent-param-type`, `strip-internal-meta`). Portable.
-- `meme-lang.errors` (.cljc) — Error infrastructure: `meme-error` (throw with consistent `:line`/`:col` ex-data), `format-error` (display with source context and caret), `source-context`. Uses the **display line model** (`str/split-lines` — splits on `\n` and `\r\n`). `format-error` bridges scanner positions to display: clamps carets when scanner col exceeds display line length (CRLF). Used by tokenizer, reader, and REPL. Portable.
+- `meme-lang.errors` (.cljc) — Error infrastructure: `meme-error` (throw with consistent `:line`/`:col` ex-data), `format-error` (display with source context and caret), `source-context`. Uses the **display line model** (`str/split-lines` — splits on `\n` and `\r\n`). `format-error` bridges scanner positions to display: clamps carets when scanner col exceeds display line length (CRLF). Used by scanner, reader, and REPL. Portable.
 - `meme-lang.resolve` (.cljc) — Native value resolution: converts raw token text to Clojure values. No `read-string` delegation — numbers, strings, chars, regex, keywords, tagged literals all resolved natively. Handles platform asymmetries (JVM vs CLJS). Portable.
 - `meme-lang.expander` (.cljc) — Syntax-quote expansion: `MemeSyntaxQuote` AST nodes → plain Clojure forms (`seq`/`concat`/`list`). Called by runtime paths (run, repl) before eval. Also unwraps `MemeRaw` to plain values. Portable.
 - `meme-lang.printer` (.cljc) — Wadler-Lindig Doc tree builder: `to-doc` (form → Doc tree) + `extract-comments`. Single source of truth for meme and Clojure output modes. Delegates layout to `meme.tools.render`. Portable.
@@ -160,7 +160,7 @@ Tests are split across `test/meme_lang/` (language-specific) and `test/meme/` (i
 | `meme_lang/forms_test` | Form predicates and contracts: AST nodes, metadata, reader conditionals |
 | `meme_lang/errors_test` | Error infrastructure: `source-context`, `meme-error`, `format-error` |
 | `meme/roundtrip_test` | Read → print → re-read identity. Structural invariant tests. |
-| `meme/regression/scan_test` | Scar tissue: tokenizer bugs (bracket depth, char/string in syntax-quote, symbol parsing, EOF handling) |
+| `meme/regression/scan_test` | Scar tissue: scanner bugs (bracket depth, char/string in syntax-quote, symbol parsing, EOF handling, keyword validation, unterminated literals) |
 | `meme/regression/reader_test` | Scar tissue: parser bugs (discard sentinel, depth limits, head types, spacing, duplicates, metadata) |
 | `meme/regression/emit_test` | Scar tissue: printer and formatter bugs (regex escaping, reader-sugar formatting, deferred auto-keywords, metadata, comments, width) |
 | `meme/regression/errors_test` | Scar tissue: error infrastructure and resolve error-wrapping bugs (source-context, gutter width, CLJS guards) |
@@ -189,7 +189,6 @@ clojure-lsp (with clj-kondo) provides useful static analysis for development, te
 - **Go to definition / hover**: Jump to any symbol's source or get inline docs.
 - **Call hierarchy**: `incomingCalls`/`outgoingCalls` map the call graph between namespaces.
 - **Diagnostics (clj-kondo)**: Catches unused requires, unresolved symbols, unused bindings. Known noise to ignore:
-  - `tokenizer.cljc` "unused value" warnings — these are `case` branch return values, not bugs.
   - `generative_test.clj` "unresolved symbol" errors — macro-generated `deftest` names from `defspec`.
   - `.cljc` files with `#?` reader conditionals — clj-kondo analyzes one platform branch and flags requires/vars used only in the other branch as unused. Affects `resolve.cljc`, `repl_test.cljc`, `errors_test.cljc`, `dispatch_test.cljc`, `scan_test.cljc`.
   - `repl.clj` "unused public var `start`" / `test_runner.clj` "unused public var `run-all-meme-tests`" — entry points called externally (bb.edn, CLI), not from Clojure source.

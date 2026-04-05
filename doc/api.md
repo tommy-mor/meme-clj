@@ -435,7 +435,7 @@ Error recovery is not supported — the reader stops at the first error. This is
 
 ## meme-lang.errors
 
-Error infrastructure used by the tokenizer and reader. Portable (.cljc).
+Error infrastructure used by the scanner, reader, and resolver. Portable (.cljc).
 
 ### source-context
 
@@ -456,7 +456,7 @@ Throw `ex-info` with a consistent error structure. `opts` is a map with:
 - `:cause` — optional upstream exception
 - `:incomplete` — when `true`, signals the REPL that more input may complete the form
 
-All tokenizer and reader errors go through this function.
+All scanner, reader, and resolver errors go through this function.
 
 ### format-error
 

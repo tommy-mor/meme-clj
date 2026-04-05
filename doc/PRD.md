@@ -40,7 +40,7 @@ the CLI itself is written in `.meme`.
 - **Portable.** Core pipeline runs on Clojure JVM, ClojureScript, and
   Babashka. Single codebase, `.cljc` files.
 
-- **Platform for guest languages.** The tokenizer, pipeline, and FullForm
+- **Platform for guest languages.** The parser engine, pipeline, and FullForm
   representation are designed as a foundation for languages beyond Clojure.
 
 

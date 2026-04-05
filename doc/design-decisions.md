@@ -224,7 +224,7 @@ behavior to the host platform without depending on its reader.
 
 The codebase is split into three platform tiers:
 
-- **Generic tools + core translation** (`meme.tools.{parser, lexer, render}`, `meme-lang.{api, grammar, lexlets, parselets, stages, cst-reader, tokenizer, forms, errors, resolve, expander, printer, values, formatter.flat, formatter.canon}`) — portable `.cljc`, runs on JVM, Babashka, and ClojureScript. Pure functions with no eval or I/O dependency.
+- **Generic tools + core translation** (`meme.tools.{parser, lexer, render}`, `meme-lang.{api, grammar, lexlets, parselets, stages, cst-reader, forms, errors, resolve, expander, printer, values, formatter.flat, formatter.canon}`) — portable `.cljc`, runs on JVM, Babashka, and ClojureScript. Pure functions with no eval or I/O dependency.
 - **Runtime** (`meme.tools.{repl, run}`, `meme-lang.{repl, run}`, `meme.{registry, cli}`) — `.clj`, JVM/Babashka only. Require `eval` and `read-line`/`slurp`.
 - **Test infrastructure** (test-runner, dogfood-test) — `.clj`, JVM only.
   These use `java.io`, `PushbackReader`, `System/exit`.
@@ -394,15 +394,12 @@ The non-breaking space character (U+00A0, NBSP) is rejected as an invalid charac
 
 ### Scanner: structural vs semantic validation
 
-The scanner layer (lexical scanlets in `meme-lang.lexlets`, exposed via `meme-lang.tokenizer` for backward compatibility) is a pure structural scanner — it partitions input into tokens without knowing Clojure's semantic rules. The pipeline stages (`meme-lang.stages`) handle semantic validation downstream.
+The scanner layer (lexical scanlets in `meme-lang.lexlets`) is a structural scanner — it partitions input into tokens without knowing Clojure's semantic rules. Semantic validation is split between the resolver (`meme-lang.resolve`) and the CST reader (`meme-lang.cst-reader`):
 
-This separation means semantic validation belongs in the pipeline stages, not the scanner:
-
-- **Reserved dispatch chars** (`#<`, `#=`, `#%`): The tokenizer correctly classifies `#=foo` as `:tagged-literal` (structurally, it IS `#` + symbol). Whether `=` is a reserved dispatch character is a semantic rule enforced downstream.
-- **Unterminated strings/regex**: The tokenizer produces a token with `:raw` = `"abc` (no close quote) — correct per its partition invariant. Validation that string/regex tokens are properly delimited happens in the pipeline.
-- **`:invalid` token error messages**: The pipeline should carry `:raw` content from `:invalid` tokens into parser errors for actionable diagnostics.
-
-This keeps the tokenizer's contract clean: never throws, always partitions, no semantic knowledge.
+- **Reserved dispatch chars** (`#<`, `#=`, `#%`): The scanner classifies `#=foo` as `:tagged-literal` (structurally, it IS `#` + symbol). Whether `=` is a reserved dispatch character is a semantic rule enforced downstream.
+- **Unterminated strings/regex**: The scanner returns the EOF position without signaling error, but the resolver (`resolve-string`, `resolve-regex`) detects the missing closing delimiter and throws with `:incomplete true` — enabling the REPL to prompt for continuation.
+- **Invalid keywords** (bare `:`, trailing `:foo:`, triple `:::foo`): The scanner greedily consumes `symbol-char?` characters; the CST reader validates keyword structure and rejects malformed forms.
+- **`:invalid` token error messages**: The pipeline carries `:raw` content from `:invalid` tokens into parser errors for actionable diagnostics.
 
 
 ## Roadmap
