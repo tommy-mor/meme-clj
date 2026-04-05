@@ -95,6 +95,24 @@
     (is (= "println(42)" (stages/strip-shebang "println(42)")))))
 
 ;; ---------------------------------------------------------------------------
+;; Scar tissue: double-shebang file — second #! line after stripping first.
+;; Bug: strip-shebang removes line 1, line 2's #! lands at pos 0, parser
+;; produces a :shebang atom, CST reader threw "Unknown atom type: :shebang".
+;; Fix: CST reader returns no-match sentinel for :shebang atoms.
+;; ---------------------------------------------------------------------------
+
+(deftest double-shebang-handled
+  (testing "file with two shebang lines — second line ignored as shebang"
+    (let [src "#!/usr/bin/env bb\n#!/not-a-shebang\nprintln(42)"
+          forms (lang/meme->forms src)]
+      ;; strip-shebang removes line 1, parser sees line 2's #! at pos 0 as
+      ;; a :shebang atom (filtered out), then println(42) as a call.
+      (is (= 1 (count forms)) "shebang atom should be filtered, only call remains")
+      (is (list? (first forms)) "the remaining form should be a call")))
+  (testing "single shebang followed by code works"
+    (is (= '[x] (lang/meme->forms "#!/usr/bin/env bb\nx")))))
+
+;; ---------------------------------------------------------------------------
 ;; Scar tissue: deeply nested input must produce a clean error, not SOE.
 ;; max-parse-depth (512) is enforced in both the parser and CST reader.
 ;; ---------------------------------------------------------------------------

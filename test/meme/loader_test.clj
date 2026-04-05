@@ -52,3 +52,27 @@
   (testing "require of a .meme file with syntax error throws"
     (is (thrown? Exception
                 (require 'test-meme-ns.broken :reload)))))
+
+;; ---------------------------------------------------------------------------
+;; C3: Namespace denylist — core infrastructure cannot be shadowed
+;; ---------------------------------------------------------------------------
+
+(deftest denied-namespaces-not-intercepted
+  (testing "clojure.* namespaces are not intercepted by the loader"
+    ;; If the denylist works, find-lang-resource returns nil for clojure/* paths
+    (let [find-fn @(resolve 'meme.loader/find-lang-resource)]
+      (is (nil? (find-fn "/clojure/string")) "clojure/string should be denied")
+      (is (nil? (find-fn "/clojure/core")) "clojure/core should be denied")
+      (is (nil? (find-fn "/java/lang")) "java/lang should be denied")
+      (is (nil? (find-fn "/nrepl/core")) "nrepl/core should be denied"))))
+
+;; ---------------------------------------------------------------------------
+;; C4: Cannot uninstall loader from within a loaded .meme file
+;; ---------------------------------------------------------------------------
+
+(deftest uninstall-during-load-rejected
+  (testing "uninstall! throws when called during lang-load"
+    ;; Simulate: bind *loading* true and try to uninstall
+    (binding [meme.loader/*loading* true]
+      (is (thrown-with-msg? Exception #"Cannot uninstall"
+                            (loader/uninstall!))))))

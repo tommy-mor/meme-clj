@@ -234,6 +234,30 @@
   (testing "unknown extension returns nil"
     (is (nil? (registry/resolve-by-extension "app.txt")))))
 
+;; ---------------------------------------------------------------------------
+;; C2: Concurrent register! with conflicting extensions — atomic conflict check
+;; ---------------------------------------------------------------------------
+
+(deftest concurrent-register-conflict-detection
+  (testing "concurrent registrations with same extension — at most one succeeds"
+    (let [results (atom [])
+          barrier (java.util.concurrent.CyclicBarrier. 2)]
+      (dotimes [i 2]
+        (.start (Thread. (fn []
+                           (.await barrier)
+                           (try
+                             (registry/register! (keyword (str "conc" i))
+                                                 {:extension ".conflict-test"
+                                                  :run 'meme-lang.run/run-string})
+                             (swap! results conj [:ok i])
+                             (catch Exception _
+                               (swap! results conj [:error i])))))))
+      (Thread/sleep 500)
+      (let [ok-count (count (filter #(= :ok (first %)) @results))
+            error-count (count (filter #(= :error (first %)) @results))]
+        (is (<= ok-count 1) "at most one registration should succeed")
+        (is (= 2 (+ ok-count error-count)) "both threads should complete")))))
+
 (deftest multi-extension-conflict-detection
   (testing "conflict when new extension overlaps existing extensions vector"
     (registry/register! :owner {:extensions [".p" ".q"]

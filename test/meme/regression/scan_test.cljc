@@ -469,10 +469,11 @@
       (is (= :namespaced-map (:type (first tokens))))
       (is (= "#::" (:raw (first tokens))))))
   #?(:clj
-     (testing "#::{:a 1} bare auto-resolve now errors — requires namespace alias"
-       (is (thrown-with-msg? Exception
-                             #"Auto-resolve namespaced map"
-                             (lang/meme->forms "#::{:a 1}"))))))
+     (testing "#::{:a 1} bare auto-resolve — keys stay unqualified (deferred to eval)"
+       (let [result (first (lang/meme->forms "#::{:a 1}"))]
+         (is (map? result))
+         (is (= 1 (:a result)))
+         (is (= "::" (:meme/ns (meta result))))))))
 
 ;; ---------------------------------------------------------------------------
 ;; RT2-L10: ##foo was silently accepted and produced confusing error.
@@ -638,6 +639,10 @@
     (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
                           #"Invalid token"
                           (lang/meme->forms ":foo/"))))
+  (testing "leading slash :/foo is invalid (matches Clojure)"
+    (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
+                          #"Invalid token"
+                          (lang/meme->forms ":/foo"))))
   (testing "valid keywords still work"
     (is (= [:foo] (lang/meme->forms ":foo")))
     (is (= [:foo/bar] (lang/meme->forms ":foo/bar")))))
@@ -653,8 +658,16 @@
     (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
                           #"Invalid % parameter"
                           (lang/meme->forms "#(+(%0 %1))"))))
-  (testing "%20 is valid"
+  (testing "%20 is valid (Clojure's max)"
     (is (some? (lang/meme->forms "#(%20)"))))
+  (testing "%21 is rejected — exceeds Clojure's limit"
+    (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
+                          #"Invalid % parameter"
+                          (lang/meme->forms "#(%21)"))))
+  (testing "%99999999999 is rejected — was OOM before cap"
+    (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
+                          #"Invalid % parameter"
+                          (lang/meme->forms "#(%99999999999)"))))
   (testing "huge %N doesn't crash with NumberFormatException"
     (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
                           #"Invalid % parameter"
@@ -672,3 +685,20 @@
     (is (thrown-with-msg? #?(:clj clojure.lang.ExceptionInfo :cljs js/Error)
                           #"Invalid % parameter"
                           (lang/meme->forms "#(%+ c%)")))))
+
+;; ---------------------------------------------------------------------------
+;; Scar tissue: 0x (empty hex body) produced Java error "Zero length BigInteger".
+;; Fix: explicit guard in resolve-number for empty hex body.
+;; ---------------------------------------------------------------------------
+
+#?(:clj
+   (deftest empty-hex-literal-clean-error
+     (testing "0x at EOF — empty hex body"
+       (is (thrown-with-msg? Exception #"Empty hex literal"
+                             (lang/meme->forms "0x"))))
+     (testing "0X at EOF — empty hex body (uppercase)"
+       (is (thrown-with-msg? Exception #"Empty hex literal"
+                             (lang/meme->forms "0X"))))
+     (testing "+0x at EOF — signed empty hex body"
+       (is (thrown-with-msg? Exception #"Empty hex literal"
+                             (lang/meme->forms "+0x"))))))

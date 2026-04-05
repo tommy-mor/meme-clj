@@ -149,7 +149,8 @@
   "Register a user lang at runtime. config is an EDN-style map — symbols
    are resolved via requiring-resolve, strings and keywords follow the same
    rules as load-edn. Pre-resolved functions are passed through.
-   Rejects attempts to override built-in langs."
+   Rejects attempts to override built-in langs.
+   Conflict checks are atomic — performed inside swap! to prevent TOCTOU races."
   [lang-name config]
   (when-let [existing (get @registry lang-name)]
     (when (:builtin? (meta existing))
@@ -157,24 +158,26 @@
                            " — choose a different name")
                       {:lang lang-name}))))
   (let [resolved (resolve-edn config)]
-    (doseq [ext (:extensions resolved)]
-      (when (str/blank? ext)
-        (throw (ex-info (str "Cannot register lang " (pr-str lang-name)
-                             " — extension must be a non-empty string")
-                        {:lang lang-name})))
-      (when (= ext ".meme")
-        (throw (ex-info (str "Cannot register lang " (pr-str lang-name)
-                             " — extension .meme is reserved for built-in langs")
-                        {:lang lang-name :extension ext})))
-      (doseq [[existing-name existing-lang] @registry]
-        (when (and (not= existing-name lang-name)
-                   (some #{ext} (:extensions existing-lang)))
-          (throw (ex-info (str "Cannot register lang " (pr-str lang-name)
-                               " — extension " ext " already claimed by "
-                               (pr-str existing-name))
-                          {:lang lang-name :extension ext
-                           :existing existing-name})))))
-    (swap! registry assoc lang-name resolved)))
+    (swap! registry
+      (fn [reg]
+        (doseq [ext (:extensions resolved)]
+          (when (str/blank? ext)
+            (throw (ex-info (str "Cannot register lang " (pr-str lang-name)
+                                 " — extension must be a non-empty string")
+                            {:lang lang-name})))
+          (when (= ext ".meme")
+            (throw (ex-info (str "Cannot register lang " (pr-str lang-name)
+                                 " — extension .meme is reserved for built-in langs")
+                            {:lang lang-name :extension ext})))
+          (doseq [[existing-name existing-lang] reg]
+            (when (and (not= existing-name lang-name)
+                       (some #{ext} (:extensions existing-lang)))
+              (throw (ex-info (str "Cannot register lang " (pr-str lang-name)
+                                   " — extension " ext " already claimed by "
+                                   (pr-str existing-name))
+                              {:lang lang-name :extension ext
+                               :existing existing-name})))))
+        (assoc reg lang-name resolved)))))
 
 (defn resolve-by-extension
   "Given a file path, find the lang whose :extensions match.
