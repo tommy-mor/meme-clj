@@ -648,11 +648,17 @@
 ;; Fix: changed to #"[1-9]\d*" to require 1-indexed params.
 ;; ---------------------------------------------------------------------------
 
-(deftest percent-zero-rejected
+(deftest percent-param-bounds
   (testing "%0 is rejected as invalid param"
     (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
                           #"Invalid % parameter"
-                          (lang/meme->forms "#(+(%0 %1))")))))
+                          (lang/meme->forms "#(+(%0 %1))"))))
+  (testing "%20 is valid"
+    (is (some? (lang/meme->forms "#(%20)"))))
+  (testing "huge %N doesn't crash with NumberFormatException"
+    (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
+                          #"Invalid % parameter"
+                          (lang/meme->forms "#(%99999999999999999999)")))))
 
 ;; ---------------------------------------------------------------------------
 ;; Fuzzer finding: #(%+ c%) threw IllegalArgumentException instead of
