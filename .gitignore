@@ -11,4 +11,4 @@ node_modules/
 out/
 .calva/
 .clover/
-fuzz-corpus/
+fuzz/corpus/
