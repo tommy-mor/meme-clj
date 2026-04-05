@@ -129,7 +129,8 @@
                            :run 'meme-lang.run/run-string})
     (let [[name _lang] (registry/resolve-by-extension "app.calc")]
       (is (= :calc name)))
-    (is (nil? (registry/resolve-by-extension "app.meme")))
+    (let [[meme-name _] (registry/resolve-by-extension "app.meme")]
+      (is (= :meme meme-name) "built-in meme resolves by extension"))
     (is (nil? (registry/resolve-by-extension "app.clj"))))
   (testing "registered-langs returns names"
     (is (contains? (set (registry/registered-langs)) :calc)))

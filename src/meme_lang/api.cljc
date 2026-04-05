@@ -104,7 +104,8 @@
 
 (def lang-map
   "Command map for the meme lang."
-  {:format  format-meme
+  {:extension ".meme"
+   :format  format-meme
    :to-clj  to-clj
    #?@(:clj [:to-meme to-meme
               :run     (fn [source opts] (run/run-string source opts))

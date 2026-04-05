@@ -187,6 +187,17 @@
   []
   (set (keys @registry)))
 
+(defn registered-extensions
+  "Return a seq of [dot-extension run-fn] for all langs with :extension and :run.
+   Used by the generic loader to search the classpath for lang source files."
+  []
+  (keep (fn [[_name lang-map]]
+          (when-let [ext (:extension lang-map)]
+            (when-let [run-fn (:run lang-map)]
+              [(if (str/starts-with? ext ".") ext (str "." ext))
+               run-fn])))
+        @registry))
+
 (defn builtin-langs
   "Return a map of {lang-name lang-map} for all built-in langs."
   []
