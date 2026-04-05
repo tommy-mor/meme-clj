@@ -185,8 +185,8 @@ No size limit on string literals. A `.meme` file with a multi-GB string literal 
 | H11 | \uD800/\uDFFF surrogate chars crash | "code point is in the surrogate range" |
 | H13 | \uFFGG unicode escape crashes | "Invalid unicode escape" |
 | H14 | Regex with unbalanced parens crashes | "Invalid regex — Unclosed group" |
-| H15 | User :meme/sugar metadata fools printer | `instance?` check distinguishes records from plain maps |
-| H16 | User :meme/order on non-set value | Printer ignores metadata on non-set types |
+| H15 | User :meme-lang/sugar metadata fools printer | `instance?` check distinguishes records from plain maps |
+| H16 | User :meme-lang/insertion-order on non-set value | Printer ignores metadata on non-set types |
 | H17 | Plain map fools `syntax-quote?` | `instance?` check on MemeSyntaxQuote correctly rejects |
 | H18 | Very large %N (>Long.MAX_VALUE) | "Invalid % parameter" — string length guard works |
 | H19 | 1e99999 crashes resolver | Produces MemeRaw wrapping ##Inf — no crash |
@@ -203,7 +203,7 @@ No size limit on string literals. A `.meme` file with a multi-GB string literal 
 | H33 | #() with %1 through %500 | 12ms — parameter discovery is O(n) |
 | H34 | ReDoS in resolve.cljc | No vulnerable patterns — all linear/anchored |
 | H35 | .meme code modifies registry | Syntax makes it hard; registry unaffected in test |
-| H37 | :meme/sugar in syntax-quote | strip-internal-meta correctly removes internal keys |
+| H37 | :meme-lang/sugar in syntax-quote | strip-internal-meta correctly removes internal keys |
 | H38 | forms->clj with nil/true/false | Outputs "nil\ntrue\nfalse" correctly |
 | H39 | Unterminated string at EOF | "Unterminated string literal" with :incomplete true |
 | H40 | Reader-cond :preserve roundtrip | Perfect roundtrip including nested calls |
@@ -217,7 +217,7 @@ No size limit on string literals. A `.meme` file with a multi-GB string literal 
 | H51 | Backslash at EOF | "Invalid character literal" with correct location |
 | H52 | forms->meme with Java objects | Falls back to `pr-str` — no crash |
 | H53 | clj->meme with #= eval reader | "EvalReader not allowed when *read-eval* is false" |
-| H54 | Set ordering roundtrip | :meme/order metadata preserves element order |
+| H54 | Set ordering roundtrip | :meme-lang/insertion-order metadata preserves element order |
 | H55 | ::foo in meme->clj | Outputs "::foo" correctly (deferred resolution) |
 | H57 | MemeAutoKeyword expansion | Uses `clojure.core/read-string` on JVM correctly |
 | H58 | Whitespace/comment-only files | All return `[]` — no crash |

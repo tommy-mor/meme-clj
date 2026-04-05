@@ -17,7 +17,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 - **Architecture**: three-layer reorganization — `meme.tools.*` (generic parser/render), `meme-lang.*` (meme language), `meme.*` (CLI/registry/loader). The Pratt parser is fully data-driven via grammar spec.
-- **Internal metadata key `:ws` renamed to `:meme/ws`**: prevents collision with user-supplied `:ws` metadata that was silently consumed as comments by the printer.
+- **Metadata namespace hygiene**: all internal metadata keys moved from `:meme/*` to `:meme-lang/*`, with descriptive names. `:meme/ws` → `:meme-lang/leading-trivia`, `:meme/sugar` → `:meme-lang/sugar`, `:meme/order` → `:meme-lang/insertion-order`, `:meme/ns` → `:meme-lang/namespace-prefix`, `:meme/meta-chain` → `:meme-lang/meta-chain`, `:meme/bare-percent` → `:meme-lang/bare-percent`, `:meme/splice` → `:meme-lang/splice`. This separates meme-lang metadata from the generic `meme.tools` namespace, preventing collision with both user metadata and future languages built on `meme.tools.*`.
 - **`register!` conflict check is atomic**: extension validation moved inside `swap!` callback, preventing TOCTOU race on concurrent registrations.
 - **CLI reads file once**: `process-files` reads source via `slurp` once and passes content to transform, eliminating TOCTOU between read and write.
 - **`meme-file?` and `swap-ext`** consult the registry for all registered extensions, not just hard-coded `.meme`.
@@ -36,7 +36,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - **Scar tissue triage**: ~15 comment-only regression blocks in `reader_test.cljc` converted to active tests or documented design decisions. Two stale comments corrected (duplicate keys and `%0` ARE rejected by the current pipeline).
 
 ### Removed
-- **Legacy internal `:ws` metadata key**: replaced by namespaced `:meme/ws` throughout pipeline (CST reader, printer, formatter, forms).
+- **All `:meme/*` internal metadata keys**: replaced by `:meme-lang/*` namespaced equivalents with descriptive names. The `:meme/` namespace is now reserved for generic tooling.
 
 ## [1.0.0] — 2026-04-01
 

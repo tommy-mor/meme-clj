@@ -117,13 +117,13 @@
 (defn- splice-and-filter
   "Post-process read children: remove no-match sentinels, splice #?@ results.
    Reader conditionals in :eval mode return `no-match` when no platform matches
-   and vectors with :meme/splice metadata for #?@ splicing."
+   and vectors with :meme-lang/splice metadata for #?@ splicing."
   [items]
   (persistent!
     (reduce (fn [acc item]
               (cond
                 (identical? item no-match) acc
-                (and (vector? item) (:meme/splice (meta item)))
+                (and (vector? item) (:meme-lang/splice (meta item)))
                 (reduce conj! acc item)
                 :else (conj! acc item)))
             (transient []) items)))
@@ -145,7 +145,7 @@
      :cljs (satisfies? IWithMeta v)))
 
 (defn- read-children-with-ws
-  "Read children, preserving :meme/ws metadata from trivia on each form.
+  "Read children, preserving :meme-lang/leading-trivia metadata from trivia on each form.
    Discard nodes already contain their target — just skip them.
    Also splices #?@ results and filters no-match sentinels."
   [children opts]
@@ -157,7 +157,7 @@
                              first-tok (or (:token child) (:open child) (:ns child))
                              ws (ws-before first-tok)]
                          (if (and ws (metadatable? form))
-                           (vary-meta form assoc :meme/ws ws)
+                           (vary-meta form assoc :meme-lang/leading-trivia ws)
                            form)))))
           children)))
 
@@ -180,7 +180,7 @@
         (let [form (read-atom node opts)
               ws (ws-before tok)]
           (if (and ws (metadatable? form))
-            (vary-meta form assoc :meme/ws ws)
+            (vary-meta form assoc :meme-lang/leading-trivia ws)
             form))))
 
     :call
@@ -190,7 +190,7 @@
           ws-open (ws-before (:open node))
           result (apply list head args)]
       (if ws-open
-        (with-meta result (assoc (meta result) :meme/ws ws-open))
+        (with-meta result (assoc (meta result) :meme-lang/leading-trivia ws-open))
         result))
 
     :list
@@ -201,7 +201,7 @@
           items (read-children-with-ws (:children node) opts)
           ws (ws-before (:open node))]
       (cond-> (vec items)
-        ws (vary-meta assoc :meme/ws ws)))
+        ws (vary-meta assoc :meme-lang/leading-trivia ws)))
 
     :map
     (let [_ (check-closed! node "map")
@@ -214,7 +214,7 @@
         (when-let [dup (first (for [[k freq] (frequencies ks) :when (> freq 1)] k))]
           (errors/meme-error (str "Duplicate key: " (pr-str dup)) (node-loc node))))
       (cond-> (apply array-map items)
-        ws (vary-meta assoc :meme/ws ws)))
+        ws (vary-meta assoc :meme-lang/leading-trivia ws)))
 
     :set
     (let [_ (check-closed! node "set")
@@ -223,16 +223,16 @@
       (when-let [dup (first (for [[v freq] (frequencies items) :when (> freq 1)] v))]
         (errors/meme-error (str "Duplicate key: " (pr-str dup)) (node-loc node)))
       (cond-> (set items)
-        ws (vary-meta assoc :meme/ws ws)
-        true (vary-meta assoc :meme/order (vec items))))
+        ws (vary-meta assoc :meme-lang/leading-trivia ws)
+        true (vary-meta assoc :meme-lang/insertion-order (vec items))))
 
     :quote
     (let [form (read-node (:form node) opts)]
-      (with-meta (list 'quote form) {:meme/sugar true}))
+      (with-meta (list 'quote form) {:meme-lang/sugar true}))
 
     :deref
     (let [form (read-node (:form node) opts)]
-      (with-meta (list 'clojure.core/deref form) {:meme/sugar true}))
+      (with-meta (list 'clojure.core/deref form) {:meme-lang/sugar true}))
 
     :syntax-quote
     (let [form (read-node (:form node) opts)]
@@ -264,10 +264,10 @@
         (errors/meme-error
           (str "Metadata cannot be applied to " (pr-str target))
           (node-loc node)))
-      (let [chain (conj (let [existing (:meme/meta-chain (meta target))]
+      (let [chain (conj (let [existing (:meme-lang/meta-chain (meta target))]
                           (if (vector? existing) existing []))
                         entry)]
-        (vary-meta target merge entry {:meme/meta-chain chain})))
+        (vary-meta target merge entry {:meme-lang/meta-chain chain})))
 
     :var-quote
     (let [form (read-node (:form node) opts)]
@@ -275,7 +275,7 @@
         (errors/meme-error
           (str "#' (var-quote) requires a symbol — got " (pr-str form))
           (node-loc node)))
-      (with-meta (list 'var form) {:meme/sugar true}))
+      (with-meta (list 'var form) {:meme-lang/sugar true}))
 
     :discard
     ;; Discards at top level — read-forms filters them
@@ -305,7 +305,7 @@
             normalized (forms/walk-anon-fn-body forms/normalize-bare-percent body-form)
             params (forms/find-percent-params normalized)
             fn-params (forms/build-anon-fn-params params)]
-        (with-meta (list 'fn fn-params normalized) {:meme/sugar true})))
+        (with-meta (list 'fn fn-params normalized) {:meme-lang/sugar true})))
 
     :namespaced-map
     (let [_ (check-closed! node "namespaced map")
@@ -338,7 +338,7 @@
                                    k)
                                  v])
                               pairs))]
-      (with-meta resolved {:meme/ns ns-str}))
+      (with-meta resolved {:meme-lang/namespace-prefix ns-str}))
 
     :reader-cond
     (let [_ (check-closed! node "reader conditional")
@@ -357,7 +357,7 @@
           (if splicing?
             (if found?
               (with-meta (vec (if (sequential? matched) matched [matched]))
-                         {:meme/splice true})
+                         {:meme-lang/splice true})
               no-match)
             (if found? matched no-match)))))
 

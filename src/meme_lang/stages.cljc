@@ -35,7 +35,7 @@
                            (if (nil? source) "nil"
                                #?(:clj (.getName (class source))
                                   :cljs (pr-str (type source)))))
-                      {:type :meme/pipeline-error :stage :parse})))
+                      {:type :meme-lang/pipeline-error :stage :parse})))
     (let [spec (or (get-in ctx [:opts :grammar]) grammar/grammar)]
       (assoc ctx :cst (pratt/parse source spec)))))
 
@@ -52,7 +52,7 @@
   [ctx]
   (when-not (:forms ctx)
     (throw (ex-info "Pipeline :forms missing — run read before expand"
-                    {:type :meme/pipeline-error :stage :expand})))
+                    {:type :meme-lang/pipeline-error :stage :expand})))
   (let [opts (cond-> (or (:opts ctx) {})
                (not (contains? (:opts ctx) :expand-auto-keywords))
                (assoc :expand-auto-keywords true))]

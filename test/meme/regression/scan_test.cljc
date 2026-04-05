@@ -473,7 +473,7 @@
        (let [result (first (lang/meme->forms "#::{:a 1}"))]
          (is (map? result))
          (is (= 1 (:a result)))
-         (is (= "::" (:meme/ns (meta result))))))))
+         (is (= "::" (:meme-lang/namespace-prefix (meta result))))))))
 
 ;; ---------------------------------------------------------------------------
 ;; RT2-L10: ##foo was silently accepted and produced confusing error.

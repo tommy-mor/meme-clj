@@ -10,7 +10,7 @@
 (defn format-form
   "Format a single Clojure form as canonical meme text.
    Width-aware — uses indented multi-line layout for forms that exceed width.
-   Preserves comments from :meme/ws metadata.
+   Preserves comments from :meme-lang/leading-trivia metadata.
    opts: {:width 80} or bare integer width."
   ([form] (format-form form nil))
   ([form opts]
@@ -20,7 +20,7 @@
 
 (defn format-forms
   "Format a sequence of Clojure forms as canonical meme text,
-   separated by blank lines. Preserves comments from :meme/ws metadata.
+   separated by blank lines. Preserves comments from :meme-lang/leading-trivia metadata.
    opts: {:width 80} or bare integer width."
   ([forms] (format-forms forms nil))
   ([forms opts]

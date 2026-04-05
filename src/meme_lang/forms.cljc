@@ -141,13 +141,13 @@
    Excluded when checking for user-visible metadata.
    Both :col (meme tokenizer) and :column (Clojure reader) are included
    so stripping works regardless of which reader produced the metadata."
-  #{:line :col :column :file :meme/ws :meme/sugar :meme/order :meme/ns :meme/meta-chain :meme/bare-percent})
+  #{:line :col :column :file :meme-lang/leading-trivia :meme-lang/sugar :meme-lang/insertion-order :meme-lang/namespace-prefix :meme-lang/meta-chain :meme-lang/bare-percent})
 
 (def notation-meta-keys
   "Internal metadata keys that encode the user's notation choices.
    Must survive metadata stripping so the printer can reconstruct
    the original syntax (e.g. #:ns{} maps, set insertion order, quote sugar)."
-  #{:meme/ns :meme/order :meme/sugar :meme/bare-percent})
+  #{:meme-lang/namespace-prefix :meme-lang/insertion-order :meme-lang/sugar :meme-lang/bare-percent})
 
 (defn strip-internal-meta
   "Remove internal meme metadata keys, returning only user-visible metadata."
@@ -262,7 +262,7 @@
    form))
 
 (defn restore-bare-percent
-  "Replace %1 with % in a form tree. Used when :meme/bare-percent metadata
+  "Replace %1 with % in a form tree. Used when :meme-lang/bare-percent metadata
    indicates the user wrote bare % (normalized to %1 for eval correctness).
    Skips nested (fn ...) bodies — matches normalize-bare-percent guard."
   [form]
