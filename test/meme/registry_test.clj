@@ -222,6 +222,18 @@
     (is (some? (registry/resolve-by-extension "app.xx")))
     (is (some? (registry/resolve-by-extension "app.zz")))))
 
+(deftest builtin-meme-extensions-resolve
+  (testing ".meme resolves to :meme"
+    (is (= :meme (first (registry/resolve-by-extension "app.meme")))))
+  (testing ".memec resolves to :meme"
+    (is (= :meme (first (registry/resolve-by-extension "app.memec")))))
+  (testing ".memej resolves to :meme"
+    (is (= :meme (first (registry/resolve-by-extension "app.memej")))))
+  (testing ".memejs resolves to :meme"
+    (is (= :meme (first (registry/resolve-by-extension "app.memejs")))))
+  (testing "unknown extension returns nil"
+    (is (nil? (registry/resolve-by-extension "app.txt")))))
+
 (deftest multi-extension-conflict-detection
   (testing "conflict when new extension overlaps existing extensions vector"
     (registry/register! :owner {:extensions [".p" ".q"]

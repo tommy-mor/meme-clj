@@ -9,10 +9,11 @@
       (loader/install!)
       (try (f)
            (finally
-             ;; Restore ns, remove test namespace, uninstall loader
+             ;; Restore ns, remove test namespaces, uninstall loader
              (in-ns (ns-name orig-ns))
-             (when (find-ns 'test-meme-ns.greeter)
-               (remove-ns 'test-meme-ns.greeter))
+             (doseq [ns-sym '[test-meme-ns.greeter test-meme-ns.shadow test-meme-ns.broken]]
+               (when (find-ns ns-sym)
+                 (remove-ns ns-sym)))
              (loader/uninstall!))))))
 
 (deftest loader-install-uninstall
@@ -39,3 +40,15 @@
   (testing "standard .clj require still works after install"
     (require 'clojure.string)
     (is (some? (ns-resolve 'clojure.string 'join)))))
+
+(deftest meme-takes-precedence-over-clj
+  (testing ".meme file is loaded when both .meme and .clj exist"
+    (require 'test-meme-ns.shadow :reload)
+    (let [source-var (ns-resolve 'test-meme-ns.shadow 'source)]
+      (is (some? source-var) "source should be defined")
+      (is (= :meme @source-var) ".meme file should take precedence over .clj"))))
+
+(deftest meme-parse-error-propagates
+  (testing "require of a .meme file with syntax error throws"
+    (is (thrown? Exception
+                (require 'test-meme-ns.broken :reload)))))

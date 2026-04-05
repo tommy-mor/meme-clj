@@ -23,10 +23,17 @@
               (if (pred path) [path] [])))
           inputs))
 
-(defn- meme-file? [path] (str/ends-with? path ".meme"))
+(defn- meme-file? [path] (some? (registry/resolve-by-extension path)))
 (defn- clj-file? [path] (boolean (re-find #"\.clj[cdsx]?$" path)))
 (defn- swap-ext [path from to]
-  (str/replace path (re-pattern (str "\\." from "[cdsx]?$")) (str "." to)))
+  (if (= from "meme")
+    ;; meme→clj: strip any registered meme extension, append target
+    (if-let [[_ lang] (registry/resolve-by-extension path)]
+      (let [ext (first (filter #(str/ends-with? path %) (:extensions lang)))]
+        (str (subs path 0 (- (count path) (count ext))) "." to))
+      (str/replace path #"\.meme$" (str "." to)))
+    ;; clj→meme: .clj[cdsx]? regex works for Clojure extensions
+    (str/replace path (re-pattern (str "\\." from "[cdsx]?$")) (str "." to))))
 
 ;; ---------------------------------------------------------------------------
 ;; Generic file processor
