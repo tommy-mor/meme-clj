@@ -369,9 +369,10 @@ Unified CLI for meme. JVM/Babashka only.
 |---------|-------------|
 | `meme run <file>` | Run a `.meme` file |
 | `meme repl` | Start the meme REPL |
-| `meme to-clj <file\|dir>` | Convert `.meme` files to `.clj` |
+| `meme to-clj <file\|dir>` | Convert `.meme` files to `.clj` (in-place) |
 | `meme to-meme <file\|dir>` | Convert `.clj`/`.cljc`/`.cljs` files to `.meme` |
 | `meme format <file\|dir>` | Format `.meme` files via canonical formatter (in-place by default, `--stdout` to print, `--check` for CI) |
+| `meme compile <dir\|file...>` | Compile `.meme` to `.clj` in a separate output directory (`--out target/classes`). Output preserves relative paths — add the output dir to `:paths` in deps.edn for standard `require` without runtime patching. |
 | `meme inspect [--lang]` | Show lang info and supported commands |
 | `meme version` | Print version |
 
@@ -435,7 +436,7 @@ Error recovery is not supported — the reader stops at the first error. This is
 
 ## meme.loader
 
-Namespace loader for `.meme` files. Intercepts `clojure.core/load` to search for `.meme` files on the classpath before delegating to the standard Clojure loader. JVM/Babashka only.
+Namespace loader for `.meme` files. Intercepts `clojure.core/load` and `clojure.core/load-file` to handle `.meme` files transparently. JVM/Babashka only.
 
 ### install! / uninstall!
 
@@ -444,11 +445,20 @@ Namespace loader for `.meme` files. Intercepts `clojure.core/load` to search for
 (meme.loader/uninstall!)  ;; => :uninstalled
 ```
 
-`install!` is idempotent — safe to call multiple times. After install, `(require 'my.ns)` searches for `my/ns.meme` on the classpath first, then falls back to `.clj`/`.cljc` as usual.
+`install!` is idempotent — safe to call multiple times.
 
-**Automatic installation:** `run-file` and the REPL's `start` call `install!` automatically. No manual setup is needed when using the CLI (`bb meme run`, `bb meme repl`).
+### What gets intercepted
+
+| Function | Effect | JVM | Babashka |
+|----------|--------|-----|----------|
+| `require` | `(require 'my.ns)` searches for `my/ns.meme` on the classpath | Yes | No (SCI bypasses `clojure.core/load`) |
+| `load-file` | `(load-file "path/to/file.meme")` runs through the meme pipeline | Yes | Yes |
+
+**Automatic installation:** `run-file` and the REPL's `start` call `install!` automatically. The CLI (`bb meme run`, `bb meme repl`) also installs the loader.
 
 **Precedence:** When both `my/ns.meme` and `my/ns.clj` exist on the classpath, `.meme` takes priority.
+
+**Babashka limitation:** Babashka's SCI interpreter does not dispatch `require` through `clojure.core/load`, so `require` of `.meme` namespaces is JVM-only. `load-file` works on both platforms. For Babashka projects that need `require`, use `meme compile` to precompile `.meme` to `.clj`.
 
 ## meme-lang.errors
 

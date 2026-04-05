@@ -43,6 +43,10 @@ bb meme to-meme file.clj     # .clj → meme
 bb meme format file.meme     # in-place
 bb meme format src/          # directory, recursive
 bb meme format file.meme --stdout  # print to stdout
+
+# Compile .meme to .clj (for classpath use without runtime patching)
+bb meme compile src/              # output to target/classes (default)
+bb meme compile src/ --out out/   # custom output directory
 ```
 
 No external dependencies. Only requires Clojure or Babashka. ClojureScript tests require Node.js.
@@ -114,9 +118,9 @@ The generic parser engine, scanlet builders, and render engine live in `meme.too
 
 **CLI** (`meme.*`):
 
-- `meme.cli` (.clj) — Unified CLI: `run`, `repl`, `to-clj`, `to-meme`, `format`, `inspect`, `version`. Generic dispatcher — commands delegate to lang map functions. Babashka entry point via `bb.edn`.
+- `meme.cli` (.clj) — Unified CLI: `run`, `repl`, `to-clj`, `to-meme`, `format`, `compile`, `inspect`, `version`. Generic dispatcher — commands delegate to lang map functions. Babashka entry point via `bb.edn`.
 - `meme.registry` (.clj) — Lang registry: registration, resolution, and EDN loading. `default-lang`, `resolve-lang`, `supports?`, `check-support`, `load-edn`, `register!`, `resolve-by-extension`, `registered-langs`, `clear-user-langs!`, `available-langs`. Built-in lang is `:meme`; user langs register via EDN. JVM/Babashka only.
-- `meme.loader` (.clj) — Namespace loader: intercepts `clojure.core/load` to find `.meme` files on the classpath. Installed automatically by `run-file` and REPL `start` — no explicit setup needed. `require` in `.meme` code finds both `.meme` and `.clj` namespaces. `.meme` takes precedence when both exist. `install!`/`uninstall!` for manual control. JVM/Babashka only.
+- `meme.loader` (.clj) — Namespace loader: intercepts `clojure.core/load` (JVM only) and `clojure.core/load-file` (JVM + Babashka) to handle `.meme` files transparently. Installed automatically by `run-file`, REPL `start`, and the CLI `run` command. `require` finds `.meme` namespaces on the classpath (JVM only — Babashka's SCI bypasses `clojure.core/load`). `load-file` handles `.meme` files by filesystem path on both platforms. `.meme` takes precedence when both `.meme` and `.clj` exist. `install!`/`uninstall!` for manual control. JVM/Babashka only.
 - `meme.test-runner` (.clj) — Eval + fixture test runner. Lives in `test/`, not `src/`. JVM only.
 
 ### Platform tiers

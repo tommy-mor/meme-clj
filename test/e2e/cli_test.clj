@@ -273,6 +273,74 @@
         "require of standard .clj namespace should work")))
 
 ;; ---------------------------------------------------------------------------
+;; compile
+;; ---------------------------------------------------------------------------
+
+(deftest compile-to-custom-dir
+  (let [f (tmp-meme "defn(foo [x] +(x 1))")
+        out-dir (str (System/getProperty "java.io.tmpdir") "/meme-e2e-compile-" (System/nanoTime))]
+    (try
+      (let [{:keys [out exit]} (bb-meme "compile" (str f) "--out" out-dir)]
+        (is (zero? exit))
+        (is (str/includes? out "compiled to"))
+        ;; Check output file exists and has correct content
+        (let [clj-name (str/replace (.getName f) #"\.meme$" ".clj")
+              clj-file (io/file out-dir clj-name)]
+          (is (.exists clj-file) "compiled .clj should exist")
+          (is (= "(defn foo [x] (+ x 1))\n" (slurp clj-file)))))
+      (finally
+        (doseq [f (reverse (file-seq (io/file out-dir)))]
+          (.delete f))))))
+
+(deftest compile-preserves-relative-paths
+  (let [dir (io/file (System/getProperty "java.io.tmpdir")
+                     (str "meme-e2e-src-" (System/nanoTime)))
+        sub (io/file dir "my_ns")
+        out-dir (str dir "-out")]
+    (try
+      (.mkdirs sub)
+      (spit (io/file sub "core.meme") "ns(my-ns.core)\ndef(x 42)\n")
+      (let [{:keys [exit]} (bb-meme "compile" (str dir) "--out" out-dir)]
+        (is (zero? exit))
+        (let [compiled (io/file out-dir "my_ns" "core.clj")]
+          (is (.exists compiled) "should preserve my_ns/core.clj path")
+          (is (str/includes? (slurp compiled) "(ns my-ns.core)"))))
+      (finally
+        (doseq [d [dir (io/file out-dir)]]
+          (doseq [f (reverse (file-seq d))]
+            (.delete f)))))))
+
+(deftest compile-reports-errors
+  (let [dir (io/file (System/getProperty "java.io.tmpdir")
+                     (str "meme-e2e-err-" (System/nanoTime)))
+        out-dir (str dir "-out")]
+    (try
+      (.mkdirs dir)
+      (spit (io/file dir "good.meme") "def(x 1)")
+      (spit (io/file dir "bad.meme") "def(x")
+      (let [{:keys [exit err out]} (bb-meme "compile" (str dir) "--out" out-dir)]
+        (is (= 1 exit) "should exit 1 on compile error")
+        (is (str/includes? (str out err) "failed"))
+        ;; Good file should still be compiled
+        (is (.exists (io/file out-dir "good.clj"))))
+      (finally
+        (doseq [d [dir (io/file out-dir)]]
+          (doseq [f (reverse (file-seq d))]
+            (.delete f)))))))
+
+;; ---------------------------------------------------------------------------
+;; load-file of .meme via bb meme run
+;; ---------------------------------------------------------------------------
+
+(deftest run-load-file-meme
+  (let [lib (tmp-meme "defn(greet [x] str(\"hi \" x))")
+        main (tmp-meme (str "load-file(\"" (.getAbsolutePath lib) "\")\nprintln(greet(\"bb\"))"))
+        {:keys [out exit]} (bb-meme "run" (str main))]
+    (is (zero? exit))
+    (is (= "hi bb\n" out)
+        "load-file of .meme should work from within bb meme run")))
+
+;; ---------------------------------------------------------------------------
 ;; Scar tissue: *command-line-args* must not leak "run" and filename
 ;; ---------------------------------------------------------------------------
 

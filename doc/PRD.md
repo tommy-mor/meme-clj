@@ -128,6 +128,9 @@ the CLI itself is written in `.meme`.
 | C3a | `meme to-clj <file\|dir>` — convert .meme files to .clj | Done |
 | C3b | `meme to-meme <file\|dir>` — convert .clj/.cljc/.cljs files to .meme | Done |
 | C4 | `meme format <file\|dir>` — normalize .meme files via canonical formatter (in-place or stdout) | Done |
+| C5 | `meme compile <dir\|file...> [--out dir]` — compile .meme to .clj in a separate output directory for classpath use | Done |
+| C6 | `load-file` interception — `(load-file "path.meme")` runs through the meme pipeline (JVM + Babashka) | Done |
+| C7 | `require` interception — `(require 'my.ns)` finds `.meme` files on the classpath (JVM only; Babashka's SCI bypasses `clojure.core/load`) | Done |
 
 Note: Requirement IDs are not sequential — gaps (R2–R4, R11–R12, R14,
 P2–P4, P10) are requirements that were merged into other IDs or removed

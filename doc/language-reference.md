@@ -366,4 +366,24 @@ The CLI auto-detects the lang from file extension: `meme run app.prefix` resolve
 
 ### Namespace loader
 
-After `install!` (called automatically by `run-file` and the REPL), `require` in `.meme` code finds both `.meme` and `.clj` namespaces on the classpath. Files with registered lang extensions take precedence over `.clj` when both exist. Core namespaces (`clojure.*`, `java.*`, etc.) are protected by a denylist and cannot be shadowed.
+After `install!` (called automatically by `run-file`, the REPL, and the CLI), `require` and `load-file` handle `.meme` files transparently:
+
+```
+;; In the meme REPL or a running .meme file:
+require('[my-lib.core :as lib])   ; finds my_lib/core.meme on classpath (JVM only)
+load-file("examples/demo.meme")   ; loads by filesystem path (JVM + Babashka)
+```
+
+Files with registered lang extensions take precedence over `.clj` when both exist. Core namespaces (`clojure.*`, `java.*`, etc.) are protected by a denylist and cannot be shadowed.
+
+**Babashka limitation:** `require` of `.meme` namespaces is JVM-only (Babashka's SCI bypasses `clojure.core/load`). `load-file` works on both platforms.
+
+### Precompilation
+
+For environments where runtime loading isn't available (Babashka `require`, nREPL, CI), precompile `.meme` to `.clj`:
+
+```bash
+bb meme compile src/ --out target/classes
+```
+
+Add the output directory to `:paths` in `deps.edn` or `bb.edn`. Standard `require` then works without any runtime patching.
