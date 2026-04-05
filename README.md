@@ -100,6 +100,26 @@ unless(empty?(xs)
   println(first(xs)))
 ```
 
+## Namespace Loading
+
+On JVM Clojure, `.meme` files work transparently with `require`:
+
+```clojure
+;; src/myapp/core.meme — just works with require
+(require '[myapp.core])
+```
+
+The loader intercepts `clojure.core/load` so `.meme` files on the classpath are found and compiled automatically — no build plugin needed. `.meme` takes precedence when both `.meme` and `.clj` exist. `load-file` also handles `.meme` on both JVM and Babashka.
+
+Installed automatically by `run` and `repl` — no manual setup.
+
+Alternatively, compile `.meme` to `.clj` for use without runtime patching:
+
+```bash
+$ bb meme compile src/                                  # output to target/classes/
+$ bb meme compile src/ --out out/                       # custom output directory
+```
+
 Requires [Babashka](https://babashka.org) or [Clojure](https://clojure.org).
 
 ## Editor Support
