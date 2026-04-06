@@ -16,32 +16,27 @@ defn( whitespace-char? [ch] and(ch or(=(ch \space) =(ch \tab) =(ch \,))))
 defn( consume-number
   "Consume integer or float: digits [. digits] [e/E [+/-] digits]"
   [^String source ^long len ^long pos]
-  loop(
-    [i pos]
+  loop( [i pos]
     if( and(<(i len) digit?(.charAt(source i)))
       recur(inc(i))
-      let(
-        [i if( and(
+      let( [i if( and(
              <(i len)
              =(.charAt(source i) \.)
              <(inc(i) len)
              digit?(.charAt(source inc(i)))
            )
-           loop(
-             [j +(i 2)]
+           loop( [j +(i 2)]
              if(and(<(j len) digit?(.charAt(source j))) recur(inc(j)) j)
            )
            i
          )]
         if( and(<(i len) let([c .charAt(source i)] or(=(c \e) =(c \E))))
-          let(
-            [j inc(i)
+          let( [j inc(i)
              j if( and(<(j len) let([c .charAt(source j)] or(=(c \+) =(c \-))))
                inc(j)
                j
              )]
-            loop(
-              [k j]
+            loop( [k j]
               if(and(<(k len) digit?(.charAt(source k))) recur(inc(k)) k)
             )
           )
@@ -55,8 +50,7 @@ defn( consume-number
 defn( consume-identifier
   "Consume [a-zA-Z_][a-zA-Z0-9_]*"
   [^String source ^long len ^long pos]
-  loop(
-    [i inc(pos)]
+  loop( [i inc(pos)]
     if(and(<(i len) ident-char?(.charAt(source i))) recur(inc(i)) i)
   )
 )
@@ -64,8 +58,7 @@ defn( consume-identifier
 defn( consume-string
   "Consume double-quoted string with backslash escapes."
   [^String source ^long len ^long pos]
-  loop(
-    [i inc(pos)]
+  loop( [i inc(pos)]
     cond(
       >=(i len)
       i
@@ -80,12 +73,10 @@ defn( consume-string
 )
 
 defn( ws-consumer [engine]
-  let(
-    [start  pratt/cursor(engine)
+  let( [start  pratt/cursor(engine)
      source pratt/source-str(engine)
      len    pratt/source-len(engine)]
-    loop(
-      [i start]
+    loop( [i start]
       if( and(<(i len) whitespace-char?(.charAt(source i)))
         recur(inc(i))
         do(
@@ -98,8 +89,7 @@ defn( ws-consumer [engine]
 )
 
 defn( newline-consumer [engine]
-  let(
-    [start  pratt/cursor(engine)
+  let( [start  pratt/cursor(engine)
      source pratt/source-str(engine)
      len    pratt/source-len(engine)
      ch     .charAt(source start)
@@ -119,13 +109,11 @@ defn( newline-consumer [engine]
 defn( comment-consumer
   "Consume // line comment."
   [engine]
-  let(
-    [start  pratt/cursor(engine)
+  let( [start  pratt/cursor(engine)
      source pratt/source-str(engine)
      len    pratt/source-len(engine)]
     pratt/advance!(engine 2)
-    loop(
-      [i +(start 2)]
+    loop( [i +(start 2)]
       if( or(>=(i len) =(.charAt(source i) \newline))
         do(
           pratt/set-pos!(engine i)

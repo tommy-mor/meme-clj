@@ -16,8 +16,7 @@ defn-( adjacent?
 defn-( next-is-eq?
   "True when next char after current is =."
   [engine]
-  let(
-    [pos inc(pratt/cursor(engine))]
+  let( [pos inc(pratt/cursor(engine))]
     and(
       <(pos pratt/source-len(engine))
       =(.charAt(^String pratt/source-str(engine) pos) \=)
@@ -31,8 +30,7 @@ defn-( two-char-infix
   fn(
     [engine lhs op-tok]
     pratt/advance!(engine 1)
-    let(
-      [rhs pratt/parse-expr(engine bp)]
+    let( [rhs pratt/parse-expr(engine bp)]
       pratt/cst(node-type {:left lhs :token op-tok :right rhs})
     )
   )
@@ -44,13 +42,11 @@ defn-( lt-or-lte-scanlet
   if( and(not(pratt/eof?(engine)) =(pratt/peek-char(engine) \=))
     do(
       pratt/advance!(engine 1)
-      let(
-        [rhs pratt/parse-expr(engine 50)]
+      let( [rhs pratt/parse-expr(engine 50)]
         pratt/cst(:lte {:left lhs :token op-tok :right rhs})
       )
     )
-    let(
-      [rhs pratt/parse-expr(engine 50)]
+    let( [rhs pratt/parse-expr(engine 50)]
       pratt/cst(:lt {:left lhs :token op-tok :right rhs})
     )
   )
@@ -62,13 +58,11 @@ defn-( gt-or-gte-scanlet
   if( and(not(pratt/eof?(engine)) =(pratt/peek-char(engine) \=))
     do(
       pratt/advance!(engine 1)
-      let(
-        [rhs pratt/parse-expr(engine 50)]
+      let( [rhs pratt/parse-expr(engine 50)]
         pratt/cst(:gte {:left lhs :token op-tok :right rhs})
       )
     )
-    let(
-      [rhs pratt/parse-expr(engine 50)]
+    let( [rhs pratt/parse-expr(engine 50)]
       pratt/cst(:gt {:left lhs :token op-tok :right rhs})
     )
   )
@@ -77,15 +71,12 @@ defn-( gt-or-gte-scanlet
 defn-( ternary-scanlet
   "Led scanlet for ? : ternary operator."
   [engine lhs question-tok]
-  let(
-    [then-expr pratt/parse-expr(engine 0)]
+  let( [then-expr pratt/parse-expr(engine 0)]
     pratt/skip-trivia!(engine)
     if( and(not(pratt/eof?(engine)) =(pratt/peek-char(engine) \:))
-      let(
-        [start pratt/cursor(engine)]
+      let( [start pratt/cursor(engine)]
         pratt/advance!(engine 1)
-        let(
-          [_colon-tok pratt/make-token!(engine :colon start)
+        let( [_colon-tok pratt/make-token!(engine :colon start)
            else-expr  pratt/parse-expr(engine 29)]
           pratt/cst(
             :ternary
@@ -104,8 +95,7 @@ defn-( ternary-scanlet
 defn-( call-scanlet
   "Led scanlet for function calls f(args)."
   [engine lhs open-tok]
-  let(
-    [[args close-tok] pratt/parse-until(engine \) :close-paren)]
+  let( [[args close-tok] pratt/parse-until(engine \) :close-paren)]
     pratt/cst(:call {:head lhs :open open-tok :args args :close close-tok})
   )
 )
@@ -113,38 +103,31 @@ defn-( call-scanlet
 defn-( identifier-scanlet
   "Nud scanlet for identifiers. Handles let keyword specially."
   [engine]
-  let(
-    [start  pratt/cursor(engine)
+  let( [start  pratt/cursor(engine)
      source pratt/source-str(engine)
      len    pratt/source-len(engine)
      end    lex/consume-identifier(source len start)]
     pratt/set-pos!(engine end)
-    let(
-      [tok pratt/make-token!(engine :identifier start)]
+    let( [tok pratt/make-token!(engine :identifier start)]
       case( :raw(tok)
         "let"
         do(
           pratt/skip-trivia!(engine)
-          let(
-            [name-start pratt/cursor(engine)
+          let( [name-start pratt/cursor(engine)
              name-end   lex/consume-identifier(source len name-start)]
             pratt/set-pos!(engine name-end)
-            let(
-              [name-tok pratt/make-token!(engine :identifier name-start)]
+            let( [name-tok pratt/make-token!(engine :identifier name-start)]
               pratt/skip-trivia!(engine)
               if( and(
                   not(pratt/eof?(engine))
                   =(pratt/peek-char(engine) \=)
-                  let(
-                    [p inc(pratt/cursor(engine))]
+                  let( [p inc(pratt/cursor(engine))]
                     or(>=(p len) not=(.charAt(source p) \=))
                   )
                 )
-                let(
-                  [eq-start pratt/cursor(engine)]
+                let( [eq-start pratt/cursor(engine)]
                   pratt/advance!(engine 1)
-                  let(
-                    [_eq-tok pratt/make-token!(engine :equals eq-start)
+                  let( [_eq-tok pratt/make-token!(engine :equals eq-start)
                      value   pratt/parse-expr(engine 0)]
                     pratt/cst(
                       :let-binding
@@ -169,8 +152,7 @@ defn-( identifier-scanlet
 defn-( slash-trivia-consumer
   "If current pos is //, consume as comment. Otherwise return nil (not trivia)."
   [engine]
-  let(
-    [pos pratt/cursor(engine)]
+  let( [pos pratt/cursor(engine)]
     when( and(
         <(inc(pos) pratt/source-len(engine))
         =(.charAt(^String pratt/source-str(engine) inc(pos)) \/)

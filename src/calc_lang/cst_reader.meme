@@ -33,8 +33,7 @@ defn-( read-infix [node op-sym]
 defn( read-node [node]
   case( :node(node)
     :atom
-    let(
-      [tok :token(node)]
+    let( [tok :token(node)]
       case( :type(tok)
         :number
         resolve-number(:raw(tok))
@@ -74,8 +73,7 @@ defn( read-node [node]
     :unary-not
     list(quote(not) read-node(:form(node)))
     :group
-    let(
-      [children :children(node)]
+    let( [children :children(node)]
       if( =(1 count(children))
         read-node(first(children))
         cons(quote(do) map(read-node children))
@@ -91,8 +89,7 @@ defn( read-node [node]
     :let-binding
     list(quote(def) symbol(:raw(:name(node))) read-node(:value(node)))
     :call
-    let(
-      [head read-node(:head(node)) args mapv(read-node :args(node))]
+    let( [head read-node(:head(node)) args mapv(read-node :args(node))]
       apply(list head args)
     )
     :error
