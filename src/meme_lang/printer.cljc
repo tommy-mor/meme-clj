@@ -82,6 +82,11 @@
     'defprotocol 'defrecord 'deftype
     'deftest 'ns})
 
+(def ^:private pair-body-forms
+  "Forms whose body args (after head-line-args) are test-value pairs,
+   with an optional odd default at the end. case, cond, condp."
+  #{'case 'cond 'condp})
+
 (def ^:private binding-forms
   "Forms whose first vector arg contains name-value pairs.
    When the vector breaks to multi-line, pairs stay together."
@@ -257,25 +262,42 @@
             ;; Head-line args: keep n args on head line, rest in body
             (and n-head (pos? n-head) (> (count arg-docs) n-head))
             (let [head-docs (subvec arg-docs 0 n-head)
-                  body (subvec arg-docs n-head)]
+                  body (subvec arg-docs n-head)
+                  ;; For case/cond/condp: pair up body args (test value, odd default)
+                  body-docs (if (contains? pair-body-forms head)
+                              (let [pairs (partition-all 2 body)]
+                                (mapv (fn [pair]
+                                        (if (= 2 (count pair))
+                                          (render/doc-cat (first pair) doc-space (second pair))
+                                          (first pair)))
+                                      pairs))
+                              body)]
               (render/group
                (render/doc-cat
                 head-doc doc-open-paren after-paren
                 (render/nest 2
                              (render/doc-cat
                               (render/group (intersperse render/line head-docs))
-                              (reduce (fn [acc d] (render/doc-cat acc render/line d)) nil body)))
+                              (reduce (fn [acc d] (render/doc-cat acc render/line d)) nil body-docs)))
                 render/line0
                 doc-close-paren)))
 
             ;; Default: all args in body
             :else
-            (render/group
-             (render/doc-cat
-              head-doc doc-open-paren
-              (render/nest 2 (render/doc-cat render/line0 (intersperse render/line arg-docs)))
-              render/line0
-              doc-close-paren)))))))
+            (let [body-docs (if (contains? pair-body-forms head)
+                              (let [pairs (partition-all 2 arg-docs)]
+                                (mapv (fn [pair]
+                                        (if (= 2 (count pair))
+                                          (render/doc-cat (first pair) doc-space (second pair))
+                                          (first pair)))
+                                      pairs))
+                              arg-docs)]
+              (render/group
+               (render/doc-cat
+                head-doc doc-open-paren
+                (render/nest 2 (render/doc-cat render/line0 (intersperse render/line body-docs)))
+                render/line0
+                doc-close-paren))))))))
 
 (defn- collection-doc
   "Build Doc for a delimited collection: [elems], #{elems}, #(body).
