@@ -86,10 +86,8 @@ defn-( ternary-scanlet
         pratt/advance!(engine 1)
         let(
           [
-            _colon-tok
-            pratt/make-token!(engine :colon start)
-            else-expr
-            pratt/parse-expr(engine 29)
+           _colon-tok pratt/make-token!(engine :colon start)
+           else-expr pratt/parse-expr(engine 29)
           ]
           pratt/cst(
             :ternary
@@ -119,14 +117,10 @@ defn-( identifier-scanlet
   [engine]
   let(
     [
-      start
-      pratt/cursor(engine)
-      source
-      pratt/source-str(engine)
-      len
-      pratt/source-len(engine)
-      end
-      lex/consume-identifier(source len start)
+     start pratt/cursor(engine)
+     source pratt/source-str(engine)
+     len pratt/source-len(engine)
+     end lex/consume-identifier(source len start)
     ]
     pratt/set-pos!(engine end)
     let(
@@ -137,10 +131,8 @@ defn-( identifier-scanlet
           pratt/skip-trivia!(engine)
           let(
             [
-              name-start
-              pratt/cursor(engine)
-              name-end
-              lex/consume-identifier(source len name-start)
+             name-start pratt/cursor(engine)
+             name-end lex/consume-identifier(source len name-start)
             ]
             pratt/set-pos!(engine name-end)
             let(
@@ -159,10 +151,8 @@ defn-( identifier-scanlet
                   pratt/advance!(engine 1)
                   let(
                     [
-                      _eq-tok
-                      pratt/make-token!(engine :equals eq-start)
-                      value
-                      pratt/parse-expr(engine 0)
+                     _eq-tok pratt/make-token!(engine :equals eq-start)
+                     value pratt/parse-expr(engine 0)
                     ]
                     pratt/cst(
                       :let-binding

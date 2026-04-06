@@ -22,30 +22,27 @@ defn( consume-number
       recur(inc(i))
       let(
         [
-          i
-          if( and(
-              <(i len)
-              =(.charAt(source i) \.)
-              <(inc(i) len)
-              digit?(.charAt(source inc(i)))
-            )
-            loop(
-              [j +(i 2)]
-              if(and(<(j len) digit?(.charAt(source j))) recur(inc(j)) j)
-            )
-            i
-          )
+         i if( and(
+             <(i len)
+             =(.charAt(source i) \.)
+             <(inc(i) len)
+             digit?(.charAt(source inc(i)))
+           )
+           loop(
+             [j +(i 2)]
+             if(and(<(j len) digit?(.charAt(source j))) recur(inc(j)) j)
+           )
+           i
+         )
         ]
         if( and(<(i len) let([c .charAt(source i)] or(=(c \e) =(c \E))))
           let(
             [
-              j
-              inc(i)
-              j
-              if( and(<(j len) let([c .charAt(source j)] or(=(c \+) =(c \-))))
-                inc(j)
-                j
-              )
+             j inc(i)
+             j if( and(<(j len) let([c .charAt(source j)] or(=(c \+) =(c \-))))
+               inc(j)
+               j
+             )
             ]
             loop(
               [k j]
@@ -89,12 +86,9 @@ defn( consume-string
 defn( ws-consumer [engine]
   let(
     [
-      start
-      pratt/cursor(engine)
-      source
-      pratt/source-str(engine)
-      len
-      pratt/source-len(engine)
+     start pratt/cursor(engine)
+     source pratt/source-str(engine)
+     len pratt/source-len(engine)
     ]
     loop(
       [i start]
@@ -112,23 +106,18 @@ defn( ws-consumer [engine]
 defn( newline-consumer [engine]
   let(
     [
-      start
-      pratt/cursor(engine)
-      source
-      pratt/source-str(engine)
-      len
-      pratt/source-len(engine)
-      ch
-      .charAt(source start)
-      end
-      if( and(
-          =(ch \return)
-          <(inc(start) len)
-          =(.charAt(source inc(start)) \newline)
-        )
-        +(start 2)
-        inc(start)
-      )
+     start pratt/cursor(engine)
+     source pratt/source-str(engine)
+     len pratt/source-len(engine)
+     ch .charAt(source start)
+     end if( and(
+         =(ch \return)
+         <(inc(start) len)
+         =(.charAt(source inc(start)) \newline)
+       )
+       +(start 2)
+       inc(start)
+     )
     ]
     pratt/set-pos!(engine end)
     pratt/make-trivia-token!(engine :newline start)
@@ -140,12 +129,9 @@ defn( comment-consumer
   [engine]
   let(
     [
-      start
-      pratt/cursor(engine)
-      source
-      pratt/source-str(engine)
-      len
-      pratt/source-len(engine)
+     start pratt/cursor(engine)
+     source pratt/source-str(engine)
+     len pratt/source-len(engine)
     ]
     pratt/advance!(engine 2)
     loop(
