@@ -5,13 +5,24 @@
 
 (defn m->s
   "Transform M-expression form to S-expression.
-   (f (x y)) → (f x y) — head with arg list spliced.
-   (f x y)   → recurse into each element when second is not a list.
-   Vectors, maps, sets, atoms pass through unchanged."
+   (f (args)) → (f args...) — two-element list with head + arg list spliced.
+   (f x y)    → recurse into each element otherwise.
+   Vectors and maps are walked recursively. Atoms pass through unchanged."
   [form]
-  (if (seq? form)
-    (let [[f args] form]
-      (if (seq? args)
+  (cond
+    (seq? form)
+    (let [[f args & more] form]
+      (if (and (seq? args) (nil? more))
         (cons (m->s f) (map m->s args))
         (map m->s form)))
-    form))
+
+    (vector? form)
+    (mapv m->s form)
+
+    (map? form)
+    (into {} (map (fn [[k v]] [(m->s k) (m->s v)])) form)
+
+    (set? form)
+    (into #{} (map m->s) form)
+
+    :else form))
