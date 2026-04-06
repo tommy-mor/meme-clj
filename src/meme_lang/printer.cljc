@@ -182,7 +182,16 @@
       ;; Meme mode: head(arg1 arg2) with head-line-args
       ;; When broken: space after ( and closing ) on its own line.
       ;; Definition forms always get space after ( even when flat.
-      (let [n-head (get head-line-args head)
+      (let [n-head (let [n (get head-line-args head)]
+                     ;; defn/defn-/defmacro: bump to 2 when second arg is a
+                     ;; vector (params) — keeps name + params on head line.
+                     ;; Docstring (string) or multi-arity (list) stays at 1.
+                     (if (and (= n 1)
+                              (contains? #{'defn 'defn- 'defmacro} head)
+                              (>= (count args) 2)
+                              (vector? (second args)))
+                       2
+                       n))
             def-form? (contains? definition-forms head)
             after-paren (if def-form?
                           doc-space
