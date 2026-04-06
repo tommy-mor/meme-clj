@@ -171,8 +171,7 @@
       (render/group
        (render/doc-cat
         (render/text "[")
-        (render/nest 1 (render/doc-cat render/line0 (intersperse render/line pair-docs)))
-        render/line0
+        (render/nest 1 (render/doc-cat (intersperse render/line pair-docs)))
         (render/text "]"))))))
 
 (defn- emit-meta-prefix-doc
@@ -258,17 +257,31 @@
               doc-close-paren)))))))
 
 (defn- collection-doc
-  "Build Doc for a delimited collection: [elems], #{elems}, #(body)."
-  [open close children mode]
-  (if (empty? children)
-    (render/text (str open close))
-    (let [child-docs (mapv #(to-doc % mode) children)]
-      (render/group
-       (render/doc-cat
-        (render/text open)
-        (render/nest 2 (render/doc-cat render/line0 (intersperse render/line child-docs)))
-        render/line0
-        (render/text close))))))
+  "Build Doc for a delimited collection: [elems], #{elems}, #(body).
+   :inline? true puts first element right after open bracket with
+   alignment indent (for vectors); false indents all elements (for sets, #())."
+  ([open close children mode] (collection-doc open close children mode false))
+  ([open close children mode inline?]
+   (if (empty? children)
+     (render/text (str open close))
+     (let [child-docs (mapv #(to-doc % mode) children)
+           open-doc (render/text open)
+           close-doc (render/text close)]
+       (if inline?
+         ;; Inline: [first-elem\n aligned-rest]
+         (render/group
+          (render/doc-cat
+           open-doc
+           (render/nest (count open)
+                        (render/doc-cat (intersperse render/line child-docs)))
+           close-doc))
+         ;; Block: open\n  indented-elems\n close
+         (render/group
+          (render/doc-cat
+           open-doc
+           (render/nest 2 (render/doc-cat render/line0 (intersperse render/line child-docs)))
+           render/line0
+           close-doc)))))))
 
 (defn- pairs-doc
   "Build Doc for key-value pairs: {k v ...}, #:ns{k v ...}, #?(k v ...)."
@@ -394,7 +407,7 @@
 
     ;; Vector
     (vector? form)
-    (collection-doc "[" "]" (vec form) mode)
+    (collection-doc "[" "]" (vec form) mode true)
 
     ;; Map — reconstruct #:ns{} or #::alias{} when :meme-lang/namespace-prefix metadata present
     (map? form)
