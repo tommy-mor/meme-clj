@@ -21,8 +21,7 @@ defn( consume-number
     if( and(<(i len) digit?(.charAt(source i)))
       recur(inc(i))
       let(
-        [
-         i if( and(
+        [i if( and(
              <(i len)
              =(.charAt(source i) \.)
              <(inc(i) len)
@@ -33,17 +32,14 @@ defn( consume-number
              if(and(<(j len) digit?(.charAt(source j))) recur(inc(j)) j)
            )
            i
-         )
-        ]
+         )]
         if( and(<(i len) let([c .charAt(source i)] or(=(c \e) =(c \E))))
           let(
-            [
-             j inc(i)
+            [j inc(i)
              j if( and(<(j len) let([c .charAt(source j)] or(=(c \+) =(c \-))))
                inc(j)
                j
-             )
-            ]
+             )]
             loop(
               [k j]
               if(and(<(k len) digit?(.charAt(source k))) recur(inc(k)) k)
@@ -85,11 +81,9 @@ defn( consume-string
 
 defn( ws-consumer [engine]
   let(
-    [
-     start pratt/cursor(engine)
+    [start pratt/cursor(engine)
      source pratt/source-str(engine)
-     len pratt/source-len(engine)
-    ]
+     len pratt/source-len(engine)]
     loop(
       [i start]
       if( and(<(i len) whitespace-char?(.charAt(source i)))
@@ -105,8 +99,7 @@ defn( ws-consumer [engine]
 
 defn( newline-consumer [engine]
   let(
-    [
-     start pratt/cursor(engine)
+    [start pratt/cursor(engine)
      source pratt/source-str(engine)
      len pratt/source-len(engine)
      ch .charAt(source start)
@@ -117,8 +110,7 @@ defn( newline-consumer [engine]
        )
        +(start 2)
        inc(start)
-     )
-    ]
+     )]
     pratt/set-pos!(engine end)
     pratt/make-trivia-token!(engine :newline start)
   )
@@ -128,11 +120,9 @@ defn( comment-consumer
   "Consume // line comment."
   [engine]
   let(
-    [
-     start pratt/cursor(engine)
+    [start pratt/cursor(engine)
      source pratt/source-str(engine)
-     len pratt/source-len(engine)
-    ]
+     len pratt/source-len(engine)]
     pratt/advance!(engine 2)
     loop(
       [i +(start 2)]

@@ -65,14 +65,12 @@ deftest( function-calls
 deftest( ternary
   is(
     =(
-      [
-        list(
-          quote(if)
-          list(quote(>) quote(x) 0)
-          quote(x)
-          list(quote(-) quote(x))
-        )
-      ]
+      [list(
+         quote(if)
+         list(quote(>) quote(x) 0)
+         quote(x)
+         list(quote(-) quote(x))
+       )]
       calc("x > 0 ? x : -x")
     )
   )
