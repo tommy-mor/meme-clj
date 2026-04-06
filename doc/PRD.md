@@ -240,3 +240,10 @@ meme rules inside. No opaque regions.
   (parse, read, format, to-clj, to-meme) as MCP tools for AI agents.
   Enables LLMs to read, write, and transform `.meme` code natively
   without converting through Clojure first.
+- **Formatter style extraction**: The printer (`meme-lang.printer`) currently
+  mixes notation mapping (how meme syntax maps to Doc nodes) with style
+  policy (head-line-args, definition-forms, binding-forms, columnar alignment,
+  pair grouping, inline layout). Extract style policy into a config map that
+  formatters pass to the printer. Each formatter (canon, flat) carries its own
+  style, and new formatting styles are new configs — not printer code changes.
+  The render engine stays unchanged (pure Doc→string).
