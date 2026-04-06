@@ -101,7 +101,9 @@
          (pratt/nud-delimited :list \} :close-brace))
     \- (lexer/single-char-scanlet :minus (pratt/nud-prefix :unary-minus 580))
     \! (lexer/single-char-scanlet :bang (pratt/nud-prefix :unary-not 300))
-    \" (lexer/atom-scanlet :string lex/consume-string)}
+    \" (lexer/atom-scanlet :string lex/consume-string)
+    \+ (lexer/atom-scanlet :identifier (fn [_ _ pos] (inc pos)))
+    \* (lexer/atom-scanlet :identifier (fn [_ _ pos] (inc pos)))}
 
    :nud-pred
    [[(fn [ch _e] (lex/digit? ch))       (lexer/atom-scanlet :number lex/consume-number)]
