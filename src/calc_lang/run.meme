@@ -7,10 +7,10 @@ defn( run-string [s opts]
   tools-run/run-string(
     s
     {
-      :run-fn fn([source reader-opts] stages/run(source reader-opts))
+      :run-fn       fn([source reader-opts] stages/run(source reader-opts))
       :expand-forms fn([forms _opts] forms)
-      :reader-opts or(opts {})
-      :eval :eval(opts)
+      :reader-opts  or(opts {})
+      :eval         :eval(opts)
     }
   )
 )

@@ -81,9 +81,9 @@ defn( consume-string
 
 defn( ws-consumer [engine]
   let(
-    [start pratt/cursor(engine)
+    [start  pratt/cursor(engine)
      source pratt/source-str(engine)
-     len pratt/source-len(engine)]
+     len    pratt/source-len(engine)]
     loop(
       [i start]
       if( and(<(i len) whitespace-char?(.charAt(source i)))
@@ -99,11 +99,11 @@ defn( ws-consumer [engine]
 
 defn( newline-consumer [engine]
   let(
-    [start pratt/cursor(engine)
+    [start  pratt/cursor(engine)
      source pratt/source-str(engine)
-     len pratt/source-len(engine)
-     ch .charAt(source start)
-     end if( and(
+     len    pratt/source-len(engine)
+     ch     .charAt(source start)
+     end    if( and(
          =(ch \return)
          <(inc(start) len)
          =(.charAt(source inc(start)) \newline)
@@ -120,9 +120,9 @@ defn( comment-consumer
   "Consume // line comment."
   [engine]
   let(
-    [start pratt/cursor(engine)
+    [start  pratt/cursor(engine)
      source pratt/source-str(engine)
-     len pratt/source-len(engine)]
+     len    pratt/source-len(engine)]
     pratt/advance!(engine 2)
     loop(
       [i +(start 2)]
