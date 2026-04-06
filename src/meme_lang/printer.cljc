@@ -182,8 +182,11 @@
                     pad-doc (when (pos? pad-n)
                               (render/->DocIfBreak
                                (render/text (apply str (repeat pad-n \space)))
-                               nil))]
-                (render/doc-cat key-doc pad-doc doc-space (to-doc (second pair) mode)))
+                               nil))
+                    ;; Nest value at key column so multiline values indent correctly
+                    val-indent (+ max-key-w 1)
+                    val-doc (render/nest val-indent (to-doc (second pair) mode))]
+                (render/doc-cat key-doc pad-doc doc-space val-doc))
               key-doc))
           pairs key-docs key-widths)))
 
