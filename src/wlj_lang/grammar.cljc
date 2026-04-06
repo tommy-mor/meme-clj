@@ -130,6 +130,7 @@
      :when (pratt/next-char-is? \/)}
     {:char \/ :bp 570 :open-type :slash   :fn (pratt/led-infix :div 570)
      :when (pratt/next-char-is-not? \/)}
+    {:char \% :bp 500 :open-type :pct     :fn (pratt/led-infix :mod 500)}
     {:char \+ :bp 400 :open-type :plus    :fn (pratt/led-infix :add 400)}
     {:char \- :bp 400 :open-type :minus   :fn (pratt/led-infix :sub 400)
      :when (pratt/next-char-is-not? \>)}

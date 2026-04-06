@@ -97,8 +97,8 @@
 ;; ---------------------------------------------------------------------------
 
 (deftest postfix-apply
-  (is (= [(list 'Print (list '+ 1 2))] (w "1 + 2 // Print")))
-  (is (= [(list 'Print (list 'Reverse [1 2 3]))] (w "{1, 2, 3} // Reverse // Print")))
+  (is (= [(list 'println (list '+ 1 2))] (w "1 + 2 // Print")))
+  (is (= [(list 'println (list 'reverse [1 2 3]))] (w "{1, 2, 3} // Reverse // Print")))
   (is (= [(list 'f (list '+ 2 (list '* 3 4)))] (w "2 + 3 * 4 // f"))))
 
 ;; ---------------------------------------------------------------------------

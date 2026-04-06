@@ -11,9 +11,23 @@
       (.replace "\\n" "\n") (.replace "\\t" "\t")
       (.replace "\\\\" "\\") (.replace "\\\"" "\"")))
 
+(def ^:private wolfram->clj-names
+  {"True" true, "False" false, "Null" nil
+   "Function" 'fn, "Print" 'println, "Range" 'range
+   "Map" 'map, "Select" 'filter, "Apply" 'apply
+   "Reverse" 'reverse, "Sort" 'sort, "Length" 'count
+   "StringJoin" 'str, "Str" 'str, "If" 'if, "Which" 'cond
+   "Module" 'let, "Do" 'do, "Table" 'for
+   "First" 'first, "Rest" 'rest, "Last" 'last
+   "Append" 'conj, "Prepend" 'cons, "Join" 'concat
+   "SortBy" 'sort-by, "FilterBy" 'filter, "GroupBy" 'group-by
+   "Assoc" 'assoc, "Get" 'get, "Keys" 'keys, "Vals" 'vals})
+
 (defn- resolve-identifier [raw]
-  (case raw "True" true "False" false "Null" nil "true" true "false" false "nil" nil
-    (symbol raw)))
+  (if (contains? wolfram->clj-names raw)
+    (get wolfram->clj-names raw)
+    (case raw "true" true "false" false "nil" nil
+      (symbol raw))))
 
 (declare read-node)
 
@@ -43,6 +57,7 @@
     :sub (read-infix node '-)
     :mul (read-infix node '*)
     :div (read-infix node '/)
+    :mod (read-infix node 'mod)
     :pow (list 'Math/pow (read-node (:left node)) (read-node (:right node)))
     :eq  (read-infix node '=)
     :neq (read-infix node 'not=)
