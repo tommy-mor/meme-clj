@@ -265,8 +265,9 @@
 ;; Install the loader so requiring-resolve can find .meme on classpath,
 ;; then register calc-lang as a built-in.
 
-(try
-  (require 'meme.loader)
-  ((resolve 'meme.loader/install!))
-  (register-builtin! :calc @(requiring-resolve 'calc-lang.api/lang-map))
-  (catch Exception _))
+(when-not (some? (System/getProperty "babashka.version"))
+  (try
+    (require 'meme.loader)
+    ((resolve 'meme.loader/install!))
+    (register-builtin! :calc @(requiring-resolve 'calc-lang.api/lang-map))
+    (catch Exception _)))

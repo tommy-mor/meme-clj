@@ -116,11 +116,9 @@
     (reset! extensions-fn @(requiring-resolve 'meme.registry/registered-extensions))
     (reset! original-load-file @#'clojure.core/load-file)
     (alter-var-root #'clojure.core/load-file (constantly lang-load-file))
-    (if (babashka?)
-      (binding [*out* *err*]
-        (println "meme: .meme require not available on Babashka (SCI bypasses clojure.core/load)."))
-      (do (reset! original-load @#'clojure.core/load)
-          (alter-var-root #'clojure.core/load (constantly lang-load)))))
+    (when-not (babashka?)
+      (reset! original-load @#'clojure.core/load)
+      (alter-var-root #'clojure.core/load (constantly lang-load))))
   :installed)
 
 (defn uninstall!
