@@ -1,12 +1,14 @@
 ns(calc-lang.lexlets
   "Character predicates, consume helpers, and trivia consumers for calc-lang."
-  :require([meme.tools.parser :as pratt]))
+  :require([meme.tools.parser :as pratt])
+)
 
 defn(digit? [ch] and(ch <=(int(\0) int(ch) int(\9))))
 
 defn(ident-start?
   [ch]
-  and(ch or(<=(int(\a) int(ch) int(\z)) <=(int(\A) int(ch) int(\Z)) =(ch \_))))
+  and(ch or(<=(int(\a) int(ch) int(\z)) <=(int(\A) int(ch) int(\Z)) =(ch \_)))
+)
 
 defn(ident-char? [ch] or(ident-start?(ch) digit?(ch)))
 
@@ -27,11 +29,14 @@ defn(consume-number
               <(i len)
               =(.charAt(source i) \.)
               <(inc(i) len)
-              digit?(.charAt(source inc(i))))
+              digit?(.charAt(source inc(i)))
+            )
             loop(
               [j +(i 2)]
-              if(and(<(j len) digit?(.charAt(source j))) recur(inc(j)) j))
-            i)
+              if(and(<(j len) digit?(.charAt(source j))) recur(inc(j)) j)
+            )
+            i
+          )
         ]
         if(and(<(i len) let([c .charAt(source i)] or(=(c \e) =(c \E))))
           let(
@@ -41,19 +46,29 @@ defn(consume-number
               j
               if(and(<(j len) let([c .charAt(source j)] or(=(c \+) =(c \-))))
                 inc(j)
-                j)
+                j
+              )
             ]
             loop(
               [k j]
-              if(and(<(k len) digit?(.charAt(source k))) recur(inc(k)) k)))
-          i)))))
+              if(and(<(k len) digit?(.charAt(source k))) recur(inc(k)) k)
+            )
+          )
+          i
+        )
+      )
+    )
+  )
+)
 
 defn(consume-identifier
   "Consume [a-zA-Z_][a-zA-Z0-9_]*"
   [^String source ^long len ^long pos]
   loop(
     [i inc(pos)]
-    if(and(<(i len) ident-char?(.charAt(source i))) recur(inc(i)) i)))
+    if(and(<(i len) ident-char?(.charAt(source i))) recur(inc(i)) i)
+  )
+)
 
 defn(consume-string
   "Consume double-quoted string with backslash escapes."
@@ -68,7 +83,10 @@ defn(consume-string
       =(.charAt(source i) \")
       inc(i)
       :else
-      recur(inc(i)))))
+      recur(inc(i))
+    )
+  )
+)
 
 defn(ws-consumer
   [engine]
@@ -87,7 +105,12 @@ defn(ws-consumer
         recur(inc(i))
         do(
           pratt/set-pos!(engine i)
-          pratt/make-trivia-token!(engine :whitespace start))))))
+          pratt/make-trivia-token!(engine :whitespace start)
+        )
+      )
+    )
+  )
+)
 
 defn(newline-consumer
   [engine]
@@ -106,12 +129,16 @@ defn(newline-consumer
         and(
           =(ch \return)
           <(inc(start) len)
-          =(.charAt(source inc(start)) \newline))
+          =(.charAt(source inc(start)) \newline)
+        )
         +(start 2)
-        inc(start))
+        inc(start)
+      )
     ]
     pratt/set-pos!(engine end)
-    pratt/make-trivia-token!(engine :newline start)))
+    pratt/make-trivia-token!(engine :newline start)
+  )
+)
 
 defn(comment-consumer
   "Consume // line comment."
@@ -131,5 +158,10 @@ defn(comment-consumer
       if(or(>=(i len) =(.charAt(source i) \newline))
         do(
           pratt/set-pos!(engine i)
-          pratt/make-trivia-token!(engine :comment start))
-        recur(inc(i))))))
+          pratt/make-trivia-token!(engine :comment start)
+        )
+        recur(inc(i))
+      )
+    )
+  )
+)

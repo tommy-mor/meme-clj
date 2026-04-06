@@ -172,6 +172,7 @@
           (render/nest 2 (render/doc-cat render/line (intersperse render/line arg-docs)))
           doc-close-paren)))
       ;; Meme mode: head(arg1 arg2) with head-line-args
+      ;; When broken to multi-line, closing ) goes on its own line.
       (let [n-head (get head-line-args head)]
           (cond
             ;; Zero args: head()
@@ -189,6 +190,7 @@
                              (render/doc-cat
                               (render/group (render/doc-cat render/line0 (intersperse render/line head-docs)))
                               (reduce (fn [acc d] (render/doc-cat acc render/line d)) nil body)))
+                render/line0
                 doc-close-paren)))
 
             ;; Default: all args in body
@@ -197,6 +199,7 @@
              (render/doc-cat
               head-doc doc-open-paren
               (render/nest 2 (render/doc-cat render/line0 (intersperse render/line arg-docs)))
+              render/line0
               doc-close-paren)))))))
 
 (defn- collection-doc

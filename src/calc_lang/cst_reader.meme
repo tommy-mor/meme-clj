@@ -6,9 +6,12 @@ defn-(resolve-number
     or(
       .contains(^String raw ".")
       .contains(^String raw "e")
-      .contains(^String raw "E"))
+      .contains(^String raw "E")
+    )
     Double/parseDouble(raw)
-    Long/parseLong(raw)))
+    Long/parseLong(raw)
+  )
+)
 
 defn-(resolve-string
   [raw]
@@ -16,17 +19,21 @@ defn-(resolve-string
     .replace("\\n" "\n")
     .replace("\\t" "\t")
     .replace("\\\\" "\\")
-    .replace("\\\"" "\"")))
+    .replace("\\\"" "\"")
+  )
+)
 
 defn-(resolve-identifier
   [raw]
-  case(raw "true" true "false" false "nil" nil symbol(raw)))
+  case(raw "true" true "false" false "nil" nil symbol(raw))
+)
 
 declare(read-node)
 
 defn-(read-infix
   [node op-sym]
-  list(op-sym read-node(:left(node)) read-node(:right(node))))
+  list(op-sym read-node(:left(node)) read-node(:right(node)))
+)
 
 defn(read-node
   [node]
@@ -41,7 +48,9 @@ defn(read-node
         resolve-string(:raw(tok))
         :identifier
         resolve-identifier(:raw(tok))
-        throw(ex-info(str("Unknown atom type: " :type(tok)) {:token tok}))))
+        throw(ex-info(str("Unknown atom type: " :type(tok)) {:token tok}))
+      )
+    )
     :add
     read-infix(node quote(+))
     :sub
@@ -75,24 +84,31 @@ defn(read-node
       [children :children(node)]
       if(=(1 count(children))
         read-node(first(children))
-        cons(quote(do) map(read-node children))))
+        cons(quote(do) map(read-node children))
+      )
+    )
     :ternary
     list(
       quote(if)
       read-node(:cond(node))
       read-node(:then(node))
-      read-node(:else(node)))
+      read-node(:else(node))
+    )
     :let-binding
     list(quote(def) symbol(:raw(:name(node))) read-node(:value(node)))
     :call
     let(
       [head read-node(:head(node)) args mapv(read-node :args(node))]
-      apply(list head args))
+      apply(list head args)
+    )
     :error
     throw(ex-info(or(:message(node) "Parse error") {:node node}))
-    throw(ex-info(str("Unknown CST node: " :node(node)) {:node node}))))
+    throw(ex-info(str("Unknown CST node: " :node(node)) {:node node}))
+  )
+)
 
 defn(read-forms
   "Read a vector of CST nodes into a vector of Clojure forms."
   [cst _opts]
-  mapv(read-node cst))
+  mapv(read-node cst)
+)

@@ -1,6 +1,7 @@
 ns(calc-lang.run
   "Calc-lang eval pipeline. JVM/Babashka only."
-  :require([meme.tools.run :as tools-run] [calc-lang.stages :as stages]))
+  :require([meme.tools.run :as tools-run] [calc-lang.stages :as stages])
+)
 
 defn(run-string
   [s opts]
@@ -11,4 +12,6 @@ defn(run-string
       :expand-forms fn([forms _opts] forms)
       :reader-opts or(opts {})
       :eval :eval(opts)
-    }))
+    }
+  )
+)
