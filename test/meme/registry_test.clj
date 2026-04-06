@@ -56,7 +56,7 @@
   (doseq [[lang-name l] all-langs
           :when (:format l)]
     (testing (str lang-name " :format")
-      (is (= "def(x 42)" ((:format l) "def(x 42)" {}))))))
+      (is (= "def( x 42)" ((:format l) "def( x 42)" {}))))))
 
 (deftest all-langs-to-clj
   (doseq [[lang-name l] all-langs
@@ -88,7 +88,7 @@
 ;; ============================================================
 
 (deftest all-langs-agree-on-to-clj
-  (doseq [src ["f(x y)" "+(1 2)" "def(x 42)" "[1 2 3]"]]
+  (doseq [src ["f(x y)" "+(1 2)" "def( x 42)" "[1 2 3]"]]
     (let [results (into {} (map (fn [[n l]] [n ((:to-clj l) src)]) all-langs))
           first-result (val (first results))]
       (doseq [[lang-name result] results]
@@ -108,7 +108,7 @@
 (deftest load-edn-format-delegates
   (testing ":format :meme in EDN resolves to built-in format"
     (let [l (registry/load-edn "examples/languages/prefix/lang.edn")]
-      (is (= "def(x 42)" ((:format l) "def(x 42)" {}))))))
+      (is (= "def( x 42)" ((:format l) "def( x 42)" {}))))))
 
 (deftest load-edn-run-evals-core-then-user
   (testing "EDN :run evals core.meme before user source"
