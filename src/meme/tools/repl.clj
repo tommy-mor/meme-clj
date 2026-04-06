@@ -96,7 +96,9 @@
     (when-let [banner (:banner opts)]
       (println banner))
     (loop []
-      (let [prompt (str (ns-name *ns*) "=> ")
+      (let [ns-str (let [n (str (ns-name *ns*))]
+                     (if (re-find #"^user-[0-9a-f]{8}-" n) "user" n))
+            prompt (str ns-str "=> ")
             parsed (read-input prompt read-line-fn reader-opts run-fn)]
         (when parsed
           (cond
