@@ -99,7 +99,9 @@
 (deftest postfix-apply
   (is (= [(list 'println (list '+ 1 2))] (w "1 + 2 // Print")))
   (is (= [(list 'println (list 'reverse [1 2 3]))] (w "{1, 2, 3} // Reverse // Print")))
-  (is (= [(list 'f (list '+ 2 (list '* 3 4)))] (w "2 + 3 * 4 // f"))))
+  (is (= [(list 'f (list '+ 2 (list '* 3 4)))] (w "2 + 3 * 4 // f")))
+  (testing "pipe threads as last arg for multi-arg calls"
+    (is (= [(list 'map 'inc [1 2 3])] (w "{1, 2, 3} // Map[inc]")))))
 
 ;; ---------------------------------------------------------------------------
 ;; Literals
