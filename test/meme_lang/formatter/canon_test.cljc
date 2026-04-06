@@ -30,9 +30,9 @@
 ;; ---------------------------------------------------------------------------
 
 (deftest multi-line-all-in-body
-  (testing "let (head-line-args=0) puts everything in body"
+  (testing "let (head-line-args=1) keeps binding vector on head line"
     (let [result (fmt-canon/format-form '(let [x 1] (+ x 1)) {:width 15})]
-      (is (= "let(\n  [x 1]\n  +(x 1)\n)" result)))))
+      (is (= "let( [x 1]\n  +(x 1)\n)" result)))))
 
 (deftest multi-line-head-line-args
   (testing "defn (head-line-args=1) keeps name on first line"
@@ -308,7 +308,7 @@
 
 (deftest format-exact-indentation
   (testing "let body indented by 2"
-    (is (= "let(\n  [x 1]\n  +(x 1)\n)"
+    (is (= "let( [x 1]\n  +(x 1)\n)"
            (fmt-canon/format-form '(let [x 1] (+ x 1)) {:width 15}))))
   (testing "defn name on head line, body indented by 2"
     (let [result (fmt-canon/format-form '(defn f [x] (+ x 1)) {:width 15})]
