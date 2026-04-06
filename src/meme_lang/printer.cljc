@@ -155,19 +155,37 @@
 
 (declare to-doc to-doc-form)
 
+(defn- doc-flat-width
+  "Compute the flat-rendered width of a Doc node."
+  [doc]
+  (count (render/layout doc ##Inf)))
+
+(defn- columnar-pairs-doc
+  "Format pairs with columnar alignment: keys padded to max key width.
+   Padding only visible when the enclosing group breaks (flat = no padding).
+   pairs is a seq of [key-form value-form] or [key-form] (odd tail)."
+  [pairs mode]
+  (let [key-docs (mapv #(to-doc (first %) mode) pairs)
+        key-widths (mapv doc-flat-width key-docs)
+        max-key-w (apply max key-widths)]
+    (mapv (fn [pair key-doc key-w]
+            (if (= 2 (count pair))
+              (let [pad-n (- max-key-w key-w)
+                    pad-doc (when (pos? pad-n)
+                              (render/->DocIfBreak
+                               (render/text (apply str (repeat pad-n \space)))
+                               nil))]
+                (render/doc-cat key-doc pad-doc doc-space (to-doc (second pair) mode)))
+              key-doc))
+          pairs key-docs key-widths)))
+
 (defn- binding-vector-doc
-  "Format a binding vector with pair-per-line layout: [name val name val ...]."
+  "Format a binding vector with columnar pair-per-line layout."
   [children mode]
   (if (empty? children)
     (render/text "[]")
     (let [pairs (partition-all 2 children)
-          pair-docs (mapv (fn [pair]
-                            (if (= 2 (count pair))
-                              (render/doc-cat (to-doc (first pair) mode)
-                                              doc-space
-                                              (to-doc (second pair) mode))
-                              (to-doc (first pair) mode)))
-                          pairs)]
+          pair-docs (columnar-pairs-doc (vec pairs) mode)]
       (render/group
        (render/doc-cat
         (render/text "[")
@@ -284,13 +302,12 @@
            close-doc)))))))
 
 (defn- pairs-doc
-  "Build Doc for key-value pairs: {k v ...}, #:ns{k v ...}, #?(k v ...)."
+  "Build Doc for key-value pairs: {k v ...}, #:ns{k v ...}, #?(k v ...).
+   Keys are columnar-aligned when multi-line."
   [open close entries mode]
   (if (empty? entries)
     (render/text (str open close))
-    (let [pair-docs (mapv (fn [[k v]]
-                            (render/doc-cat (to-doc k mode) doc-space (to-doc v mode)))
-                          entries)]
+    (let [pair-docs (columnar-pairs-doc (vec entries) mode)]
       (render/group
        (render/doc-cat
         (render/text open)
