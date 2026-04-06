@@ -328,16 +328,17 @@
 
 (defn- pairs-doc
   "Build Doc for key-value pairs: {k v ...}, #:ns{k v ...}, #?(k v ...).
-   Keys are columnar-aligned when multi-line."
+   Keys are columnar-aligned when multi-line.
+   First pair inline after open delimiter, rest aligned."
   [open close entries mode]
   (if (empty? entries)
     (render/text (str open close))
-    (let [pair-docs (columnar-pairs-doc (vec entries) mode)]
+    (let [pair-docs (columnar-pairs-doc (vec entries) mode)
+          open-doc (render/text open)]
       (render/group
        (render/doc-cat
-        (render/text open)
-        (render/nest 2 (render/doc-cat render/line0 (intersperse render/line pair-docs)))
-        render/line0
+        open-doc
+        (render/nest (count open) (render/doc-cat (intersperse render/line pair-docs)))
         (render/text close))))))
 
 (defn- to-doc-form
@@ -474,7 +475,7 @@
           elements (if (and order (= (count order) (count form)))
                      order
                      (vec form))]
-      (collection-doc "#{" "}" elements mode))
+      (collection-doc "#{" "}" elements mode true))
 
     ;; Symbol
     (symbol? form) (render/text (str form))

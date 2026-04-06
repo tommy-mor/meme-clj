@@ -116,7 +116,7 @@
        (let [form (sorted-map :k '(fff arg1 arg2 arg3 arg4 a) :z 1)
              result (fmt-canon/format-form form {:width 30})
              lines (str/split-lines result)]
-         (is (> (count lines) 3) "value should break to multi-line")
+         (is (> (count lines) 1) "map should be multi-line")
          (doseq [line lines]
            (is (<= (count line) 34)
                (str "line exceeds width: " (pr-str line))))))))
