@@ -20,9 +20,7 @@
    User langs can be registered via register! with EDN-style config maps."
   (:require [clojure.edn :as edn]
             [clojure.string :as str]
-            [clojure.java.io :as io]
-            [meme-lang.api :as meme-lang]
-            [wlj-lang.api :as wlj-lang]))
+            [clojure.java.io :as io]))
 
 ;; ---------------------------------------------------------------------------
 ;; Registry
@@ -42,13 +40,14 @@
     (-> (dissoc m :extension :extensions)
         (cond-> (seq normalized) (assoc :extensions normalized)))))
 
-(defn- register-builtin! [lang-name lang-map]
+(defn register-builtin!
+  "Register a built-in language. Called at ns-load time from each lang's
+   own api namespace — the registry itself imports no langs.  User langs
+   should use `register!` instead, which validates and guards against
+   built-in overrides."
+  [lang-name lang-map]
   (swap! registry assoc lang-name
          (vary-meta (normalize-extensions lang-map) assoc :builtin? true)))
-
-;; Register built-in langs from their self-describing lang-maps
-(register-builtin! :meme meme-lang/lang-map)
-(register-builtin! :wlj wlj-lang/lang-map)
 
 (def default-lang "The default lang used when none is specified." :meme)
 
@@ -260,16 +259,3 @@
                          " — supported: " (pr-str (vec (filter keyword? (keys lang)))))
                     {:lang lang-name :command command}))))
 
-;; ---------------------------------------------------------------------------
-;; Bootstrap: load .meme-based langs via the loader
-;; ---------------------------------------------------------------------------
-;; calc-lang is implemented entirely in .meme files.
-;; Install the loader so requiring-resolve can find .meme on classpath,
-;; then register calc-lang as a built-in.
-
-(when-not (some? (System/getProperty "babashka.version"))
-  (try
-    (require 'meme.loader)
-    ((resolve 'meme.loader/install!))
-    (register-builtin! :calc @(requiring-resolve 'calc-lang.api/lang-map))
-    (catch Exception _)))

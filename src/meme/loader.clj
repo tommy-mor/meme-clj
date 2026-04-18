@@ -13,7 +13,8 @@
    namespaces (clojure.*, java.*, etc.). Only user/library namespaces
    are eligible for lang-based loading."
   (:require [clojure.java.io :as io]
-            [clojure.string :as str]))
+            [clojure.string :as str]
+            [meme.registry :as registry]))
 
 (defonce ^:private original-load (atom nil))
 (defonce ^:private original-load-file (atom nil))
@@ -113,7 +114,7 @@
    clojure.core/load). A warning is printed on first install."
   []
   (when (compare-and-set! installed? false true)
-    (reset! extensions-fn @(requiring-resolve 'meme.registry/registered-extensions))
+    (reset! extensions-fn registry/registered-extensions)
     (reset! original-load-file @#'clojure.core/load-file)
     (alter-var-root #'clojure.core/load-file (constantly lang-load-file))
     (when-not (babashka?)

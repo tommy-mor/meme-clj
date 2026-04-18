@@ -1,10 +1,27 @@
 (ns meme.cli
-  "Unified CLI. Commands dispatch through lang maps."
+  "Unified CLI. Commands dispatch through lang maps.
+
+   This namespace is the app — it explicitly requires each built-in lang,
+   which triggers its self-registration in meme.registry.  The registry
+   itself imports no langs; adding a new built-in means a one-line
+   require here plus the lang's own register-builtin! call."
   (:require [meme-lang.errors :as errors]
             [meme.registry :as registry]
+            [meme.loader :as loader]
             [meme.config :as config]
+            ;; Built-in lang registrations fire on ns-load:
+            [meme-lang.api]
+            [wlj-lang.api]
             [clojure.java.io :as io]
             [clojure.string :as str]))
+
+;; calc-lang is a demo implemented in .meme files — optional, lazy-loaded.
+;; Register it if the loader is available and calc-lang is on the classpath.
+(when-not (some? (System/getProperty "babashka.version"))
+  (try
+    (loader/install!)
+    (registry/register-builtin! :calc @(requiring-resolve 'calc-lang.api/lang-map))
+    (catch Exception _)))
 
 ;; ---------------------------------------------------------------------------
 ;; CLI exit — throw instead of System/exit so commands are testable
@@ -147,7 +164,7 @@
     (cli-exit! 1))
   (let [[lang-name l] (get-lang lang file)]
     (registry/check-support l lang-name :run)
-    (@(requiring-resolve 'meme.loader/install!))
+    (loader/install!)
     (try (binding [*command-line-args* (or rest-args [])]
            ((:run l) (slurp file) (lang-opts opts)))
          (catch Exception e

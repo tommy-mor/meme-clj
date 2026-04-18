@@ -4,6 +4,10 @@
   (:require [meme-lang.forms :as forms]
             [meme-lang.errors :as errors]
             [meme.registry :as registry]
+            ;; Explicit requires trigger self-registration of each built-in
+            ;; lang (post-refactor: registry imports no langs).
+            [meme-lang.api]
+            [wlj-lang.api]
             [clojure.edn :as edn]
             [clojure.java.io :as io]
             [clojure.string :as str]))

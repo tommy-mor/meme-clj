@@ -3,6 +3,7 @@
    and syntax-quote resolution into the generic REPL infrastructure.
    JVM/Babashka only."
   (:require [meme.tools.repl :as repl]
+            [meme.loader :as loader]
             [meme-lang.stages :as stages]
             [meme-lang.errors :as errors]
             [meme-lang.run :as meme-run]
@@ -20,7 +21,7 @@
   "Start the meme REPL."
   ([] (start {}))
   ([opts]
-   (@(requiring-resolve 'meme.loader/install!))
+   (loader/install!)
    (let [stages-impl (:stages opts)
          run-fn (or (:run-fn stages-impl) stages/run)
          expand-fn (or (:expand-forms stages-impl) stages/expand-syntax-quotes)

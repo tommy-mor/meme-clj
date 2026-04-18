@@ -2,7 +2,8 @@
   (:require [clojure.string :as str]
             [wlj-lang.stages :as stages]
             #?(:clj [wlj-lang.run :as run])
-            #?(:clj [wlj-lang.repl :as repl])))
+            #?(:clj [wlj-lang.repl :as repl])
+            #?(:clj [meme.registry :as registry])))
 
 (defn wlj->forms
   ([s] (wlj->forms s nil))
@@ -21,3 +22,6 @@
    :to-clj to-clj
    #?@(:clj [:run  (fn [source opts] (run/run-string source opts))
              :repl (fn [opts] (repl/start opts))])})
+
+;; Self-register as a built-in when loaded on JVM/Babashka.
+#?(:clj (registry/register-builtin! :wlj lang-map))

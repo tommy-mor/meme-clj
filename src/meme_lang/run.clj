@@ -4,6 +4,8 @@
    JVM/Babashka only."
   (:require [clojure.string :as str]
             [meme.tools.run :as run]
+            [meme.registry :as registry]
+            [meme.loader :as loader]
             [meme-lang.stages :as stages]))
 
 ;; ---------------------------------------------------------------------------
@@ -77,19 +79,17 @@
 
 (defn- resolve-lang-run
   [path opts]
-  (let [explicit (:lang opts)
-        resolve-lang-fn @(requiring-resolve 'meme.registry/resolve-lang)
-        resolve-ext-fn  @(requiring-resolve 'meme.registry/resolve-by-extension)]
+  (let [explicit (:lang opts)]
     (if explicit
-      (:run (resolve-lang-fn explicit))
-      (when-let [[_name l] (resolve-ext-fn path)]
+      (:run (registry/resolve-lang explicit))
+      (when-let [[_name l] (registry/resolve-by-extension path)]
         (:run l)))))
 
 (defn run-file
   "Read and eval a meme file. Returns the last result."
   ([path] (run-file path {}))
   ([path eval-fn-or-opts]
-   (@(requiring-resolve 'meme.loader/install!))
+   (loader/install!)
    (let [opts (if (map? eval-fn-or-opts) eval-fn-or-opts {:eval eval-fn-or-opts})
          stages-impl (:stages opts)
          reader-opts (default-reader-opts opts)

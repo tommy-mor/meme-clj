@@ -3,6 +3,8 @@
    lang registration."
   (:require [clojure.test :refer [deftest is testing use-fixtures]]
             [meme.registry :as registry]
+            ;; Explicit require triggers :meme self-registration.
+            [meme-lang.api]
             [meme-lang.run :as run]))
 
 (def all-langs
