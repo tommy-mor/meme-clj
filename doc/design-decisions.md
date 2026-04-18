@@ -338,7 +338,7 @@ The printer and formatter were originally one concern: "given a form, produce me
 The three concerns, ranked by how often they change:
 
 1. **Notation** — how the call syntax renders: parens, delimiter placement, `:meme` vs `:clj` mode. This is fixed per language and lives in `meme-lang.printer`. The printer knows *no form names and no slot semantics* beyond its fallback recursion.
-2. **Form-shape** — what the parts of a special form *mean*. A registry keyed by head symbol maps to decomposers; each decomposer emits `[slot-name value]` pairs (e.g. `(defn foo [x] body)` → `[[:name foo] [:params [x]] [:body body]]`). This is language-level semantic vocabulary and lives in `meme-lang.form-shape`. **One per lang** — meme-lang has its own registry; wlj-lang will have its own when its printer materializes.
+2. **Form-shape** — what the parts of a special form *mean*. A registry keyed by head symbol maps to decomposers; each decomposer emits `[slot-name value]` pairs (e.g. `(defn foo [x] body)` → `[[:name foo] [:params [x]] [:body body]]`). This is language-level semantic vocabulary and lives in `meme-lang.form-shape`. **One per lang** — each lang carries its own registry.
 3. **Style** — opinions *per slot name*, not per form. `:head-line-slots #{:name :params ...}` says "keep these slots with the call head on break," and `:force-open-space-for #{:name}` handles the `defn( ` convention. **N per lang** — canon and flat today, compact or project-local styles tomorrow.
 
 The ratio is **N styles : 1 form-shape : 1 lang**. Style and form-shape live at different layers of composition — style is *formatter-owned*, form-shape is *lang-owned* — which is why they're distinct keys in the lang-map rather than folded into one.
@@ -372,7 +372,7 @@ Project-local defaults live in `.meme-format.edn`, consumed by `meme.config` and
 
 The registry (`meme.registry`) owns generic infrastructure: a keyword-to-lang-map index, extension dispatch, user-lang registration via EDN, safety guards.  It does *not* own the list of built-in langs.
 
-Earlier the registry imported `meme-lang.api` and `wlj-lang.api` directly and called `register-builtin!` on each.  That had two costs:
+Earlier the registry imported each built-in's `api` namespace directly (`meme-lang.api`, and at that time a second proof-of-concept lang, `wlj-lang.api`) and called `register-builtin!` on each.  That had two costs:
 
 1. A circular dependency.  The registry imported `meme-lang.api`; `meme-lang.api` transitively used `meme-lang.run`; `meme-lang.run` needed the registry back to dispatch by file extension.  The cycle was worked around with `requiring-resolve` calls in `meme-lang.run`, `meme-lang.repl`, `meme.cli`, and `meme.loader` — four invisible runtime dependencies that didn't show up in the static `:require` graph.
 
@@ -389,7 +389,7 @@ Both problems have the same fix: invert the control.
   (:require [meme.registry :as registry]
             [meme.loader :as loader]
             [meme-lang.api]      ;; side-effect: registers :meme
-            [wlj-lang.api]       ;; side-effect: registers :wlj
+            ;; additional built-ins added the same way
             ...))
 ```
 
@@ -401,7 +401,7 @@ User langs continue to go through `register!`, which validates EDN-style config,
 
 ## Pipeline contracts — declarative requirements, not spec
 
-Each stage in `meme-lang.stages` (and `wlj-lang.stages`) declares its required ctx keys in a public `stage-contracts` map:
+Each stage in `meme-lang.stages` declares its required ctx keys in a public `stage-contracts` map:
 
 ```clojure
 {:step-parse                {:requires #{:source} :produces #{:cst}}

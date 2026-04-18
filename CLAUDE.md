@@ -85,7 +85,7 @@ The generic parser engine, scanlet builders, and render engine live in `meme.too
 The printer/formatter split follows a three-layer model. Each layer owns one concern; they compose via plain data:
 
 1. **Notation** (`meme-lang.printer`) — how a call renders (parens, delimiter placement, `:meme` vs `:clj` mode). Knows nothing about form names or slot semantics beyond the fallback recursion.
-2. **Form-shape** (`meme-lang.form-shape`) — what the parts of a special form *mean*. A registry maps head symbols to decomposers; each decomposer produces `[[slot-name value] ...]`. Lang-owned: meme-lang has its own registry; wlj-lang (when it grows a printer) will have its own. See `doc/form-shape.md` for the slot vocabulary.
+2. **Form-shape** (`meme-lang.form-shape`) — what the parts of a special form *mean*. A registry maps head symbols to decomposers; each decomposer produces `[[slot-name value] ...]`. Lang-owned: each lang carries its own registry. See `doc/form-shape.md` for the slot vocabulary.
 3. **Style** (`meme-lang.formatter.canon/style` and alternatives) — opinions *per slot name*, not per form. `:head-line-slots` keeps named slots with the call head on break; `:force-open-space-for` controls the `head( ` convention; `:slot-renderers` overrides the printer defaults for `:bindings`/`:clause`/custom slots.
 
 All four extension axes compose via `assoc`/`merge` on plain maps: swap a style, extend a registry, opt into structural fallback (`with-structural-fallback`), override one slot's rendering. No printer changes required for any of them.
