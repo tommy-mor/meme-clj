@@ -7,7 +7,6 @@
             ;; Explicit requires trigger self-registration of each built-in
             ;; lang (post-refactor: registry imports no langs).
             [meme-lang.api]
-            [wlj-lang.api]
             [clojure.edn :as edn]
             [clojure.java.io :as io]
             [clojure.string :as str]))
@@ -55,7 +54,7 @@
 (defn- resolve-lang-fns
   "Resolve the API functions for a built-in lang by requiring its namespace.
    Returns a map of {:meme->forms fn, :meme->clj fn, :clj->meme fn}, or nil
-   if the lang has no meme-compatible API (e.g. wlj)."
+   if the lang has no meme-compatible API."
   [lang-kw]
   (when (= lang-kw :meme)
     (let [ns-sym 'meme-lang.api]
@@ -69,7 +68,7 @@
 ;; ---------------------------------------------------------------------------
 
 (defn- lang-extension
-  "Return the primary file extension for a lang-map (e.g. \".meme\", \".wlj\")."
+  "Return the primary file extension for a lang-map (e.g. \".meme\")."
   [lang-map]
   (or (:extension lang-map)
       (first (:extensions lang-map))))

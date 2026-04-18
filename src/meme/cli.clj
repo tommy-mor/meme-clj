@@ -11,7 +11,6 @@
             [meme.config :as config]
             ;; Built-in lang registrations fire on ns-load:
             [meme-lang.api]
-            [wlj-lang.api]
             [clojure.java.io :as io]
             [clojure.string :as str]))
 
