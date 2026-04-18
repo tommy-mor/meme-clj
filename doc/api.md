@@ -366,6 +366,19 @@ Automatically detects guest languages from file extension via `meme.registry/res
 
 Explicit pipeline composition. Each stage is a `ctx → ctx` function operating on a shared context map with keys `:source`, `:opts`, `:cst`, `:forms`.
 
+Each stage validates its required keys at entry against `stage-contracts` — miscomposed pipelines (e.g. calling `step-read` before `step-parse`) throw a clear `:meme-lang/pipeline-error` with the missing key(s) and the actual ctx keys present, instead of surfacing a deep-inside NPE.
+
+### stage-contracts
+
+```clojure
+meme-lang.stages/stage-contracts
+;=> {:step-parse                 {:requires #{:source} :produces #{:cst}}
+;    :step-read                  {:requires #{:cst}    :produces #{:forms}}
+;    :step-expand-syntax-quotes  {:requires #{:forms}  :produces #{:forms}}}
+```
+
+Machine-readable pipeline contract.  Tools that compose custom stages can extend their own contracts in the same shape.
+
 ### step-parse
 
 ```clojure

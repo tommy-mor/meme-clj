@@ -101,6 +101,59 @@
     (is (vector? (:forms (stages/run "+(1 2)"))))))
 
 ;; ---------------------------------------------------------------------------
+;; Pipeline contract — miscomposed stages throw clear errors
+;; ---------------------------------------------------------------------------
+
+(deftest stage-contracts-are-exposed
+  (testing "stage-contracts is public data, one entry per stage"
+    (is (= #{:step-parse :step-read :step-expand-syntax-quotes}
+           (set (keys stages/stage-contracts))))
+    (is (= #{:source} (get-in stages/stage-contracts [:step-parse :requires])))
+    (is (= #{:cst}    (get-in stages/stage-contracts [:step-read :requires])))
+    (is (= #{:forms}  (get-in stages/stage-contracts [:step-expand-syntax-quotes :requires])))))
+
+(deftest step-read-without-parse-throws-pipeline-error
+  (testing "calling step-read without :cst in ctx fails with pipeline-error"
+    (try (stages/step-read {:source "+(1 2)"})
+         (is false "step-read should have thrown")
+         (catch #?(:clj clojure.lang.ExceptionInfo :cljs ExceptionInfo) e
+           (let [data (ex-data e)]
+             (is (= :meme-lang/pipeline-error (:type data)))
+             (is (= :step-read (:stage data)))
+             (is (contains? (set (:missing data)) :cst))
+             (is (re-find #"missing required ctx key" (ex-message e))))))))
+
+(deftest step-expand-without-read-throws-pipeline-error
+  (testing "calling step-expand-syntax-quotes without :forms fails with pipeline-error"
+    (try (stages/step-expand-syntax-quotes {:source "x" :cst []})
+         (is false "step-expand should have thrown")
+         (catch #?(:clj clojure.lang.ExceptionInfo :cljs ExceptionInfo) e
+           (let [data (ex-data e)]
+             (is (= :meme-lang/pipeline-error (:type data)))
+             (is (= :step-expand-syntax-quotes (:stage data)))
+             (is (contains? (set (:missing data)) :forms)))))))
+
+(deftest step-parse-without-source-throws-pipeline-error
+  (testing "calling step-parse without :source fails with pipeline-error"
+    (try (stages/step-parse {})
+         (is false "step-parse should have thrown")
+         (catch #?(:clj clojure.lang.ExceptionInfo :cljs ExceptionInfo) e
+           (let [data (ex-data e)]
+             (is (= :meme-lang/pipeline-error (:type data)))
+             (is (= :step-parse (:stage data)))
+             (is (contains? (set (:missing data)) :source)))))))
+
+(deftest step-parse-with-non-string-source-still-type-checks
+  (testing "type check on :source value runs after presence check"
+    (try (stages/step-parse {:source 42})
+         (is false "step-parse should have thrown")
+         (catch #?(:clj clojure.lang.ExceptionInfo :cljs ExceptionInfo) e
+           (let [data (ex-data e)]
+             (is (= :meme-lang/pipeline-error (:type data)))
+             (is (= :step-parse (:stage data)))
+             (is (re-find #"must be a string" (ex-message e))))))))
+
+;; ---------------------------------------------------------------------------
 ;; Shebang stripping
 ;; ---------------------------------------------------------------------------
 
