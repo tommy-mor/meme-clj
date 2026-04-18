@@ -274,7 +274,7 @@
         head-doc (to-doc-inner head ctx)]
     (if (= mode :clj)
       (call-doc-clj head-doc (mapv #(to-doc-inner % ctx) args))
-      (if-let [slots (form-shape/decompose head args)]
+      (if-let [slots (form-shape/decompose (:form-shape ctx) head args)]
         ;; Slot-aware rendering
         (let [style        (ctx-style ctx)
               head-set     (:head-line-slots style #{})
@@ -512,13 +512,20 @@
    Comments are always emitted — the hardline in comment-doc forces the
    enclosing group to break, so comments are never silently dropped.
 
-   mode is :meme (default) or :clj.
-   style is a map of layout policy (nil = pass-through, no layout opinions).
+   mode        :meme (default) or :clj.
+   style       layout policy map (nil = pass-through, no opinions).
+               Keyed by semantic slot names, not form names.
+   form-shape  registry map (head-symbol → decomposer fn).  When nil,
+               no form is decomposed — every call renders as a plain
+               body sequence.  The lang owns this registry; formatters
+               pass it in.
+
    Formatters own style — see canon and flat formatter modules."
   ([form] (to-doc form :meme))
   ([form mode] (to-doc form mode nil))
-  ([form mode style]
-   (to-doc-inner form {:mode mode, :style style})))
+  ([form mode style] (to-doc form mode style nil))
+  ([form mode style form-shape]
+   (to-doc-inner form {:mode mode, :style style, :form-shape form-shape})))
 
 (defn validate-format-input
   "Guard format-forms input: reject nil, strings, maps, and sets."

@@ -6,6 +6,7 @@
    to Clojure forms."
   (:require [meme-lang.stages :as stages]
             [meme-lang.forms :as forms]
+            [meme-lang.form-shape :as form-shape]
             [meme-lang.formatter.flat :as fmt-flat]
             [meme-lang.formatter.canon :as fmt-canon]
             [meme-lang.expander :as expander]
@@ -125,11 +126,15 @@
      ([source _opts] (to-meme source))))
 
 (def lang-map
-  "Command map for the meme lang."
+  "Command map for the meme lang.
+   :form-shape is the lang-owned semantic vocabulary — tools (formatter,
+   future LSP/lint) consume it to know how this lang decomposes its
+   special forms."
   {:extension ".meme"
    :extensions [".memec" ".memej" ".memejs"]
-   :format  format-meme
-   :to-clj  to-clj
+   :format     format-meme
+   :to-clj     to-clj
+   :form-shape form-shape/registry
    #?@(:clj [:to-meme to-meme
               :run     (fn [source opts] (run/run-string source opts))
               :repl    (fn [opts] (repl/start opts))])})

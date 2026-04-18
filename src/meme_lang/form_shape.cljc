@@ -239,9 +239,17 @@
            (repeat decompose-threading))))
 
 (defn decompose
-  "Decompose a call (head + args) into labeled semantic slots.
-   Returns a vector of [slot-name value] pairs in source order, or nil
-   if no decomposer is registered or the decomposer rejects the shape."
-  [head args]
-  (when-let [f (get registry head)]
-    (f (vec args))))
+  "Look up the decomposer for `head` in the given registry and apply it
+   to `args`.  Returns a vector of [slot-name value] pairs in source
+   order, or nil if no decomposer is registered or the decomposer
+   rejects the shape.
+
+   The registry is passed in explicitly so that each lang supplies its
+   own form-shape vocabulary (see `meme-lang.form-shape/registry` for
+   the meme-lang built-in).  When `registry` is nil — e.g. a bare call
+   to `printer/to-doc` without a lang in play — every head is treated
+   as having no shape."
+  [registry head args]
+  (when (and registry (some? head))
+    (when-let [f (get registry head)]
+      (f (vec args)))))

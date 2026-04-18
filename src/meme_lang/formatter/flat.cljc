@@ -1,14 +1,19 @@
 (ns meme-lang.formatter.flat
   "Flat formatter: single-line meme output — true pass-through.
    Composes printer (form → Doc) with render (layout @ infinite width).
-   No style opinions: no definition-form spacing, no head-line splitting."
+   No style opinions: no definition-form spacing, no head-line splitting.
+
+   Form-shape decomposition still runs so semantic slots like :bindings
+   and :clause render correctly (binding vectors, case/cond pairs); flat
+   layout at infinite width produces the same result regardless."
   (:require [meme-lang.printer :as printer]
+            [meme-lang.form-shape :as form-shape]
             [meme.tools.render :as render]))
 
 (defn format-form
   "Format a single Clojure form as flat meme text (single-line, no style)."
   [form]
-  (render/layout (printer/to-doc form :meme) ##Inf))
+  (render/layout (printer/to-doc form :meme nil form-shape/registry) ##Inf))
 
 (defn format-forms
   "Format Clojure forms as flat meme text, separated by blank lines.
@@ -24,5 +29,5 @@
   [forms]
   (printer/validate-format-input forms)
   (printer/join-with-trailing-comments
-   #(render/layout (printer/to-doc % :clj) ##Inf)
+   #(render/layout (printer/to-doc % :clj nil form-shape/registry) ##Inf)
    forms))

@@ -144,10 +144,17 @@ Low-level Doc tree builder. Most callers should use `formatter.flat` or `formatt
 ### to-doc
 
 ```clojure
+(meme-lang.printer/to-doc form)
 (meme-lang.printer/to-doc form mode)
+(meme-lang.printer/to-doc form mode style)
+(meme-lang.printer/to-doc form mode style form-shape)
 ```
 
-Convert a Clojure form to a Wadler-Lindig Doc tree. `mode` is `:meme` (call notation) or `:clj` (standard Clojure with reader sugar). The Doc tree is passed to `meme.tools.render/layout` for final string output.
+Convert a Clojure form to a Wadler-Lindig Doc tree. The Doc tree is passed to `meme.tools.render/layout` for final string output.
+
+- `mode` — `:meme` (call notation, default) or `:clj` (standard Clojure with reader sugar).
+- `style` — layout policy map (nil = pass-through). Keyed by semantic slot names from `meme-lang.form-shape` (`:name`, `:params`, `:bindings`, etc.), not by form names. See `meme-lang.formatter.canon/style` for the canonical policy.
+- `form-shape` — registry map `{head-symbol → decomposer-fn}`. When nil, no special-form decomposition runs and every call renders as a plain body sequence. Callers normally pass `meme-lang.form-shape/registry`; the lang's `lang-map` exposes its registry under `:form-shape`.
 
 ### extract-comments
 
@@ -213,6 +220,7 @@ Format a single Clojure form as canonical meme text. Width-aware — uses indent
 
 Options:
 - `:width` — target line width (default: 80)
+- `:form-shape` — form-shape registry (default: `meme-lang.form-shape/registry`). Override to add user-defined defining macros or to disable decomposition entirely (pass `nil` for plain-call layout).
 
 ### format-forms
 
