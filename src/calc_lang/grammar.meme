@@ -10,7 +10,7 @@ ns( calc-lang.grammar
 defn-( adjacent?
   "True when no trivia separates head from opening paren."
   [engine]
-  empty?(clojure.core/deref(:trivia-acc(engine)))
+  not(pratt/trivia-pending?(engine))
 )
 
 def( ^:private next-is-eq? pratt/next-char-is?(\=))

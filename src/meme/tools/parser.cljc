@@ -125,6 +125,13 @@
   [engine]
   (>= @(:pos engine) (:len engine)))
 
+(defn trivia-pending?
+  "True if trivia tokens have accumulated since the last non-trivia token.
+   Language grammars use this to implement adjacency predicates (e.g. meme's
+   `f(` vs `f (` distinction)."
+  [engine]
+  (boolean (seq @(:trivia-acc engine))))
+
 (defn source-str
   "The full source string."
   [engine]

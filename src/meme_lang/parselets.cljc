@@ -13,9 +13,9 @@
 
 (defn adjacent?
   "Call predicate: ( is a call only when no trivia was accumulated since
-   the last expression ended. Checks the engine's trivia accumulator."
+   the last expression ended."
   [engine]
-  (empty? @(:trivia-acc engine)))
+  (not (pratt/trivia-pending? engine)))
 
 (defn sign-followed-by-digit?
   "True if ch is + or - and the next char in engine is a digit."
