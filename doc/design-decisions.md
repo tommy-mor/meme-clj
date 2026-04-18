@@ -399,6 +399,24 @@ Why a side-effecting ns-load instead of, say, declarative metadata?  Because Clo
 
 User langs continue to go through `register!`, which validates EDN-style config, resolves symbols, and refuses to shadow built-ins.  The two registration paths serve different audiences: `register-builtin!` for langs that ship as code in the same process, `register!` for langs declared via EDN config.
 
+## Pipeline contracts — declarative requirements, not spec
+
+Each stage in `meme-lang.stages` (and `wlj-lang.stages`) declares its required ctx keys in a public `stage-contracts` map:
+
+```clojure
+{:step-parse                {:requires #{:source} :produces #{:cst}}
+ :step-read                 {:requires #{:cst}    :produces #{:forms}}
+ :step-expand-syntax-quotes {:requires #{:forms}  :produces #{:forms}}}
+```
+
+Stages call `check-contract!` at entry and throw `:meme-lang/pipeline-error` with the missing key(s) and the actual ctx keys present.  Miscomposed pipelines (e.g. calling `step-read` before `step-parse`) surface their mistake at the point of composition instead of raising a deep-inside NPE.
+
+A heavier spec-based validation (PL8 in `PRD.md`) was tried and removed during an earlier refactor.  This replacement is deliberately lighter:
+
+- **Only `:requires` is runtime-enforced.**  `:produces` is documentation — if a stage fails to produce what it claims, the next stage's `:requires` check catches it, so post-condition checks would be redundant.
+- **Presence, not type.**  Type-specific checks stay inline in the stages that need them (e.g. `step-parse` still verifies `(string? source)` after the presence check).  Generalizing to types would re-introduce a schema language without clear payoff.
+- **Data, not macros.**  `stage-contracts` is a plain map.  Custom stages for lang extensions can extend their own contracts in the same shape without adopting a DSL.
+
 ## Lang backend
 
 meme uses a single implementation of the meme↔Clojure translation, registered as `:meme` in the lang registry.
