@@ -36,15 +36,23 @@
   "Format a single Clojure form as canonical meme text.
    Width-aware — uses indented multi-line layout for forms that exceed width.
    Preserves comments from :meme-lang/leading-trivia metadata.
-   opts: {:width 80 :form-shape reg} or bare integer width.
-   :form-shape overrides the default meme-lang registry (e.g. to add
-   user-defined defining macros)."
+
+   opts: {:width 80 :form-shape reg :style s} or bare integer width.
+     :width       target line width (default 80)
+     :form-shape  registry (default meme-lang.form-shape/registry).  Pass
+                  a custom registry to teach canon about user macros or
+                  pass (with-structural-fallback ...) to infer shapes for
+                  unregistered heads.  Pass nil to disable decomposition.
+     :style       slot-keyed style map (default this namespace's `style`).
+                  Useful for project-level tweaks like custom slot renderers
+                  or a narrower :head-line-slots set."
   ([form] (format-form form nil))
   ([form opts]
    (let [opts       (if (integer? opts) {:width opts} opts)
          width      (or (:width opts) default-width)
-         form-shape (:form-shape opts form-shape/registry)]
-     (render/layout (printer/to-doc form :meme style form-shape) width))))
+         form-shape (:form-shape opts form-shape/registry)
+         effective  (:style opts style)]
+     (render/layout (printer/to-doc form :meme effective form-shape) width))))
 
 (defn format-forms
   "Format a sequence of Clojure forms as canonical meme text,

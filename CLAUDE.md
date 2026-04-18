@@ -80,6 +80,16 @@ The pipeline is lossless (CST preserves all tokens including delimiters and triv
 
 The generic parser engine, scanlet builders, and render engine live in `meme.tools.*` — they are language-agnostic and reusable. Meme-specific grammar, scanlets (lexlets), parselets, and CST reader live in `meme-lang.*`.
 
+### Formatter architecture — three layers
+
+The printer/formatter split follows a three-layer model. Each layer owns one concern; they compose via plain data:
+
+1. **Notation** (`meme-lang.printer`) — how a call renders (parens, delimiter placement, `:meme` vs `:clj` mode). Knows nothing about form names or slot semantics beyond the fallback recursion.
+2. **Form-shape** (`meme-lang.form-shape`) — what the parts of a special form *mean*. A registry maps head symbols to decomposers; each decomposer produces `[[slot-name value] ...]`. Lang-owned: meme-lang has its own registry; wlj-lang (when it grows a printer) will have its own. See `doc/form-shape.md` for the slot vocabulary.
+3. **Style** (`meme-lang.formatter.canon/style` and alternatives) — opinions *per slot name*, not per form. `:head-line-slots` keeps named slots with the call head on break; `:force-open-space-for` controls the `head( ` convention; `:slot-renderers` overrides the printer defaults for `:bindings`/`:clause`/custom slots.
+
+All four extension axes compose via `assoc`/`merge` on plain maps: swap a style, extend a registry, opt into structural fallback (`with-structural-fallback`), override one slot's rendering. No printer changes required for any of them.
+
 - The reader is a **pure function** from meme text to Clojure forms. No runtime dependency. No `read-string` delegation — everything is parsed natively.
 - A printer (`meme-lang.printer`) converts Clojure forms back to meme syntax (also pure). Supports `:meme` and `:clj` output modes.
 - **Syntactic transparency:** meme is a syntactic lens — the stages must preserve the user's syntax choices. When two notations produce the same Clojure form (e.g., `'x` sugar vs `quote(x)` call), the reader tags the form with `:meme-lang/sugar` metadata so the printer can reconstruct the original notation. See `doc/design-decisions.md` for the full principle. Any new syntax feature with multiple representations MUST preserve the distinction via metadata.
@@ -106,10 +116,11 @@ The generic parser engine, scanlet builders, and render engine live in `meme.too
 - `meme-lang.stages` (.cljc) — Composable pipeline stages: `step-parse`, `step-read`, `step-expand-syntax-quotes`. Each is `ctx → ctx`. Also provides `run` which composes parse → read. Portable.
 - `meme-lang.cst-reader` (.cljc) — CST reader: walks CST nodes and produces Clojure forms. Handles value resolution, metadata, syntax-quote AST nodes, anonymous functions, namespaced maps, reader conditionals. Portable.
 - `meme-lang.forms` (.cljc) — Shared form-level predicates, constructors, and constants. Cross-stage contracts that both the parser and printer depend on (e.g. deferred auto-resolve keyword encoding, `percent-param-type`, `strip-internal-meta`). Portable.
+- `meme-lang.form-shape` (.cljc) — Semantic decomposition of special forms into named slots (`:name`, `:params`, `:bindings`, `:clause`, `:body`, etc.). The middle layer between notation (printer) and style (formatter). Owns the stable slot vocabulary consumed by the printer and opined on by styles. `registry` is the built-in meme decomposer map; `decompose` looks up a head and applies its decomposer; `with-structural-fallback` enables inference for user macros whose shape resembles `defn` or `let`. See `doc/form-shape.md`. Portable.
 - `meme-lang.errors` (.cljc) — Error infrastructure: `meme-error` (throw with consistent `:line`/`:col` ex-data), `format-error` (display with source context and caret), `source-context`. Uses the **display line model** (`str/split-lines` — splits on `\n` and `\r\n`). `format-error` bridges scanner positions to display: clamps carets when scanner col exceeds display line length (CRLF). Used by scanner, reader, and REPL. Portable.
 - `meme-lang.resolve` (.cljc) — Native value resolution: converts raw token text to Clojure values. No `read-string` delegation — numbers, strings, chars, regex, keywords, tagged literals all resolved natively. Handles platform asymmetries (JVM vs CLJS). Portable.
 - `meme-lang.expander` (.cljc) — Syntax-quote expansion: `MemeSyntaxQuote` AST nodes → plain Clojure forms (`seq`/`concat`/`list`). Called by runtime paths (run, repl) before eval. Also unwraps `MemeRaw` to plain values. Portable.
-- `meme-lang.printer` (.cljc) — Wadler-Lindig Doc tree builder: `to-doc` (form → Doc tree) + `extract-comments`. Single source of truth for meme and Clojure output modes. Delegates layout to `meme.tools.render`. Portable.
+- `meme-lang.printer` (.cljc) — Wadler-Lindig Doc tree builder: `to-doc` (form → Doc tree) + `extract-comments`. Single source of truth for meme and Clojure output modes. Delegates layout to `meme.tools.render`. Dispatches on form-shape slots (from the registry passed via ctx) and applies style's slot-keyed opinions; `default-slot-renderers` provides defaults for `:bindings` and `:clause` that styles can override via `:slot-renderers`. Portable.
 - `meme-lang.values` (.cljc) — Shared value → string serialization for the printer. Handles atomic Clojure values (strings, numbers, chars, regex). Portable.
 - `meme-lang.formatter.flat` (.cljc) — Flat formatter: composes printer + render at infinite width. `format-form`, `format-forms`, `format-clj`. Single-line output. Portable.
 - `meme-lang.formatter.canon` (.cljc) — Canonical formatter: composes printer + render at target width. `format-form`, `format-forms`. Width-aware multi-line output. Used by `meme format` CLI. Portable.
@@ -128,7 +139,7 @@ The generic parser engine, scanlet builders, and render engine live in `meme.too
 | Tier | Modules | Platforms |
 |------|---------|-----------|
 | Generic tools | meme.tools.{parser, lexer, render} | JVM, Babashka, ClojureScript |
-| Core translation | meme-lang.{api, grammar, lexlets, parselets, stages, cst-reader, forms, errors, resolve, expander, printer, values, formatter.flat, formatter.canon} | JVM, Babashka, ClojureScript |
+| Core translation | meme-lang.{api, grammar, lexlets, parselets, stages, cst-reader, forms, form-shape, errors, resolve, expander, printer, values, formatter.flat, formatter.canon} | JVM, Babashka, ClojureScript |
 | Runtime | meme.tools.{run, repl}, meme-lang.{run, repl}, meme.{registry, cli, loader} | JVM, Babashka |
 | Test infra | meme.test-runner, dogfood-test, vendor-roundtrip-test | JVM only |
 
@@ -138,6 +149,7 @@ The generic parser engine, scanlet builders, and render engine live in `meme.too
 - `doc/language-reference.md` — Complete syntax reference for writing .meme code.
 - `doc/design-decisions.md` — Rationale for each design choice.
 - `doc/api.md` — Public API reference.
+- `doc/form-shape.md` — Slot vocabulary, three-layer formatter architecture, and extension patterns (custom decomposers, structural fallback, slot renderers).
 
 ## Testing conventions
 
@@ -162,6 +174,8 @@ Tests are split across `test/meme_lang/` (language-specific) and `test/meme/` (i
 | `meme_lang/reader/errors_test` | Error cases, rejected forms (unquote outside backtick), error messages with locations, CLJS-specific errors |
 | `meme_lang/expander_test` | Syntax-quote expansion: `expand-forms` passthrough, `MemeSyntaxQuote` expansion, `MemeRaw` unwrapping |
 | `meme_lang/resolve_test` | Value resolution: numbers, strings, chars, regex, keywords, tagged literals |
+| `meme_lang/form_shape_test` | Form-shape decomposition: per-form decomposer output, structural fallback, registry extension |
+| `meme_lang/printer_test` | Printer-level seams: `:slot-renderers` override, default slot renderers, unknown-slot fallback |
 | `meme_lang/formatter/flat_test` | Flat formatter: single-line meme/clj output, reader sugar, individual form cases |
 | `meme_lang/formatter/canon_test` | Canonical formatter: width-aware formatting, multi-line layout, comments |
 | `meme/tools/render_test` | Doc algebra and layout engine |
@@ -179,6 +193,7 @@ Tests are split across `test/meme_lang/` (language-specific) and `test/meme/` (i
 | `e2e/cli_test` | End-to-end CLI integration tests. JVM only. |
 | `meme_lang/repl_test` | REPL infrastructure (`input-state`, `read-input`). JVM only. |
 | `meme_lang/run_test` | File runner: `run-string`, `run-file`, shebang handling, custom eval-fn |
+| `meme/loader_test` | Namespace loader: `load` interception, classpath `.meme` discovery, `install!`/`uninstall!` lifecycle. JVM/Babashka. |
 | `meme/examples_test` | Integration scenarios, multi-feature examples |
 | `meme/emit_fixtures_test` | meme↔clj conversion fixture validation. JVM only. |
 | `meme/dogfood_test` | Meta: meme roundtrips its own source files |

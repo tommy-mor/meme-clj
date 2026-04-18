@@ -137,6 +137,44 @@ Convert a Clojure source string to meme source string. JVM/Babashka only. Equiva
 ;=> "defn(f [x] +(x 1))"
 ```
 
+## meme-lang.form-shape
+
+Semantic decomposition of Clojure special forms into named slots. See [doc/form-shape.md](form-shape.md) for the slot vocabulary, extension patterns, and consumer sketches. The three slot layers — notation (printer), form-shape (this namespace), style (formatter) — are independently composable.
+
+### registry
+
+```clojure
+meme-lang.form-shape/registry
+```
+
+The built-in registry of decomposers, a plain map `{head-symbol → (fn [args-vec] → slots)}`. Extend with `assoc`, compose with `merge`, or wrap with `with-structural-fallback`. Consumed by `lang-map`'s `:form-shape` key and threaded through formatters to the printer.
+
+### decompose
+
+```clojure
+(meme-lang.form-shape/decompose registry head args)
+```
+
+Look up `head` in `registry` and apply its decomposer to `args`. Returns a vector of `[slot-name value]` pairs in source order, or `nil` if no decomposer matches (and no structural fallback is installed). A nil `registry` yields nil for every head — every form renders as a plain call.
+
+When the registry carries a `::fallback-fn` in its metadata (see `with-structural-fallback`), a missed lookup consults the fallback; this lets user macros inherit layout from structural shape alone.
+
+### with-structural-fallback
+
+```clojure
+(meme-lang.form-shape/with-structural-fallback registry)
+```
+
+Return a registry (same entries) that uses structural inference when no entry matches a given head. Two patterns are recognized:
+
+- `(HEAD name [params] body*)` — inferred as defn-like
+- `(HEAD [bindings] body*)` — inferred as let-like
+
+A user macro matching either pattern inherits canonical layout without being registered. Other shapes return nil (plain-call rendering).
+
+Opt-in: the built-in `registry` has no fallback by default, so existing code doesn't silently change layout for user macros.
+
+
 ## meme-lang.printer
 
 Low-level Doc tree builder. Most callers should use `formatter.flat` or `formatter.canon` instead.
@@ -221,6 +259,7 @@ Format a single Clojure form as canonical meme text. Width-aware — uses indent
 Options:
 - `:width` — target line width (default: 80)
 - `:form-shape` — form-shape registry (default: `meme-lang.form-shape/registry`). Override to add user-defined defining macros or to disable decomposition entirely (pass `nil` for plain-call layout). Wrap with `meme-lang.form-shape/with-structural-fallback` to enable structural inference for user macros that mirror `defn` (name + params vector) or `let` (leading bindings vector) shapes.
+- `:style` — slot-keyed style map (default: `meme-lang.formatter.canon/style`). Override for project-level tweaks — e.g. a narrower `:head-line-slots` set, or a custom `:slot-renderers` map that replaces the printer defaults for `:bindings` or `:clause`. See [form-shape.md](form-shape.md) for the style map schema.
 
 ### format-forms
 
