@@ -208,20 +208,48 @@
     :else
     (render/doc-cat doc-caret (to-doc-form m ctx))))
 
-(defn- slot->doc
-  "Render a form-shape slot value to a Doc.
+;; ---------------------------------------------------------------------------
+;; Slot renderers — per-slot display logic, style-overridable
+;; ---------------------------------------------------------------------------
+;; Each renderer is (fn [value ctx] → Doc).  The defaults implement the
+;; structural meaning of each slot (a :clause value is a pair; a :bindings
+;; value is a columnar-laid-out binding vector).  A style may override any
+;; slot via its :slot-renderers map — the printer merges style overrides
+;; over these defaults, so partial overrides compose.
 
-   Clauses (`:clause`) and bindings (`:bindings`) are semantically
-   structural — the decomposer labels them and the printer honors the
-   structure regardless of style.  Pair values like `[test value]` render
-   as `test value` on one line; binding vectors use columnar layout.
-   All other slots delegate to `to-doc-inner`."
+(defn- bindings-slot-renderer
+  "Render a :bindings slot value as a columnar pair-per-line binding vector."
+  [value ctx]
+  (binding-vector-doc value ctx))
+
+(defn- clause-slot-renderer
+  "Render a :clause slot value (a [test value] pair) as `test value`
+   joined by a single space.  Doc algebra handles flat vs broken layout
+   via the enclosing group."
+  [value ctx]
+  (let [[a b] value]
+    (render/doc-cat (to-doc-inner a ctx) doc-space (to-doc-inner b ctx))))
+
+(def default-slot-renderers
+  "Default per-slot structural renderers, keyed by slot name (see
+   `meme-lang.form-shape` for the vocabulary).  Each renderer is
+   `(fn [value ctx] → Doc)`.  Styles extend or override this map via
+   their `:slot-renderers` key; the printer merges overrides over these
+   defaults, so a style that overrides only one slot keeps the rest."
+  {:bindings bindings-slot-renderer
+   :clause   clause-slot-renderer})
+
+(defn- slot->doc
+  "Render a form-shape slot entry.  Order of resolution:
+     1. style's `:slot-renderers` override for this slot name
+     2. the printer's `default-slot-renderers`
+     3. plain recursive rendering via `to-doc-inner`"
   [[slot-name value] ctx]
-  (case slot-name
-    :bindings (binding-vector-doc value ctx)
-    :clause   (let [[a b] value]
-                (render/doc-cat (to-doc-inner a ctx) doc-space (to-doc-inner b ctx)))
-    (to-doc-inner value ctx)))
+  (let [overrides (get-in ctx [:style :slot-renderers])]
+    (if-let [renderer (or (get overrides slot-name)
+                          (get default-slot-renderers slot-name))]
+      (renderer value ctx)
+      (to-doc-inner value ctx))))
 
 (defn- body-sequence-doc
   "Render a sequence of arg-docs as a parenthesized body with all args
