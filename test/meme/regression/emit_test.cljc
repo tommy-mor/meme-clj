@@ -373,6 +373,40 @@
              "regex behavior should be preserved")))))
 
 ;; ---------------------------------------------------------------------------
+;; Scar tissue: regex roundtrip matrix — an external audit suggested
+;; emit-regex-str was mis-escaping backslashes.  It was not; the existing
+;; code correctly roundtrips the full range of real-world regex shapes
+;; (escapes, character classes, alternation, anchors, unicode).  This
+;; test locks the matrix in so a future refactor of emit-regex-str
+;; cannot silently break any of these cases.
+;; ---------------------------------------------------------------------------
+
+#?(:clj
+   (deftest regex-roundtrip-matrix
+     (doseq [[label p] [["escape: \\n (newline)"      #"\n"]
+                        ["escape: \\d (digit class)"  #"\d+"]
+                        ["literal: \\\\n (bs + n)"    #"\\n"]
+                        ["four backslashes"           #"\\\\"]
+                        ["escaped quote: \\\""        #"a\"b"]
+                        ["char class"                 #"[a-z]+"]
+                        ["alternation"                #"a|b"]
+                        ["anchors"                    #"^foo$"]
+                        ["empty pattern"              #""]
+                        ["unicode escape"             #"\u00A0"]
+                        ["named group"                #"(?<name>\w+)"]
+                        ["non-capturing group"        #"(?:a|b)"]]]
+       (testing label
+         (let [printed (fmt-flat/format-form p)
+               forms (lang/meme->forms printed)
+               reparsed (first forms)]
+           (is (some? reparsed) (str "printed output must parse: " printed))
+           (is (instance? java.util.regex.Pattern reparsed)
+               "reparsed form must be a Pattern")
+           (is (= (.pattern ^java.util.regex.Pattern p)
+                  (.pattern ^java.util.regex.Pattern reparsed))
+               "pattern source must be identical after roundtrip"))))))
+
+;; ---------------------------------------------------------------------------
 ;; Scar tissue: #() shorthand in :clj mode wrapped the body in extra parens.
 ;; (fn [%1] (+ %1 1)) with :meme-lang/sugar printed as #((+ %1 1)) instead of
 ;; #(+ %1 1). In Clojure, #((f)) calls the result of (f) — different semantics.

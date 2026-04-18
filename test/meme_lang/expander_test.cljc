@@ -419,3 +419,47 @@
              expanded (expander/expand-forms forms)
              result (first expanded)]
          (is (= 511 result) "unquoted octal literal should expand to plain number")))))
+
+;; ---------------------------------------------------------------------------
+;; Scar tissue: empty unquote-splice behavior.
+;;
+;; An external audit suggested that `(~@[]) expands to (nil) in meme.  That
+;; claim was twice wrong:
+;;   (a) meme cannot parse `(~@[])` — bare parens without a head are rejected
+;;       by meme's core rule ("every (...) needs a head");
+;;   (b) Clojure itself returns nil (not ()) for `(~@[]), so even if meme
+;;       could parse it, matching Clojure's expansion would be the correct
+;;       outcome.
+;;
+;; For shapes meme CAN express (vectors, sets, calls), empty splices
+;; produce the expected empty/minimal collection.  Lock the matrix in
+;; so a future expander refactor doesn't break Clojure-compatibility.
+;; ---------------------------------------------------------------------------
+
+#?(:clj
+   (deftest empty-splice-expansion-matrix
+     (doseq [[label src expected] [["vector with only empty splice"
+                                    "`[~@[]]"
+                                    []]
+                                   ["vector mixing literal and empty splice"
+                                    "`[a ~@[]]"
+                                    ;; meme's syntax-quote without a resolver
+                                    ;; keeps symbols unqualified — expected is
+                                    ;; the quoted unqualified symbol, not `a
+                                    ;; (which Clojure's reader would resolve).
+                                    '[a]]
+                                   ["set with empty splice"
+                                    "`#{~@[]}"
+                                    #{}]
+                                   ["call-form with empty splice evaluates correctly"
+                                    "`list(~@[])"
+                                    '(list)]
+                                   ["vector with non-empty splice"
+                                    "`[~@[1 2 3]]"
+                                    [1 2 3]]]]
+       (testing label
+         (let [forms (lang/meme->forms src)
+               expanded (expander/expand-forms forms)
+               value (eval (first expanded))]
+           (is (= expected value)
+               (str "`" src "` must evaluate to " (pr-str expected))))))))
