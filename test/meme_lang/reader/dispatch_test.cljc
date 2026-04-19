@@ -188,45 +188,38 @@
              reparsed (lang/meme->forms printed)]
          (is (= forms reparsed))))))
 
+;; ---------------------------------------------------------------------------
+;; Reader conditionals — meme->forms always returns MemeReaderConditional
+;; records. step-evaluate-reader-conditionals materializes them for eval
+;; paths (see stages-test and run-test for that coverage).
+;; ---------------------------------------------------------------------------
+
 (deftest parse-reader-conditional
-  (testing "returns matching platform value"
-    (is (= #?(:clj 1 :cljs 2) (first (lang/meme->forms "#?(:clj 1 :cljs 2)"))))))
-
-;; Splicing at top level splices into the forms vector.
-(deftest parse-reader-conditional-splicing
-  (testing "splicing at top level splices into forms vector"
-    (is (= #?(:clj [1 2] :cljs [3 4]) (lang/meme->forms "#?@(:clj [1 2] :cljs [3 4])")))))
-
-;; ---------------------------------------------------------------------------
-;; :read-cond :preserve — return ReaderConditional objects
-;; ---------------------------------------------------------------------------
-
-(deftest parse-reader-conditional-preserve
-  (testing "preserve returns a ReaderConditional with all branches"
-    (let [rc (first (lang/meme->forms "#?(:clj 1 :cljs 2)" {:read-cond :preserve}))]
+  (testing "preserves as a ReaderConditional record with all branches"
+    (let [rc (first (lang/meme->forms "#?(:clj 1 :cljs 2)"))]
       (is (forms/meme-reader-conditional? rc))
       (is (= '(:clj 1 :cljs 2) (forms/rc-form rc)))
       (is (false? (forms/rc-splicing? rc)))))
-  (testing "preserve with :default key"
-    (let [rc (first (lang/meme->forms "#?(:clj 1 :default 0)" {:read-cond :preserve}))]
+  (testing "preserves :default branch"
+    (let [rc (first (lang/meme->forms "#?(:clj 1 :default 0)"))]
       (is (forms/meme-reader-conditional? rc))
       (is (= '(:clj 1 :default 0) (forms/rc-form rc))))))
 
-(deftest parse-reader-conditional-preserve-splicing
-  (testing "preserve splicing variant"
-    (let [rc (first (lang/meme->forms "#?@(:clj [1] :cljs [2])" {:read-cond :preserve}))]
+(deftest parse-reader-conditional-splicing
+  (testing "splicing variant preserves as a record with splicing=true"
+    (let [rc (first (lang/meme->forms "#?@(:clj [1] :cljs [2])"))]
       (is (forms/meme-reader-conditional? rc))
       (is (true? (forms/rc-splicing? rc)))
       (is (= '(:clj [1] :cljs [2]) (forms/rc-form rc))))))
 
-(deftest parse-reader-conditional-preserve-meme-syntax
+(deftest parse-reader-conditional-meme-syntax
   (testing "inner forms use meme call syntax"
-    (let [rc (first (lang/meme->forms "#?(:clj inc(1) :cljs dec(2))" {:read-cond :preserve}))]
+    (let [rc (first (lang/meme->forms "#?(:clj inc(1) :cljs dec(2))"))]
       (is (= '(:clj (inc 1) :cljs (dec 2)) (forms/rc-form rc))))))
 
-(deftest parse-reader-conditional-preserve-nested
-  (testing "nested #? in preserve mode"
-    (let [rc (first (lang/meme->forms "#?(:clj #?(:clj 1 :cljs 2) :cljs 3)" {:read-cond :preserve}))]
+(deftest parse-reader-conditional-nested
+  (testing "nested #? both preserved as records"
+    (let [rc (first (lang/meme->forms "#?(:clj #?(:clj 1 :cljs 2) :cljs 3)"))]
       (is (forms/meme-reader-conditional? rc))
       (let [inner (second (forms/rc-form rc))]
         (is (forms/meme-reader-conditional? inner))

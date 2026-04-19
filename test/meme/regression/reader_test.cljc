@@ -299,56 +299,66 @@
 
 ;; ---------------------------------------------------------------------------
 ;; Scar tissue: #? reader conditionals lost non-matching branches on roundtrip.
-;; Without :read-cond :preserve, meme->forms evaluates #? at read time,
-;; discarding branches for other platforms. clj->meme->clj roundtrip was lossy.
-;; Fix: added :read-cond :preserve option to return ReaderConditional objects.
+;; Bug: the reader used to evaluate #? at read time, discarding branches for
+;; other platforms, so clj→meme→clj lost information.
+;; Fix: the reader now always preserves #? as a MemeReaderConditional record;
+;; step-evaluate-reader-conditionals materializes the platform branch only on
+;; eval paths. Tooling paths see the full record.
 ;; ---------------------------------------------------------------------------
 
-(deftest reader-conditional-preserve-mode
-  (testing "preserve mode returns ReaderConditional, not the evaluated branch"
-    (let [rc (first (lang/meme->forms "#?(:clj 1 :cljs 2)" {:read-cond :preserve}))]
+(deftest reader-conditional-preserves-as-record
+  (testing "meme->forms returns a ReaderConditional with all branches"
+    (let [rc (first (lang/meme->forms "#?(:clj 1 :cljs 2)"))]
       (is (forms/meme-reader-conditional? rc))
       (is (= '(:clj 1 :cljs 2) (forms/rc-form rc)))))
-  (testing "default mode still evaluates (backwards compat)"
-    (let [result (first (lang/meme->forms "#?(:clj 1 :cljs 2)"))]
-      (is (not (forms/meme-reader-conditional? result)))
-      (is (= #?(:clj 1 :cljs 2) result))))
-  (testing "preserve roundtrips through printer"
-    (let [rc (first (lang/meme->forms "#?(:clj inc(1) :cljs dec(2))" {:read-cond :preserve}))
+  (testing "meme->forms + eval-rc step yields the platform branch"
+    (let [ctx    (-> {:source "#?(:clj 1 :cljs 2)" :opts nil}
+                     stages/step-parse
+                     stages/step-read
+                     stages/step-evaluate-reader-conditionals)]
+      (is (= [#?(:clj 1 :cljs 2)] (:forms ctx)))))
+  (testing "record roundtrips through printer"
+    (let [rc (first (lang/meme->forms "#?(:clj inc(1) :cljs dec(2))"))
           printed (fmt-flat/format-form rc)
-          rc2 (first (lang/meme->forms printed {:read-cond :preserve}))]
+          rc2 (first (lang/meme->forms printed))]
       (is (= rc rc2)))))
 
 ;; ---------------------------------------------------------------------------
-;; Scar tissue: non-matching reader conditional must produce no form.
-;; Bug: parse-reader-cond-eval returned (list) on no-match instead of
-;; discard-sentinel, injecting an empty list '() into the output.
-;; Fix: return discard-sentinel when no branch matches.
+;; Scar tissue: non-matching reader conditional must produce no form *after
+;; evaluation*. At the reader level it is preserved as a record; the eval-rc
+;; step removes non-matching branches.
 ;; ---------------------------------------------------------------------------
 
-;; Non-matching reader conditionals produce no value — filtered by
-;; splice-and-filter at collection level and read-forms at top level.
-
-(deftest non-matching-reader-cond-produces-no-form
-  (testing "non-matching platform produces no form"
-    (is (= [] (lang/meme->forms #?(:clj "#?(:cljs x)" :cljs "#?(:clj x)")))))
-  (testing "non-matching inside vector is filtered"
-    (is (= [[1 3]] (lang/meme->forms #?(:clj "[1 #?(:cljs 2) 3]"
-                                         :cljs "[1 #?(:clj 2) 3]"))))))
+(deftest non-matching-reader-cond-produces-no-form-after-eval
+  (testing "eval-rc drops a non-matching reader-conditional at top level"
+    (let [src #?(:clj "#?(:cljs x)" :cljs "#?(:clj x)")
+          ctx (-> {:source src :opts nil}
+                  stages/step-parse
+                  stages/step-read
+                  stages/step-evaluate-reader-conditionals)]
+      (is (= [] (:forms ctx)))))
+  (testing "eval-rc filters a non-matching reader-conditional from inside a vector"
+    (let [src #?(:clj "[1 #?(:cljs 2) 3]" :cljs "[1 #?(:clj 2) 3]")
+          ctx (-> {:source src :opts nil}
+                  stages/step-parse
+                  stages/step-read
+                  stages/step-evaluate-reader-conditionals)]
+      (is (= [[1 3]] (:forms ctx))))))
 
 ;; ---------------------------------------------------------------------------
-;; Scar tissue: #_ inside reader conditional.
-;; Design decision: #_ inside reader cond consumes the next form within the
-;; cond body. #?(:clj #_x :cljs 99) — #_ discards x, leaving :clj with no
-;; value, producing no form. Handled by CST-level discard filtering.
+;; Scar tissue: odd-count branch list. The reader preserves the record as-is;
+;; the eval-rc step validates and throws with a clear message.
 ;; ---------------------------------------------------------------------------
 
 (deftest discard-inside-reader-conditional
-  (testing "#?(:clj #_x) — discard leaves odd count, which errors"
-    (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
-                          #"even number of forms"
-                          (lang/meme->forms #?(:clj "#?(:clj #_ x)"
-                                                :cljs "#?(:cljs #_ x)"))))))
+  (testing "#?(:clj #_x) — eval-rc errors on the resulting odd count"
+    (let [src #?(:clj "#?(:clj #_ x)" :cljs "#?(:cljs #_ x)")]
+      (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
+                            #"even number of forms"
+                            (-> {:source src :opts nil}
+                                stages/step-parse
+                                stages/step-read
+                                stages/step-evaluate-reader-conditionals))))))
 
 ;; ---------------------------------------------------------------------------
 ;; Note: duplicate map keys are rejected (see duplicate-keys-rejected above).
@@ -442,24 +452,31 @@
 ;; parse-forms-until to splice instead of conj.
 ;; ---------------------------------------------------------------------------
 
-;; NOTE: #?@ now correctly splices into parent collections and filters
-;; no-match sentinels inside collections.
+;; NOTE: #?@ splicing happens in step-evaluate-reader-conditionals after the
+;; reader, not during read. These tests compose the step explicitly to assert
+;; the post-eval shape.
+(defn- eval-rc-forms [src]
+  (:forms (-> {:source src :opts nil}
+              stages/step-parse
+              stages/step-read
+              stages/step-evaluate-reader-conditionals)))
+
 (deftest splice-reader-conditional-in-vector
   (testing "#?@ splices into vector"
     (is (= [[1 2 3 4]]
-           (lang/meme->forms #?(:clj "[1 #?@(:clj [2 3]) 4]"
-                                :cljs "[1 #?@(:cljs [2 3]) 4]")))))
+           (eval-rc-forms #?(:clj "[1 #?@(:clj [2 3]) 4]"
+                             :cljs "[1 #?@(:cljs [2 3]) 4]")))))
   (testing "#?@ at top level splices into forms vector"
     (is (= [1 2]
-           (lang/meme->forms #?(:clj "#?@(:clj [1 2])"
-                                :cljs "#?@(:cljs [1 2])")))))
+           (eval-rc-forms #?(:clj "#?@(:clj [1 2])"
+                             :cljs "#?@(:cljs [1 2])")))))
   (testing "#?@ with non-matching platform is filtered from collection"
     (is (= [[1 3]]
-           (lang/meme->forms #?(:clj "[1 #?@(:cljs [2]) 3]"
-                                :cljs "[1 #?@(:clj [2]) 3]")))))
+           (eval-rc-forms #?(:clj "[1 #?@(:cljs [2]) 3]"
+                             :cljs "[1 #?@(:clj [2]) 3]")))))
   (testing "matching case still works with call args"
-    #?(:clj (is (= ['(inc 42)] (lang/meme->forms "#?(:clj inc)(42)")))
-       :cljs (is (= ['(identity 42)] (lang/meme->forms "#?(:cljs identity)(42)"))))))
+    #?(:clj (is (= ['(inc 42)] (eval-rc-forms "#?(:clj inc)(42)")))
+       :cljs (is (= ['(identity 42)] (eval-rc-forms "#?(:cljs identity)(42)"))))))
 
 ;; ---------------------------------------------------------------------------
 ;; Scar tissue: missing value for a platform keyword in reader conditional must
@@ -469,14 +486,15 @@
 ;; Fix: check for ) or EOF after platform keyword before calling parse-form.
 ;; ---------------------------------------------------------------------------
 
-;; NOTE: Reader conditionals with odd-count forms now error instead of
-;; silently dropping the last element via partition 2.
+;; NOTE: Reader conditionals with odd-count forms now error from the eval-rc
+;; step, not the reader. The reader preserves any record shape; validation is
+;; part of materialization.
 (deftest reader-conditional-missing-value-behavior
-  (testing "missing value for matching platform — errors (odd count)"
+  (testing "missing value for matching platform — eval-rc errors on odd count"
     (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
                           #"even number of forms"
-                          (lang/meme->forms #?(:clj "#?(:clj)"
-                                                :cljs "#?(:cljs)")))))
+                          (eval-rc-forms #?(:clj "#?(:clj)"
+                                            :cljs "#?(:cljs)")))))
   (testing "incomplete input is marked :incomplete"
     (let [e (try (lang/meme->forms #?(:clj "#?(:clj"
                                       :cljs "#?(:cljs"))
@@ -552,10 +570,10 @@
 
 #?(:clj
    (deftest reader-cond-literal-call-head
-     (testing "#?(:clj nil)(x) parses to (nil x)"
-       (is (= ['(nil x)] (lang/meme->forms "#?(:clj nil)(x)"))))
-     (testing "#?(:clj true)(x) parses to (true x)"
-       (is (= ['(true x)] (lang/meme->forms "#?(:clj true)(x)"))))
+     (testing "#?(:clj nil)(x) parses to (nil x) after eval-rc"
+       (is (= ['(nil x)] (eval-rc-forms "#?(:clj nil)(x)"))))
+     (testing "#?(:clj true)(x) parses to (true x) after eval-rc"
+       (is (= ['(true x)] (eval-rc-forms "#?(:clj true)(x)"))))
      ;; NOTE: #?(:clj false)(x) — the experimental pipeline evaluates
      ;; #?(:clj false) to false, but since false is not adjacent to (
      ;; (reader-cond produces a value, not a token), the call chain
@@ -619,19 +637,25 @@
 ;; Design decision: empty #?() produces no form (filtered out).
 ;; ---------------------------------------------------------------------------
 
-(deftest empty-reader-conditional-produces-no-form
-  (testing "empty #?() produces no form"
-    (is (= [] (lang/meme->forms "#?()")))))
+(deftest empty-reader-conditional-produces-no-form-after-eval
+  (testing "empty #?() preserves as an empty-branch record at read time"
+    (let [rc (first (lang/meme->forms "#?()"))]
+      (is (forms/meme-reader-conditional? rc))
+      (is (empty? (forms/rc-form rc)))))
+  (testing "eval-rc drops an empty #?() from :forms"
+    (is (= [] (eval-rc-forms "#?()")))))
 
 ;; ---------------------------------------------------------------------------
-;; Design decision: #?@ splice inside map/set in :eval mode.
-;; The CST reader checks even count before splice expansion, so #?@ inside
-;; map/set may cause an even-count error in :eval mode. In :preserve mode
-;; (used for tooling roundtrip), it works correctly.
+;; #?@ splice inside set: read-time structure is a set containing the RC
+;; record as one element; eval-rc materializes the splice into set members.
+;; Map + #?@ remains a limitation (matches Clojure's :preserve behavior):
+;; odd-count children fail at map construction before eval-rc runs.
 ;; ---------------------------------------------------------------------------
-(deftest splice-in-set-preserve-mode
-  (testing "#?@ inside set literal — works in :preserve mode"
-    (is (some? (lang/meme->forms "#{#?@(:clj [1 2])}" {:read-cond :preserve})))))
+(deftest splice-in-set
+  (testing "#?@ inside set literal — record preserved at read time"
+    (is (some? (lang/meme->forms "#{#?@(:clj [1 2])}"))))
+  (testing "eval-rc splices the values into the set"
+    (is (= [#{1 2}] (eval-rc-forms "#{#?@(:clj [1 2])}")))))
 
 ;; ---------------------------------------------------------------------------
 ;; Scar tissue: #?(:clj #_x) — discard inside reader cond.
@@ -815,13 +839,34 @@
 ;; not silently drop the last element via partition 2.
 ;; ---------------------------------------------------------------------------
 
+;; ---------------------------------------------------------------------------
+;; Scar tissue: meme->clj used to silently drop off-platform branches of
+;; reader conditionals because the reader's :eval mode materialized the
+;; current platform's value at read time. After the "eval-rc as pipeline
+;; stage" refactor, the reader always preserves #? as MemeReaderConditional
+;; records, so meme->clj (a text-to-text tooling function, not eval) emits
+;; both branches faithfully.
+;; ---------------------------------------------------------------------------
+
+#?(:clj
+   (deftest meme->clj-reader-conditional-lossless
+     (testing "meme->clj preserves both branches of #?"
+       (is (= "#?(:cljs dom/create :clj nil)"
+              (lang/meme->clj "#?(:cljs dom/create :clj nil)"))))
+     (testing "meme->clj preserves a non-current-platform #? entirely"
+       (is (= "#?(:cljs only-cljs)"
+              (lang/meme->clj "#?(:cljs only-cljs)"))))
+     (testing "to-clj (CLI adapter) agrees with meme->clj"
+       (is (= (lang/meme->clj "#?(:clj 1 :cljs 2)")
+              (lang/to-clj "#?(:clj 1 :cljs 2)"))))))
+
 (deftest reader-conditional-odd-count
-  (testing "#?(:clj 1 :cljs) — odd count errors"
+  (testing "#?(:clj 1 :cljs) — eval-rc errors on odd count"
     (is (thrown-with-msg? #?(:clj Exception :cljs js/Error) #"even number of forms"
-                          (lang/meme->forms "#?(:clj 1 :cljs)"))))
-  (testing "#?(:clj) — single element errors"
+                          (eval-rc-forms "#?(:clj 1 :cljs)"))))
+  (testing "#?(:clj) — eval-rc errors on single element"
     (is (thrown-with-msg? #?(:clj Exception :cljs js/Error) #"even number of forms"
-                          (lang/meme->forms "#?(:clj)"))))
+                          (eval-rc-forms "#?(:clj)"))))
   (testing "#?(:clj 1 :cljs 2) — even count is fine"
     (is (some? (lang/meme->forms "#?(:clj 1 :cljs 2)")))))
 

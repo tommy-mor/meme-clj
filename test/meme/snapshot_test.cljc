@@ -5,7 +5,16 @@
   (:require [clojure.test :refer [deftest is testing]]
             [meme-lang.api :as lang]
             [meme-lang.forms :as forms]
+            [meme-lang.stages :as stages]
             [meme-lang.test-util :as tokenizer]))
+
+(defn- eval-rc-forms
+  "Read src and run step-evaluate-reader-conditionals; return :forms."
+  [src]
+  (:forms (-> {:source src :opts nil}
+              stages/step-parse
+              stages/step-read
+              stages/step-evaluate-reader-conditionals)))
 
 ;; ---------------------------------------------------------------------------
 ;; Helpers
@@ -127,8 +136,8 @@
 (deftest token-snapshot-reader-cond
   (testing "reader cond starts with :reader-cond"
     (is (= :reader-cond (:type (first (tokens-for "#?(:clj 1)"))))))
-  (testing "reader cond parses to matching platform value"
-    (is (= [#?(:clj 1 :cljs 2)] (forms-for "#?(:clj 1 :cljs 2)")))))
+  (testing "reader cond + eval-rc yields matching platform value"
+    (is (= [#?(:clj 1 :cljs 2)] (eval-rc-forms "#?(:clj 1 :cljs 2)")))))
 
 (deftest token-snapshot-namespaced-map
   (testing "namespaced map tokens start with :namespaced-map"
@@ -195,12 +204,12 @@
 ;; ---------------------------------------------------------------------------
 
 (deftest reader-cond-with-tricky-content
-  (testing "#? with comment containing ) — parses correctly"
-    (is (= [#?(:clj 1 :cljs 1)] (forms-for "#?(:clj ; comment with )\n 1 :cljs 1)"))))
-  (testing "#? with char literal \\) — parses matching branch"
-    (is (= [#?(:clj \) :cljs \x)] (forms-for "#?(:clj \\) :cljs \\x)"))))
-  (testing "#? with string containing ) — parses matching branch"
-    (is (= [#?(:clj ")" :cljs nil)] (forms-for "#?(:clj \")\" :cljs nil)")))))
+  (testing "#? with comment containing ) — eval-rc picks matching branch"
+    (is (= [#?(:clj 1 :cljs 1)] (eval-rc-forms "#?(:clj ; comment with )\n 1 :cljs 1)"))))
+  (testing "#? with char literal \\) — eval-rc picks matching branch"
+    (is (= [#?(:clj \) :cljs \x)] (eval-rc-forms "#?(:clj \\) :cljs \\x)"))))
+  (testing "#? with string containing ) — eval-rc picks matching branch"
+    (is (= [#?(:clj ")" :cljs nil)] (eval-rc-forms "#?(:clj \")\" :cljs nil)")))))
 
 (deftest token-snapshot-namespaced-map-with-char
   (testing "#:ns{} with \\} char literal parses correctly"
@@ -372,8 +381,9 @@
        (is (tagged-literal? form)))))
 
 (deftest form-snapshot-reader-conditional
-  (testing "reader conditional returns matching platform value"
-    (is (= #?(:clj 1 :cljs 2) (first (forms-for "#?(:clj 1 :cljs 2)"))))))
+  (testing "meme->forms preserves the record; eval-rc yields platform value"
+    (is (forms/meme-reader-conditional? (first (forms-for "#?(:clj 1 :cljs 2)"))))
+    (is (= #?(:clj 1 :cljs 2) (first (eval-rc-forms "#?(:clj 1 :cljs 2)"))))))
 
 #?(:clj
    (deftest form-snapshot-namespaced-map

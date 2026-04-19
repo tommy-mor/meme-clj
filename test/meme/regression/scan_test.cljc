@@ -5,6 +5,7 @@
             [meme-lang.api :as lang]
             [meme-lang.formatter.flat :as fmt-flat]
             [meme-lang.forms :as forms]
+            [meme-lang.stages :as stages]
             [meme-lang.test-util :as tokenizer]))
 
 (defn- semantic-tokens
@@ -81,9 +82,15 @@
     (let [tokens (tokenizer/tokenize "#:user{:ch \\}}")]
       (is (= :namespaced-map (:type (first tokens))))))
   #?(:clj
-     (testing "#? with bracket char literals parses to matched value"
-       (is (= \) (first (lang/meme->forms "#?(:clj \\) :cljs nil)"))))
-       (is (= \( (first (lang/meme->forms "#?(:clj \\( :cljs nil)")))))))
+     (testing "#? with bracket char literals parses to matched value (after eval-rc)"
+       (let [eval-rc (fn [src]
+                       (first (:forms
+                                (-> {:source src :opts nil}
+                                    stages/step-parse
+                                    stages/step-read
+                                    stages/step-evaluate-reader-conditionals))))]
+         (is (= \) (eval-rc "#?(:clj \\) :cljs nil)")))
+         (is (= \( (eval-rc "#?(:clj \\( :cljs nil)")))))))
 
 ;; ---------------------------------------------------------------------------
 ;; Bug: `~(expr) produced truncated token and confusing "Bare parentheses"

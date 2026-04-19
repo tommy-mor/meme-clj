@@ -106,8 +106,7 @@
 (defn format-meme
   "Format meme source text. Reads source, formats via canonical formatter."
   [source opts]
-  (let [read-opts (assoc opts :read-cond :preserve)
-        forms (meme->forms source read-opts)]
+  (let [forms (meme->forms source opts)]
     (if (empty? forms)
       source
       (case (:style opts)
@@ -116,10 +115,10 @@
         (fmt-canon/format-forms forms opts)))))
 
 (defn ^:no-doc to-clj
-  "CLI-dispatch adapter: meme source → Clojure text with `:read-cond :preserve`.
-   Library callers should use `meme->clj` directly."
-  ([source] (meme->clj source {:read-cond :preserve}))
-  ([source _opts] (to-clj source)))
+  "CLI-dispatch adapter: meme source → Clojure text. Library callers should
+   use `meme->clj` directly — it has the same lossless behavior."
+  ([source] (meme->clj source))
+  ([source opts] (meme->clj source opts)))
 
 #?(:clj
    (defn ^:no-doc to-meme

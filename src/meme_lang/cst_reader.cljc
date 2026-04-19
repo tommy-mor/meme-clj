@@ -12,12 +12,14 @@
             [meme-lang.resolve :as resolve]))
 
 ;; ---------------------------------------------------------------------------
-;; Reader-conditional sentinel
+;; Top-level shebang sentinel
 ;; ---------------------------------------------------------------------------
 
 (def ^:private no-match
-  "Sentinel for reader-conditional branches with no platform match.
-   Distinguished from nil so that #?(:clj nil) correctly returns nil."
+  "Sentinel returned for top-level shebang atoms so that read-forms drops
+   them from the forms vector. Historically used for reader-conditional
+   no-match too; since the reader now always preserves #? as records, only
+   shebang still produces this sentinel."
   ::no-match)
 
 ;; ---------------------------------------------------------------------------
@@ -119,17 +121,15 @@
 ;; ---------------------------------------------------------------------------
 
 (defn- splice-and-filter
-  "Post-process read children: remove no-match sentinels, splice #?@ results.
-   Reader conditionals in :eval mode return `no-match` when no platform matches
-   and vectors with :meme-lang/splice metadata for #?@ splicing."
+  "Remove shebang sentinels from read children. Reader conditionals are
+   preserved as records; no splicing happens at read time — the pipeline
+   stage `step-evaluate-reader-conditionals` materializes them later."
   [items]
   (persistent!
     (reduce (fn [acc item]
-              (cond
-                (identical? item no-match) acc
-                (and (vector? item) (:meme-lang/splice (meta item)))
-                (reduce conj! acc item)
-                :else (conj! acc item)))
+              (if (identical? item no-match)
+                acc
+                (conj! acc item)))
             (transient []) items)))
 
 (defn- read-children
@@ -345,28 +345,14 @@
       (with-meta resolved {:meme-lang/namespace-prefix ns-str}))
 
     :reader-cond
+    ;; The reader always preserves #?/#?@ as MemeReaderConditional records.
+    ;; Platform materialization happens in step-evaluate-reader-conditionals.
+    ;; Odd-count validation also lives there — the reader emits the record
+    ;; shape faithfully regardless of whether the branches are well-formed.
     (let [_ (check-closed! node "reader conditional")
           items (read-children (:children node) opts)
-          splicing? (:splicing? node)
-          read-cond-mode (or (:read-cond opts) :eval)]
-      (case read-cond-mode
-        :preserve
-        (forms/make-reader-conditional (apply list items) splicing?)
-
-        ;; :eval mode — match platform, return no-match sentinel when unmatched
-        (do (when (odd? (count items))
-              (errors/meme-error "Reader conditional must contain an even number of forms"
-                                 (node-loc node)))
-            (let [platform #?(:clj :clj :cljs :cljs)
-                  pairs (partition 2 items)
-                  found?  (some (fn [[k _]] (= k platform)) pairs)
-                  matched (when found? (some (fn [[k v]] (when (= k platform) v)) pairs))]
-              (if splicing?
-                (if found?
-                  (with-meta (vec (if (sequential? matched) matched [matched]))
-                             {:meme-lang/splice true})
-                  no-match)
-                (if found? matched no-match))))))
+          splicing? (:splicing? node)]
+      (forms/make-reader-conditional (apply list items) splicing?))
 
     :error
     (let [msg (or (:message node) "Parse error")
