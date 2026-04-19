@@ -4,7 +4,7 @@ All notable changes to meme-clj will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
-## [5.0.0] — unreleased
+## [5.0.0] — 2026-04-19
 
 Reader-conditional handling is now a pipeline stage instead of a reader flag. `meme->forms` and `meme->clj` are lossless by default for `.cljc` sources.
 
