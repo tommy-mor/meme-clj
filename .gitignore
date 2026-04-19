@@ -4,6 +4,7 @@ target/
 cljs-test-runner-out/
 .clj-kondo/
 .lsp/
+.claude/
 *.class
 *.jar
 .DS_Store
