@@ -449,8 +449,8 @@ Unified CLI for meme. JVM/Babashka only.
 |---------|-------------|
 | `meme run <file>` | Run a `.meme` file |
 | `meme repl` | Start the meme REPL |
-| `meme to-clj <file\|dir>` | Convert `.meme` files to `.clj` (in-place) |
-| `meme to-meme <file\|dir>` | Convert `.clj`/`.cljc`/`.cljs` files to `.meme` |
+| `meme to-clj <file\|dir>` | Convert `.meme` files to `.clj` (in-place). Alias: `from-meme`. |
+| `meme to-meme <file\|dir>` | Convert `.clj`/`.cljc`/`.cljs` files to `.meme`. Alias: `from-clj`. |
 | `meme format <file\|dir>` | Format `.meme` files via canonical formatter (in-place by default, `--stdout` to print, `--check` for CI) |
 | `meme compile <dir\|file...>` | Compile `.meme` to `.clj` in a separate output directory (`--out target/classes`). Output preserves relative paths — add the output dir to `:paths` in deps.edn for standard `require` without runtime patching. |
 | `meme inspect [--lang]` | Show lang info and supported commands |

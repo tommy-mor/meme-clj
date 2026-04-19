@@ -156,6 +156,12 @@
     (is (zero? exit))
     (is (= "(f x y)\n" out))))
 
+(deftest from-meme-is-alias-of-to-clj
+  (let [f (tmp-meme "defn(foo [x] +(x 1))")
+        {:keys [out exit]} (bb-meme "from-meme" (str f) "--stdout")]
+    (is (zero? exit))
+    (is (= "(defn foo [x] (+ x 1))\n" out))))
+
 ;; ---------------------------------------------------------------------------
 ;; to-meme
 ;; ---------------------------------------------------------------------------
@@ -163,6 +169,12 @@
 (deftest to-meme-stdout-test
   (let [f (tmp-clj "(defn foo [x] (+ x 1))")
         {:keys [out exit]} (bb-meme "to-meme" (str f) "--stdout")]
+    (is (zero? exit))
+    (is (= "defn(foo [x] +(x 1))\n" out))))
+
+(deftest from-clj-is-alias-of-to-meme
+  (let [f (tmp-clj "(defn foo [x] (+ x 1))")
+        {:keys [out exit]} (bb-meme "from-clj" (str f) "--stdout")]
     (is (zero? exit))
     (is (= "defn(foo [x] +(x 1))\n" out))))
 

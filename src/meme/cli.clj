@@ -296,8 +296,8 @@
     (println "Commands:")
     (when (has? :run)     (println "  meme run <file> [--lang name]"))
     (when (has? :repl)    (println "  meme repl [--lang name]"))
-    (when (has? :to-clj)  (println "  meme to-clj <file|dir> [--lang name] [--stdout]"))
-    (when (has? :to-meme) (println "  meme to-meme <file|dir> [--lang name] [--stdout]"))
+    (when (has? :to-clj)  (println "  meme to-clj   <file|dir> [--lang name] [--stdout]  (alias: from-meme)"))
+    (when (has? :to-meme) (println "  meme to-meme  <file|dir> [--lang name] [--stdout]  (alias: from-clj)"))
     (when (has? :format)  (println "  meme format <file|dir> [--style canon|flat|clj] [--stdout] [--check]"))
     (when (has? :to-clj)  (println "  meme compile <src-dir|file...> [--out target/classes] [--lang name]"))
     (println "  meme inspect [--lang name]")
@@ -329,8 +329,10 @@
                                       (run (assoc opts :rest-args (vec args))))
           :args->opts [:file] :spec {:lang {:coerce :string}}}
          {:cmds ["repl"]    :fn (comp repl :opts) :spec {:lang {:coerce :string}}}
-         (assoc file-spec :cmds ["to-clj"]  :fn (file-cmd to-clj))
-         (assoc file-spec :cmds ["to-meme"] :fn (file-cmd to-meme))
+         (assoc file-spec :cmds ["to-clj"]    :fn (file-cmd to-clj))
+         (assoc file-spec :cmds ["from-meme"] :fn (file-cmd to-clj))
+         (assoc file-spec :cmds ["to-meme"]   :fn (file-cmd to-meme))
+         (assoc file-spec :cmds ["from-clj"]  :fn (file-cmd to-meme))
          {:cmds ["format"]  :fn (file-cmd format-files)
           :args->opts [:file] :spec {:stdout {:coerce :boolean} :check {:coerce :boolean}
                                      :lang {:coerce :string} :style {:coerce :string}
