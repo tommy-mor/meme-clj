@@ -238,14 +238,19 @@
       (when (empty? expanded)
         (println "No .meme files found.")
         (cli-exit! 1))
-      (let [process-one
+      (let [sep java.io.File/separator
+            process-one
             (fn [path]
               (try
                 (let [abs (.getCanonicalPath (io/file path))
-                      ;; Find the matching root to strip
-                      root (some #(when (str/starts-with? abs (str % "/")) %) roots)
+                      ;; Find the matching root to strip. Use the platform
+                      ;; File separator — getCanonicalPath returns `\` on
+                      ;; Windows and `/` elsewhere; a hardcoded `/` would
+                      ;; never match on Windows and collapse every file to
+                      ;; its basename in the flat `out-dir` fallback.
+                      root (some #(when (str/starts-with? abs (str % sep)) %) roots)
                       rel (if root (subs abs (inc (count root))) (.getName (io/file path)))
-                      out-path (str out-dir "/" (swap-ext rel "meme" "clj"))
+                      out-path (str out-dir sep (swap-ext rel "meme" "clj"))
                       out-file (io/file out-path)]
                   (.mkdirs (.getParentFile out-file))
                   (spit out-file (str (to-clj-fn (slurp path)) "\n"))
