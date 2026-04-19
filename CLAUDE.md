@@ -45,7 +45,7 @@ bb meme format src/          # directory, recursive
 bb meme format file.meme --stdout  # print to stdout
 
 # Compile .meme to .clj (for classpath use without runtime patching)
-bb meme compile src/              # output to target/classes (default)
+bb meme compile src/              # output to target/meme (default)
 bb meme compile src/ --out out/   # custom output directory
 ```
 

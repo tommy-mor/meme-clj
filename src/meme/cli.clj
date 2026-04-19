@@ -226,9 +226,9 @@
         _ (when (and (some? out) (str/blank? out))
             (println "Error: --out cannot be empty")
             (cli-exit! 1))
-        out-dir (or out "target/classes")]
+        out-dir (or out "target/meme")]
     (when (empty? inputs)
-      (println "Usage: meme compile <src-dir|file...> [--out target/classes] [--lang name]")
+      (println "Usage: meme compile <src-dir|file...> [--out target/meme] [--lang name]")
       (cli-exit! 1))
     (let [[lang-name l] (get-lang lang nil)
           _ (registry/check-support l lang-name :to-clj)
@@ -299,7 +299,7 @@
     (when (has? :to-clj)  (println "  meme to-clj   <file|dir> [--lang name] [--stdout]  (alias: from-meme)"))
     (when (has? :to-meme) (println "  meme to-meme  <file|dir> [--lang name] [--stdout]  (alias: from-clj)"))
     (when (has? :format)  (println "  meme format <file|dir> [--style canon|flat|clj] [--stdout] [--check]"))
-    (when (has? :to-clj)  (println "  meme compile <src-dir|file...> [--out target/classes] [--lang name]"))
+    (when (has? :to-clj)  (println "  meme compile <src-dir|file...> [--out target/meme] [--lang name]"))
     (println "  meme inspect [--lang name]")
     (println "  meme version")
     (println)

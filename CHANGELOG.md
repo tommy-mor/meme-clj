@@ -18,11 +18,22 @@ Reader-conditional handling is now a pipeline stage instead of a reader flag. `m
 
 - **`meme->clj` is now lossless by default.** Previously it evaluated `#?` for the current platform, silently dropping off-platform branches. Now both branches are preserved in the emitted Clojure text. Use `run-string` for eval-time behavior.
 
+- **`meme compile` default `--out` is now `target/meme`** (was `target/classes`). Avoids collision with `tools.build`/AOT output in the same directory tree. Projects that relied on the old default should either pass `--out target/classes` explicitly or update `:paths` in `deps.edn` to point at `target/meme`.
+
+- **Scanner / reader strictness.** Several malformed inputs that previously read silently now error at read time, matching Clojure's reader:
+  - `//`, `//a`, `/foo` — rejected. `/`, `ns//`, `foo/bar/baz` stay valid.
+  - `\uNNNN` followed by any alphanumeric (e.g. `\u00410`, `\u0041G`) — rejected.
+  - Bare `` `~~x `` (two unquotes with only one enclosing ``` ` ```) — errors at expander time. Balanced `` ``~~x `` still expands to `x`.
+  - Variation selectors U+FE00-U+FE0F inside symbols — rejected (stricter than Clojure; blocks look-alike-symbol attacks).
+  - U+2028 / U+2029 now count as line terminators in error-position reporting.
+
 ### Added
 
 - **`meme-lang.stages/step-evaluate-reader-conditionals`** — pipeline stage that evaluates `#?`/`#?@` records in `:forms` for a target platform. Supports `:platform` opt (default: compile-time platform). Handles `#?` (branch pick), `#?@` (splice into parent collection), `:default` fallback, and validates even-count branch lists. Recurses into `` ` `` / `~` / `~@` interiors, matching native Clojure's reader-time evaluation order. Does not fire for tooling paths — `meme->forms`, `meme->clj`, `format-meme`, and `to-clj` skip the stage and preserve records.
 
 - **`:default` fallback in reader conditionals.** Previously only matched named platform keys; `#?(:cljs 1 :default 99)` on JVM returned nothing. Now returns `99`.
+
+- **`meme from-meme` / `meme from-clj` CLI aliases** for users who prefer to name the source rather than the destination. `from-meme` ≡ `to-clj`; `from-clj` ≡ `to-meme`.
 
 ### Changed
 
@@ -33,6 +44,14 @@ Reader-conditional handling is now a pipeline stage instead of a reader flag. `m
 ### Fixed
 
 - **`meme->clj` silently dropped off-platform branches of `#?` on `.cljc` sources.** The asymmetry between library `meme->clj` (evaluated) and CLI `to-clj` (preserved) is eliminated — both now preserve faithfully. Scar-tissue regression: `meme->clj-reader-conditional-lossless` in `test/meme/regression/reader_test.cljc`.
+
+- **Bare `:/` now reads as `(keyword "/")`** instead of erroring with "Invalid token". Matches Clojure.
+
+- **Bare `~~x` leaked a `MemeUnquote` record to eval** instead of erroring. Added a post-expansion sweep that rejects leftover unquote records. Balanced `` ``~~x `` still works.
+
+- **`meme compile` Windows path bug** — `getCanonicalPath` returns `\`-separated paths on Windows, but the root-prefix match hardcoded `/`. Files collapsed into the flat output directory with their relative paths lost. Uses `java.io.File/separator` now.
+
+- **`meme compile --out ""`** now fails fast with a clear error instead of silently writing to the filesystem root.
 
 ### Internal
 
