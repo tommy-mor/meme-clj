@@ -84,9 +84,25 @@
 
 (defn step-read
   "Lower CST to Clojure forms via the CST reader.
-   Reads :cst, writes :forms."
+   Reads :cst, writes :forms.
+
+   Reader conditionals are always preserved as MemeReaderConditional records;
+   the historical :read-cond opt is no longer accepted and throws
+   :meme-lang/deprecated-opt. To evaluate #?/#?@ for a target platform,
+   compose step-evaluate-reader-conditionals after this stage."
   [ctx]
   (check-contract! :step-read ctx)
+  (when (contains? (:opts ctx) :read-cond)
+    (throw (ex-info
+             (str "The :read-cond option is no longer supported. The meme reader "
+                  "always preserves reader conditionals as MemeReaderConditional "
+                  "records. To evaluate them for a platform, compose "
+                  "meme-lang.stages/step-evaluate-reader-conditionals after "
+                  "step-read, or use meme-lang.run/run-string / run-file.")
+             {:type    :meme-lang/deprecated-opt
+              :opt     :read-cond
+              :value   (get-in ctx [:opts :read-cond])
+              :stage   :step-read})))
   (assoc ctx :forms (cst-reader/read-forms (:cst ctx) (:opts ctx))))
 
 ;; ---------------------------------------------------------------------------

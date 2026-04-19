@@ -22,9 +22,17 @@
   "Read meme source string. Returns a vector of Clojure forms.
    step-parse → step-read
 
+   Reader conditionals (`#?`, `#?@`) are always returned as
+   `MemeReaderConditional` records. To evaluate them for the current
+   platform, compose `meme-lang.stages/step-evaluate-reader-conditionals`
+   after reading, or use `run-string` / `run-file` (which do so
+   automatically). The `:read-cond` option is no longer accepted —
+   passing it throws `:meme-lang/deprecated-opt`.
+
    opts keys:
-     :read-cond        — :eval (default, match current platform) or :preserve
-     :resolve-keyword  — fn to resolve auto-resolve keywords (::kw)"
+     :resolve-keyword  — fn to resolve auto-resolve keywords (::kw)
+     :resolve-symbol   — fn to resolve symbols in syntax-quote expansion
+     :grammar          — custom Pratt grammar spec (advanced)"
   ([s] (meme->forms s nil))
   ([s opts]
    {:pre [(string? s)]}
@@ -53,8 +61,13 @@
   (fmt-flat/format-clj (expander/expand-forms forms)))
 
 (defn meme->clj
-  "Convert meme source to Clojure source string.
-   opts: same as meme->forms (:read-cond, :resolve-keyword)."
+  "Convert meme source to Clojure source string (lossless by default).
+
+   Reader conditionals are preserved as `#?(...)` in the output rather than
+   being evaluated at the current platform — faithful for `.cljc` conversion.
+   For the eval-time value, use `run-string` instead.
+
+   opts: same as `meme->forms` (`:resolve-keyword`, `:resolve-symbol`)."
   ([meme-src] (meme->clj meme-src nil))
   ([meme-src opts]
    {:pre [(string? meme-src)]}

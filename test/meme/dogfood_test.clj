@@ -17,7 +17,8 @@
 
 (deftest dogfood-per-form-experimental
   ;; lang-map uses #?@(:clj [...]) inside a map literal which Clojure's reader
-  ;; cannot read with :read-cond :preserve — tolerate 1 read error for that form.
+  ;; cannot read with :read-cond :preserve (always the meme default now) —
+  ;; tolerate 1 read error for that form.
   (let [{:keys [total succeeded failed read-errors]} (tu/roundtrip-file-forms "src/meme_lang/api.cljc")]
     (is (= (- total (count read-errors)) (count succeeded)) "readable forms roundtrip")
     (is (zero? (count failed)))
@@ -100,13 +101,13 @@
 
 (defn- roundtrip-to-tmp
   "Roundtrip a .cljc through meme and write result to a temp .clj file.
-   Uses :read-cond :preserve so ReaderConditional forms roundtrip correctly.
+   meme->forms preserves ReaderConditional records by default.
    Returns the temp file path."
   [path]
   (let [read-results (tu/read-clj-forms path)
         forms (mapv :form (filterv :form read-results))
         meme-text (fmt-flat/format-forms forms)
-        roundtripped (lang/meme->forms meme-text {:read-cond :preserve})
+        roundtripped (lang/meme->forms meme-text)
         tmp (java.io.File/createTempFile "dogfood" ".clj")]
     (spit tmp (str/join "\n\n" (map pr-str roundtripped)))
     tmp))

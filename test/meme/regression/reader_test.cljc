@@ -782,7 +782,7 @@
 #?(:clj
    (deftest expanded-reader-conditional-form-is-list
      (testing "reader-conditional form is a list after expansion"
-       (let [ctx (-> {:source "#?(:clj 1 :cljs 2)" :opts {:read-cond :preserve}}
+       (let [ctx (-> {:source "#?(:clj 1 :cljs 2)" :opts nil}
                      (stages/step-parse)
                      (stages/step-read)
                      (stages/step-expand-syntax-quotes))
@@ -859,6 +859,24 @@
      (testing "to-clj (CLI adapter) agrees with meme->clj"
        (is (= (lang/meme->clj "#?(:clj 1 :cljs 2)")
               (lang/to-clj "#?(:clj 1 :cljs 2)"))))))
+
+;; ---------------------------------------------------------------------------
+;; Scar tissue: :read-cond is no longer accepted. Passing it must throw a
+;; clear migration error rather than silently no-op.
+;; ---------------------------------------------------------------------------
+
+(deftest read-cond-opt-throws
+  (testing "meme->forms with :read-cond throws :meme-lang/deprecated-opt"
+    (try (lang/meme->forms "x" {:read-cond :preserve})
+         (is false "should have thrown")
+         (catch #?(:clj clojure.lang.ExceptionInfo :cljs ExceptionInfo) e
+           (is (= :meme-lang/deprecated-opt (:type (ex-data e))))
+           (is (= :read-cond (:opt (ex-data e))))
+           (is (re-find #"no longer supported" (ex-message e))))))
+  (testing "step-read directly also guards"
+    (is (thrown-with-msg? #?(:clj clojure.lang.ExceptionInfo :cljs ExceptionInfo)
+                          #"no longer supported"
+                          (stages/step-read {:cst [] :opts {:read-cond :preserve}})))))
 
 (deftest reader-conditional-odd-count
   (testing "#?(:clj 1 :cljs) — eval-rc errors on odd count"

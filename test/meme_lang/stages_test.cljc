@@ -159,14 +159,12 @@
 ;; ---------------------------------------------------------------------------
 
 (defn- eval-rc
-  "Helper: read src (with preserve), run eval-rc step, return the resulting :forms vector.
-   Opts may set :platform to override the default compile-time platform.
-   (The explicit :read-cond :preserve is transitional — commit (c) flips the
-   reader default to always-preserve, after which it is unnecessary.)"
+  "Helper: read src, run eval-rc step, return the resulting :forms vector.
+   Opts may set :platform to override the default compile-time platform."
   ([src] (eval-rc src nil))
   ([src opts]
    (:forms (stages/step-evaluate-reader-conditionals
-             (assoc (stages/run src {:read-cond :preserve}) :opts opts)))))
+             (assoc (stages/run src) :opts opts)))))
 
 (deftest eval-rc-basic
   (testing "#? with matching platform returns the branch value"
@@ -265,8 +263,7 @@
 
 (deftest eval-rc-is-idempotent-on-plain-forms
   (testing "running the step twice is a no-op (idempotent on already-evaluated forms)"
-    (let [after-first  (stages/step-evaluate-reader-conditionals
-                         (stages/run "#?(:clj 1 :cljs 2)" {:read-cond :preserve}))
+    (let [after-first  (stages/step-evaluate-reader-conditionals (stages/run "#?(:clj 1 :cljs 2)"))
           after-second (stages/step-evaluate-reader-conditionals after-first)]
       (is (= (:forms after-first) (:forms after-second))))))
 
@@ -275,8 +272,8 @@
 ;; ---------------------------------------------------------------------------
 
 (deftest tooling-path-preserves-reader-conditionals
-  (testing "stages/run alone keeps reader conditionals as records when :preserve is set"
-    (let [forms (:forms (stages/run "#?(:clj 1 :cljs 2)" {:read-cond :preserve}))]
+  (testing "stages/run keeps reader conditionals as records"
+    (let [forms (:forms (stages/run "#?(:clj 1 :cljs 2)"))]
       (is (forms/meme-reader-conditional? (first forms))))))
 
 ;; ---------------------------------------------------------------------------

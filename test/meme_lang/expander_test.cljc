@@ -343,21 +343,20 @@
 ;; ---------------------------------------------------------------------------
 
 (deftest reader-conditional-survives-expansion
-  (testing "reader conditional with :read-cond :preserve roundtrips through expander"
-    (let [forms (lang/meme->forms "#?(:clj 1 :cljs 2)" {:read-cond :preserve})
+  (testing "reader conditional roundtrips through expander at top level"
+    (let [forms (lang/meme->forms "#?(:clj 1 :cljs 2)")
           expanded (expander/expand-forms forms)]
       (is (= 1 (count expanded)))
       (is (forms/meme-reader-conditional? (first expanded))
           "reader conditional should survive expand-forms as its original type")))
   (testing "reader conditional inside a list survives expansion"
-    (let [forms (lang/meme->forms "f(#?(:clj 1 :cljs 2))" {:read-cond :preserve})
+    (let [forms (lang/meme->forms "f(#?(:clj 1 :cljs 2))")
           expanded (expander/expand-forms forms)
           inner (second (first expanded))]
       (is (forms/meme-reader-conditional? inner)
           "nested reader conditional should survive expand-forms")))
   (testing "reader conditional inside syntax-quote survives expand-sq"
-    ;; `#?(:clj x :cljs y) — the reader conditional inside backtick
-    (let [forms (lang/meme->forms "`#?(:clj x :cljs y)" {:read-cond :preserve})
+    (let [forms (lang/meme->forms "`#?(:clj x :cljs y)")
           expanded (expander/expand-forms forms)]
       ;; The expansion should not crash — reader conditional is passed through
       (is (some? expanded)))))

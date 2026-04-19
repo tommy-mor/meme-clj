@@ -688,15 +688,16 @@
       (is (= f1 f2)))))
 
 ;; ---------------------------------------------------------------------------
-;; :read-cond :preserve roundtrip
+;; Reader-conditional roundtrip — records always preserved now
 ;; ---------------------------------------------------------------------------
 
 (defn- roundtrip-preserve
-  "Roundtrip with :read-cond :preserve — parse, print, re-parse."
+  "Roundtrip reader-conditional-bearing source: parse, print, re-parse.
+   Reader conditionals are preserved as records by default."
   [meme-src]
-  (let [forms1 (lang/meme->forms meme-src {:read-cond :preserve})
+  (let [forms1 (lang/meme->forms meme-src)
         meme-text (fmt-flat/format-forms forms1)
-        forms2 (lang/meme->forms meme-text {:read-cond :preserve})]
+        forms2 (lang/meme->forms meme-text)]
     [forms1 forms2 meme-text]))
 
 (deftest roundtrip-reader-conditional-preserve
