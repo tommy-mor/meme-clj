@@ -531,47 +531,120 @@
 ;; and vendor roundtrips. Needs more targeted approach (validate post-tokenize).
 
 ;; ---------------------------------------------------------------------------
-;; RT6-F3: Multi-slash keywords and symbols
-;; Bug: read-symbol-str terminated at second /, splitting :foo/bar/baz into
-;; two tokens [:foo/bar /baz]. Clojure accepts multi-slash symbols/keywords.
-;; Fix: continue consuming after second / instead of terminating.
+;; RT6-F3: Multi-slash keywords and symbols (:foo/bar/baz, foo/bar/baz).
+;; Current: accepted as a single token. Matches Clojure.
 ;; ---------------------------------------------------------------------------
 
-;; ---------------------------------------------------------------------------
-;; RT6-F4: Char literal \u00410 overconsumption
-;; Bug: \u0041 consumed exactly 4 hex digits and left trailing 0 as separate
-;; number token. Clojure rejects \u00410 as invalid.
-;; Fix: after consuming 4 hex digits, reject if next char is also hex.
-;; ---------------------------------------------------------------------------
+(deftest multi-slash-keywords-and-symbols
+  ;; Clojure's own reader rejects these as literals, so we construct the
+  ;; expected symbols/keywords with `symbol`/`keyword` instead.
+  (testing "multi-slash keyword tokenizes as one keyword"
+    (is (= [(keyword "foo/bar/baz")] (lang/meme->forms ":foo/bar/baz"))))
+  (testing "multi-slash symbol tokenizes as one symbol"
+    (is (= [(symbol "foo/bar/baz")] (lang/meme->forms "foo/bar/baz"))))
+  (testing "double-slash inside symbol tokenizes as one symbol"
+    (is (= [(symbol "foo//bar")] (lang/meme->forms "foo//bar")))))
 
 ;; ---------------------------------------------------------------------------
-;; RT6-F17: U+2028/U+2029 line counter
-;; Bug: sadvance! only checked \n and \r for line breaks. Unicode LINE
-;; SEPARATOR and PARAGRAPH SEPARATOR didn't increment line counter.
-;; Fix: added U+2028/U+2029 checks to sadvance!.
+;; RT6-F4: Char literal \uNNNN overconsumption
+;; Bug: scanner consumed exactly 4 hex digits, leaving a trailing
+;; alphanumeric as a separate token (e.g. "\u00410" → [\A 0]). Clojure's
+;; reader rejects \u00410 / \u0041G as invalid char literals.
+;; Fix: after 4 hex digits, keep consuming alphanumerics so the malformed
+;; token reaches resolve-char, which rejects it.
 ;; ---------------------------------------------------------------------------
+
+(deftest char-literal-trailing-alphanumerics-rejected
+  (testing "\\u00410 — 5th hex digit rejected"
+    (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
+                          #"Invalid character literal"
+                          (lang/meme->forms "\\u00410"))))
+  (testing "\\u0041G — trailing letter rejected"
+    (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
+                          #"Invalid character literal"
+                          (lang/meme->forms "\\u0041G"))))
+  (testing "plain \\u0041 still works"
+    (is (= [\A]
+           (stages/expand-syntax-quotes
+             (lang/meme->forms "\\u0041") nil)))))
+
+;; ---------------------------------------------------------------------------
+;; RT6-F17: U+2028 / U+2029 line counter
+;; Bug: build-line-starts only treated \n and \r as line breaks. Unicode
+;; LINE SEPARATOR (U+2028) and PARAGRAPH SEPARATOR (U+2029) didn't advance
+;; the line counter, so error positions after them reported the wrong line.
+;; Fix: U+2028 and U+2029 now count as line boundaries in build-line-starts.
+;; ---------------------------------------------------------------------------
+
+(deftest unicode-line-separators-increment-line-counter
+  (testing "U+2028 LINE SEPARATOR increments line counter"
+    (let [e (try (lang/meme->forms "a\u2028(bare)") nil
+                 (catch #?(:clj Exception :cljs js/Error) ex ex))]
+      (is (= 2 (:line (ex-data e))))
+      (is (= 1 (:col (ex-data e))))))
+  (testing "U+2029 PARAGRAPH SEPARATOR increments line counter"
+    (let [e (try (lang/meme->forms "a\u2029(bare)") nil
+                 (catch #?(:clj Exception :cljs js/Error) ex ex))]
+      (is (= 2 (:line (ex-data e))))
+      (is (= 1 (:col (ex-data e))))))
+  (testing "\\n still increments line counter (control case)"
+    (let [e (try (lang/meme->forms "a\n(bare)") nil
+                 (catch #?(:clj Exception :cljs js/Error) ex ex))]
+      (is (= 2 (:line (ex-data e)))))))
 
 ;; ---------------------------------------------------------------------------
 ;; RT6-F18: Variation selectors (U+FE00-U+FE0F) in symbols
-;; Bug: unicode-control-char? didn't block variation selectors, allowing
-;; invisible modifiers in symbol names.
-;; Fix: added (<= 0xFE00 c 0xFE0F) to unicode-control-char?.
+;; Bug: invisible-char? didn't block variation selectors, allowing
+;; invisible glyph modifiers inside symbol names — a look-alike attack
+;; vector in web-copy-paste source.
+;; Fix: added (<= 0xFE00 c 0xFE0F) to invisible-char? in lexlets.
 ;; ---------------------------------------------------------------------------
 
-;; ---------------------------------------------------------------------------
-;; RT6-F: Keyword :/ accepted (matches Clojure)
-;; Bug: validate-keyword rejected names ending with /, including bare :/
-;; which is a valid keyword in Clojure.
-;; Fix: special-case kw-name "/" to skip trailing-slash check.
-;; ---------------------------------------------------------------------------
+(deftest variation-selectors-rejected-in-symbols
+  (testing "U+FE0F (VS16) is rejected in a symbol"
+    (is (thrown? #?(:clj Exception :cljs js/Error)
+                 (lang/meme->forms "foo\uFE0F"))))
+  (testing "U+FE00 (VS1) is rejected in a symbol"
+    (is (thrown? #?(:clj Exception :cljs js/Error)
+                 (lang/meme->forms "foo\uFE00")))))
 
 ;; ---------------------------------------------------------------------------
-;; RT7: // and //a rejected as symbols (Clojure rejects these)
+;; RT6-F: Keyword :/ — bare slash keyword
+;; Bug: validate-keyword rejected any name starting with "/", including the
+;; bare :/ which is a valid keyword in Clojure (= (keyword "/")).
+;; Fix: special-case the whole token :/ before the starts-with? "/" rejection.
 ;; ---------------------------------------------------------------------------
 
+(deftest bare-slash-keyword-accepted
+  (testing ":/ reads as (keyword \"/\")"
+    (is (= [(keyword "/")] (lang/meme->forms ":/"))))
+  (testing ":/foo still rejected (empty namespace)"
+    (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
+                          #"Invalid token"
+                          (lang/meme->forms ":/foo")))))
+
 ;; ---------------------------------------------------------------------------
-;; RT7: \u0041G rejected (any alphanumeric continuation after \uXXXX)
+;; RT7: // and //a as symbols
+;; Bug: a symbol token starting with `/` but not exactly `/` was accepted
+;; (// , //a , /foo). Clojure rejects these — only `/` alone and the special
+;; `ns//` form (e.g. clojure.core//) are valid.
+;; Fix: validate in read-atom :symbol — reject if raw starts with `/` and
+;; raw != "/".
 ;; ---------------------------------------------------------------------------
+
+(deftest symbols-starting-with-slash-rejected
+  (testing "// rejected"
+    (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
+                          #"Invalid token"
+                          (lang/meme->forms "//"))))
+  (testing "//a rejected"
+    (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
+                          #"Invalid token"
+                          (lang/meme->forms "//a"))))
+  (testing "bare / still accepted as division symbol"
+    (is (= '[/] (lang/meme->forms "/"))))
+  (testing "clojure.core// still accepted (ns-qualified slash)"
+    (is (= [(symbol "clojure.core" "/")] (lang/meme->forms "clojure.core//")))))
 
 ;; ---------------------------------------------------------------------------
 ;; Fuzzer finding: unterminated string/regex literals crash resolve-string/

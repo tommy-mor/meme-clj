@@ -655,7 +655,9 @@
   (testing "#?@ inside set literal — record preserved at read time"
     (is (some? (lang/meme->forms "#{#?@(:clj [1 2])}"))))
   (testing "eval-rc splices the values into the set"
-    (is (= [#{1 2}] (eval-rc-forms "#{#?@(:clj [1 2])}")))))
+    (is (= [#{1 2}]
+           (eval-rc-forms #?(:clj  "#{#?@(:clj [1 2])}"
+                             :cljs "#{#?@(:cljs [1 2])}"))))))
 
 ;; ---------------------------------------------------------------------------
 ;; Scar tissue: #?(:clj #_x) — discard inside reader cond.
@@ -900,3 +902,39 @@
   (testing ":ns/ — empty name"
     (is (thrown-with-msg? #?(:clj Exception :cljs js/Error) #"Invalid token"
                           (lang/meme->forms ":ns/")))))
+
+;; ---------------------------------------------------------------------------
+;; Scar tissue: double-unquote `~~x` inside syntax-quote.
+;; Bug: expand-sq peeled off the outer unquote and recursed into
+;; expand-syntax-quotes with {:inside-sq true}. When the inner form was
+;; itself an unquote, the outer branch wrapped it in a MemeUnquote record
+;; and leaked that record to eval instead of erroring.
+;; Fix: error at expand-sq time when the argument of `~` is itself `~` or
+;; `~@` — matches Clojure's reader, which rejects bare `~~x`.
+;; ---------------------------------------------------------------------------
+
+(deftest double-unquote-inside-syntax-quote-rejected
+  (testing "parse still preserves the nested unquote structure"
+    ;; Parsing is structurally permissive; the error fires in the expander.
+    (let [[form] (lang/meme->forms "`~~x")]
+      (is (forms/syntax-quote? form))
+      (is (forms/unquote? (:form form)))
+      (is (forms/unquote? (:form (:form form))))))
+  (testing "expander errors on `~~x — no matching syntax-quote for second ~"
+    (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
+                          #"no matching enclosing syntax-quote"
+                          (stages/expand-syntax-quotes
+                            (lang/meme->forms "`~~x") nil))))
+  (testing "expander errors on `~~@[1 2]"
+    (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
+                          #"no matching enclosing syntax-quote"
+                          (stages/expand-syntax-quotes
+                            (lang/meme->forms "`~~@[1 2]") nil))))
+  (testing "``~~x still expands to x (two unquotes balanced by two syntax-quotes)"
+    (is (= ['x]
+           (stages/expand-syntax-quotes
+             (lang/meme->forms "``~~x") nil))))
+  (testing "single `~x still works as a control"
+    (is (= [42]
+           (stages/expand-syntax-quotes
+             (lang/meme->forms "`~42") nil)))))

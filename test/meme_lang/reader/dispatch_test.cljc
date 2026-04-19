@@ -250,10 +250,13 @@
 
 #?(:cljs
    (deftest cljs-form-parsing
-     (testing "reader conditionals parse on CLJS"
+     (testing "reader conditionals preserved as records on CLJS"
+       ;; Post-5.0: #?/#?@ always return MemeReaderConditional records from
+       ;; meme->forms. Platform materialization lives in
+       ;; step-evaluate-reader-conditionals, which tooling paths don't run.
        (let [forms (lang/meme->forms "#?(:clj x :cljs y)")]
          (is (= 1 (count forms)))
-         (is (= 'y (first forms)))))
+         (is (forms/meme-reader-conditional? (first forms)))))
      (testing "namespaced maps parse on CLJS"
        (let [forms (lang/meme->forms "#:user{:name \"x\"}")]
          (is (= [{:user/name "x"}] forms))))))

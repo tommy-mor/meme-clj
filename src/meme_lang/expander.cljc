@@ -75,6 +75,9 @@
     ;; RT6-F2: process inner form through expand-syntax-quotes so that
     ;; MemeRaw values (e.g. 0xFF → {:value 255 :raw "0xFF"}) are unwrapped
     ;; and nested MemeSyntaxQuote nodes (e.g. `~`x) are properly expanded.
+    ;; Nested `~~x` (two unquotes that would overshoot the enclosing ``` ` ```
+    ;; levels) is validated at the outer pipeline stage by checking for
+    ;; leftover MemeUnquote / MemeUnquoteSplicing records in the final forms.
     (forms/unquote? form)
     (expand-syntax-quotes (:form form) (assoc opts :inside-sq true))
 
@@ -271,8 +274,35 @@
 
      :else form)))
 
+(defn- check-no-leftover-unquotes!
+  "Walk an expanded form and error if any MemeUnquote or MemeUnquoteSplicing
+   records survived expansion. They indicate `~`/`~@` with no matching
+   enclosing ``` ` ``` — e.g. bare `~~x` at top level. Runs after expansion so
+   the valid `` ``~~x `` → x case (unquotes balanced by nested syntax-quotes)
+   still works."
+  [form]
+  (cond
+    (forms/unquote? form)
+    (errors/meme-error
+      "Unquote (~) has no matching enclosing syntax-quote"
+      (select-keys (meta form) [:line :col]))
+    (forms/unquote-splicing? form)
+    (errors/meme-error
+      "Unquote-splicing (~@) has no matching enclosing syntax-quote"
+      (select-keys (meta form) [:line :col]))
+    (seq? form)    (run! check-no-leftover-unquotes! form)
+    (vector? form) (run! check-no-leftover-unquotes! form)
+    (map? form)    (run! (fn [[k v]]
+                           (check-no-leftover-unquotes! k)
+                           (check-no-leftover-unquotes! v))
+                         form)
+    (set? form)    (run! check-no-leftover-unquotes! form)
+    :else nil))
+
 (defn expand-forms
   "Expand all syntax-quote nodes in a vector of forms. For eval pipelines."
   ([forms] (expand-forms forms nil))
   ([forms opts]
-   (mapv #(expand-syntax-quotes % opts) forms)))
+   (let [expanded (mapv #(expand-syntax-quotes % opts) forms)]
+     (run! check-no-leftover-unquotes! expanded)
+     expanded)))

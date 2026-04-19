@@ -71,7 +71,12 @@
     `(deftest ~test-sym
        (let [dir# (io/file ~dir-path)]
          (if-not (.isDirectory dir#)
-           (println (format "SKIP %s — submodule not initialized" ~project-name))
+           ;; Explicit failure (not silent skip) so CI surfaces uninitialized
+           ;; submodules instead of passing trivially with zero forms tested.
+           (is false
+               (str ~project-name " — vendor submodule not initialized "
+                    "at " ~dir-path ". "
+                    "Run: git submodule update --init"))
            (let [result# (test-project dir#)]
              (report-project result#)
              (is (pos? (:total-forms result#))

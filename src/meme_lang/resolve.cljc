@@ -120,12 +120,16 @@
 
       (and (str/starts-with? name-part "u") (= 5 (count name-part)))
       (let [hex (subs name-part 1)
+            ;; Validate hex digits up front — on CLJS, parseInt with radix 16
+            ;; silently accepts "00g1" as 0 (parses prefix, ignores the rest).
+            _ (when-not (re-matches #"[0-9A-Fa-f]{4}" hex)
+                (errors/meme-error (str "Invalid character literal: " raw) loc))
             code (try #?(:clj (Integer/parseInt hex 16)
                          :cljs (let [n (js/parseInt hex 16)]
                                  (when (js/isNaN n) (throw (ex-info "NaN" {})))
                                  n))
                       (catch #?(:clj Exception :cljs :default) _
-                        (errors/meme-error (str "Invalid unicode character \\u" hex) loc)))]
+                        (errors/meme-error (str "Invalid character literal: " raw) loc)))]
         ;; M10: reject surrogate range — same check as parse-unicode-escape for strings
         (when (and (>= code 0xD800) (<= code 0xDFFF))
           (errors/meme-error

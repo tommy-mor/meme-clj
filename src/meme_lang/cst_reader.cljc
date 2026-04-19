@@ -74,7 +74,14 @@
         "nil" nil
         "true" true
         "false" false
-        (symbol raw))
+        ;; Reject symbols starting with `/` except the bare `/` division
+        ;; symbol. Matches Clojure: `/` is valid, but `//`, `//a`, `/foo`
+        ;; are invalid. `foo//bar`, `clojure.core//` stay valid (not
+        ;; caught here — they don't start with `/`).
+        (do
+          (when (and (str/starts-with? raw "/") (not= raw "/"))
+            (errors/meme-error (str "Invalid token: " raw) loc))
+          (symbol raw)))
 
       :keyword
       (if (str/starts-with? raw ":::")
@@ -86,20 +93,24 @@
               (errors/meme-error (str "Invalid token: " raw) loc))
             (resolve/resolve-auto-keyword raw loc (:resolve-keyword opts)))
           (let [s (subs raw 1)]
-            (when (or (= s "")                        ;; bare :
-                      (str/starts-with? s "/")         ;; :/foo
-                      (str/ends-with? s ":")           ;; :foo:
-                      (str/ends-with? s "/")           ;; :foo/
-                      (str/includes? s "::"))          ;; :a::b
-              (errors/meme-error (str "Invalid token: " raw) loc))
-            (let [i (str/index-of s "/")]
-              (if (some? i)
-                (let [ns-part (subs s 0 i)
-                      name-part (subs s (inc i))]
-                  (when (or (= ns-part "") (= name-part ""))
-                    (errors/meme-error (str "Invalid token: " raw) loc))
-                  (keyword ns-part name-part))
-                (keyword s))))))
+            (cond
+              ;; :/ — bare slash keyword, valid in Clojure as (keyword "/")
+              (= s "/") (keyword "/")
+              (or (= s "")                        ;; bare :
+                  (str/starts-with? s "/")         ;; :/foo
+                  (str/ends-with? s ":")           ;; :foo:
+                  (str/ends-with? s "/")           ;; :foo/
+                  (str/includes? s "::"))          ;; :a::b
+              (errors/meme-error (str "Invalid token: " raw) loc)
+              :else
+              (let [i (str/index-of s "/")]
+                (if (some? i)
+                  (let [ns-part (subs s 0 i)
+                        name-part (subs s (inc i))]
+                    (when (or (= ns-part "") (= name-part ""))
+                      (errors/meme-error (str "Invalid token: " raw) loc))
+                    (keyword ns-part name-part))
+                  (keyword s)))))))
 
       :number
       (resolve/resolve-number raw loc)

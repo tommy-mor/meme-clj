@@ -34,7 +34,8 @@
 
 (defn- build-line-starts
   "Precompute a vector of character offsets where each line begins.
-   Line 1 starts at offset 0."
+   Line 1 starts at offset 0. Recognizes \\n, \\r, \\r\\n, and the Unicode
+   line separators U+2028 (LS) and U+2029 (PS) as line terminators."
   [^String source]
   (let [len (count source)]
     (loop [i 0
@@ -50,6 +51,9 @@
             (if (and (< (inc i) len) (= (.charAt source (inc i)) \newline))
               (recur (+ i 2) (conj! starts (+ i 2)))
               (recur (inc i) (conj! starts (inc i))))
+
+            (or (= ch \u2028) (= ch \u2029))
+            (recur (inc i) (conj! starts (inc i)))
 
             :else
             (recur (inc i) starts)))))))

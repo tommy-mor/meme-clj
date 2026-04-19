@@ -40,7 +40,10 @@
       (= c 0x00A0) (= c 0x00AD)
       (<= 0xD800 c 0xDFFF)
       (<= 0x200B c 0x200F) (<= 0x202A c 0x202E)
-      (<= 0x2060 c 0x2069) (= c 0xFEFF)))
+      (<= 0x2060 c 0x2069) (= c 0xFEFF)
+      ;; Variation selectors (VS1-VS16) — invisible glyph modifiers that
+      ;; can be used to craft look-alike symbols. Reject in identifiers.
+      (<= 0xFE00 c 0xFE0F)))
 
 (defn symbol-start? [ch]
   (and ch
@@ -115,14 +118,31 @@
     (let [next-ch (.charAt source (inc pos))]
       (cond
         (= next-ch \u)
-        (loop [i (+ pos 2) cnt 0]
-          (if (and (< i len) (< cnt 4)
-                   (let [c (lexer/char-code (.charAt source i))]
-                     (or (and (>= c 0x30) (<= c 0x39))
-                         (and (>= c 0x41) (<= c 0x46))
-                         (and (>= c 0x61) (<= c 0x66)))))
-            (recur (inc i) (inc cnt))
-            i))
+        ;; Consume up to 4 hex digits. If at least one hex digit was
+        ;; consumed AND trailing alphanumerics follow, keep consuming so
+        ;; the malformed literal reaches resolve-char (which rejects
+        ;; \u00410 / \u0041G / \u00g1 as "Invalid character literal").
+        ;; If NO hex digits at all (e.g. \uXYZW), leave behavior as before
+        ;; — the \u char alone + separate symbol — so pre-existing tokens
+        ;; are unaffected.
+        (let [[hex-end cnt] (loop [i (+ pos 2) cnt 0]
+                              (if (and (< i len) (< cnt 4)
+                                       (let [c (lexer/char-code (.charAt source i))]
+                                         (or (and (>= c 0x30) (<= c 0x39))
+                                             (and (>= c 0x41) (<= c 0x46))
+                                             (and (>= c 0x61) (<= c 0x66)))))
+                                (recur (inc i) (inc cnt))
+                                [i cnt]))]
+          (if (pos? cnt)
+            (loop [i hex-end]
+              (if (and (< i len)
+                       (let [c (lexer/char-code (.charAt source i))]
+                         (or (and (>= c 0x30) (<= c 0x39))
+                             (and (>= c 0x41) (<= c 0x5A))
+                             (and (>= c 0x61) (<= c 0x7A)))))
+                (recur (inc i))
+                i))
+            hex-end))
 
         (= next-ch \o)
         (loop [i (+ pos 2) cnt 0]
