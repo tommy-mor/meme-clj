@@ -49,6 +49,8 @@ Reader-conditional handling is now a pipeline stage instead of a reader flag. `m
 
 - **`meme->clj` silently dropped off-platform branches of `#?` on `.cljc` sources.** The asymmetry between library `meme->clj` (evaluated) and CLI `to-clj` (preserved) is eliminated — both now preserve faithfully. Scar-tissue regression: `meme->clj-reader-conditional-lossless` in `test/meme/regression/reader_test.cljc`.
 
+- **`clj->forms` depth guard off-by-one.** The sibling fix in `cst_reader.cljc` (4.0.0) tightened `>` to `>=`, but `meme-lang.api/clj->forms/check-depth` retained `>`, so Clojure source at exactly `max-parse-depth` levels parsed successfully while meme source at the same depth was rejected. Both entry points now reject at exactly `max-parse-depth`, matching the 4.0.0 CHANGELOG intent. Scar-tissue regression: `clj-forms-depth-boundary-matches-meme-forms` in `test/meme/regression/reader_test.cljc`.
+
 - **Bare `:/` now reads as `(keyword "/")`** instead of erroring with "Invalid token". Matches Clojure.
 
 - **Bare `~~x` leaked a `MemeUnquote` record to eval** instead of erroring. Added a post-expansion sweep that rejects leftover unquote records. Balanced `` ``~~x `` still works.

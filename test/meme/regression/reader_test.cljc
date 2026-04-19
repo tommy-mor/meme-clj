@@ -161,6 +161,29 @@
                               {:meme-lang.cst-reader/depth forms/max-parse-depth}))))))
 
 ;; ---------------------------------------------------------------------------
+;; Scar tissue: clj->forms depth guard must match cst-reader at exactly
+;; max-parse-depth. Bug: the sibling fix in cst_reader.cljc (4.0.0) tightened
+;; `>` to `>=`, but api.cljc/check-depth retained `>`, letting Clojure source
+;; at exactly max-parse-depth levels through while meme source at the same
+;; depth was rejected — a divergence between entry points that contradicted
+;; the 4.0.0 CHANGELOG intent. Fix: use `>=` in both.
+;; ---------------------------------------------------------------------------
+
+#?(:clj
+   (deftest clj-forms-depth-boundary-matches-meme-forms
+     (let [opens   (fn [n] (apply str (repeat n "(")))
+           closes  (fn [n] (apply str (repeat n ")")))
+           nested  (fn [n] (str (opens n) "x" (closes n)))]
+       (testing "nesting = max-parse-depth - 1 parses"
+         (is (some? (lang/clj->forms (nested (dec forms/max-parse-depth))))))
+       (testing "nesting = max-parse-depth throws with clean depth error"
+         (is (thrown-with-msg? Exception #"depth"
+               (lang/clj->forms (nested forms/max-parse-depth)))))
+       (testing "nesting = max-parse-depth + 1 also throws (upper side holds)"
+         (is (thrown-with-msg? Exception #"depth"
+               (lang/clj->forms (nested (inc forms/max-parse-depth)))))))))
+
+;; ---------------------------------------------------------------------------
 ;; Scar tissue: consecutive #_ discards must discard N forms (Clojure semantics).
 ;; Bug: #_ was a prefix parselet nesting discards instead of consuming sequentially.
 ;; Fix: iterative consumption of consecutive #_ tokens in parselets.cljc.
