@@ -12,6 +12,7 @@
             ;; Built-in lang registrations fire on ns-load:
             [meme-lang.api]
             [clojure.java.io :as io]
+            [clojure.java.shell :as shell]
             [clojure.string :as str]))
 
 ;; calc-lang is a demo implemented in .meme files — optional, lazy-loaded.
@@ -273,6 +274,71 @@
                       (when (pos? failed) (str ", " failed " failed"))))
         (when (pos? failed) (cli-exit! 1))))))
 
+(defn- ns-of-clj-file
+  "Read the first `(ns ...)` form from a .clj file, return its symbol."
+  [^java.io.File f]
+  (with-open [r (java.io.PushbackReader. (java.io.FileReader. f))]
+    (let [form (try (read r) (catch Exception _ nil))]
+      (when (and (seq? form) (= 'ns (first form)) (symbol? (second form)))
+        (second form)))))
+
+(defn build
+  "AOT-compile .meme sources to JVM bytecode.
+
+   Pipeline: transpile to a staging dir (fixed at `target/meme`), then
+   spawn `clojure` with that dir on the classpath and run
+   `clojure.core/compile` on each discovered namespace. Output is
+   `.class` files in `--out` (default `target/classes`).
+
+   Meme stops at bytecode — JAR packaging stays in your own tools.build
+   layer. For finer control (skip the staging dir, use the meme loader
+   at compile time, or integrate with an existing build.clj), see the
+   recipes in doc/language-reference.md."
+  [{:keys [file files out lang]}]
+  (let [inputs (or files (when file [file]) ["src"])
+        stage-dir "target/meme"
+        aot-dir (or out "target/classes")]
+    (when (and (some? out) (str/blank? out))
+      (println "Error: --out cannot be empty")
+      (cli-exit! 1))
+    (println (str "[1/2] Transpiling to " stage-dir "..."))
+    (transpile-meme (cond-> {:out stage-dir :lang lang}
+                      (seq files) (assoc :files files)
+                      (and file (not files)) (assoc :file file)
+                      (not (or file files)) (assoc :files inputs)))
+    (println)
+    (let [stage (io/file stage-dir)
+          clj-files (filter #(and (.isFile ^java.io.File %)
+                                  (str/ends-with? (.getName ^java.io.File %) ".clj"))
+                            (file-seq stage))
+          nses (keep ns-of-clj-file clj-files)]
+      (when (empty? nses)
+        (println "No compilable namespaces found in" stage-dir)
+        (cli-exit! 1))
+      (println (str "[2/2] AOT-compiling " (count nses) " namespace(s) to " aot-dir "..."))
+      (.mkdirs (io/file aot-dir))
+      (let [path-sep java.io.File/pathSeparator
+            stage-abs (.getCanonicalPath (io/file stage-dir))
+            cur-cp (or (System/getProperty "java.class.path") "")
+            cp-paths (->> (conj (str/split cur-cp (re-pattern path-sep)) stage-abs)
+                          (remove str/blank?) distinct)
+            paths-edn (str "{:paths [" (str/join " " (map pr-str cp-paths)) "]}")
+            compile-form (format (str "(binding [*compile-path* %s]"
+                                      " (doseq [n '%s]"
+                                      "   (println (str \"  compile \" n))"
+                                      "   (compile n)))")
+                                 (pr-str aot-dir)
+                                 (pr-str (vec nses)))
+            {:keys [exit out err]}
+            (shell/sh "clojure" "-Sdeps" paths-edn "-M" "-e" compile-form)]
+        (when (seq out) (print out) (flush))
+        (when (seq err) (binding [*out* *err*] (print err) (flush)))
+        (if (zero? exit)
+          (println (str "Built " (count nses) " namespace(s) to " aot-dir))
+          (do (binding [*out* *err*]
+                (println (str "AOT compile failed (exit " exit ")")))
+              (cli-exit! exit)))))))
+
 (defn inspect-lang
   "Print diagnostic info about the current lang configuration."
   [{:keys [lang]}]
@@ -300,6 +366,7 @@
     (when (has? :to-meme) (println "  meme to-meme  <file|dir> [--lang name] [--stdout]  (alias: from-clj)"))
     (when (has? :format)  (println "  meme format <file|dir> [--style canon|flat|clj] [--stdout] [--check]"))
     (when (has? :to-clj)  (println "  meme transpile <src-dir|file...> [--out target/meme] [--lang name]  (alias: compile)"))
+    (when (has? :to-clj)  (println "  meme build     <src-dir|file...> [--out target/classes] [--lang name]"))
     (println "  meme inspect [--lang name]")
     (println "  meme version")
     (println)
@@ -340,6 +407,8 @@
          {:cmds ["transpile"] :fn (file-cmd transpile-meme)
           :args->opts [:file] :spec {:out {:coerce :string} :lang {:coerce :string}}}
          {:cmds ["compile"]   :fn (file-cmd transpile-meme)
+          :args->opts [:file] :spec {:out {:coerce :string} :lang {:coerce :string}}}
+         {:cmds ["build"]     :fn (file-cmd build)
           :args->opts [:file] :spec {:out {:coerce :string} :lang {:coerce :string}}}
          {:cmds ["inspect"] :fn (comp inspect-lang :opts) :spec {:lang {:coerce :string}}}
          {:cmds ["version"] :fn (fn [_] (version nil))}

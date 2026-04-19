@@ -358,6 +358,37 @@
         (doseq [f (reverse (file-seq (io/file out-dir)))]
           (.delete f))))))
 
+(deftest build-produces-jvm-bytecode
+  (let [src-dir (io/file (System/getProperty "java.io.tmpdir")
+                         (str "meme-e2e-build-" (System/nanoTime)))
+        demo (io/file src-dir "demo")
+        aot-dir (str src-dir "-aot")]
+    (try
+      (.mkdirs demo)
+      (spit (io/file demo "core.meme") "ns(demo.core)\ndefn(greet [x] str(\"hello \" x))")
+      ;; Run from the user project dir so relative `target/meme` staging
+      ;; doesn't collide with the meme-clj project's own target/.
+      (let [pb (ProcessBuilder. ^java.util.List
+                 ["bb" "--config"
+                  (.getAbsolutePath (io/file "bb.edn"))
+                  "meme" "build" (str src-dir) "--out" aot-dir])
+            _  (.directory pb src-dir)
+            p  (.start pb)
+            out (slurp (.getInputStream p))
+            _err (slurp (.getErrorStream p))
+            exit (.waitFor p)]
+        (is (zero? exit) (str "build should succeed, got: " out))
+        (is (str/includes? out "Built 1 namespace"))
+        (is (.exists (io/file aot-dir "demo" "core__init.class"))
+            "AOT bytecode should include core__init.class"))
+      (finally
+        (doseq [d [src-dir
+                   (io/file src-dir "target")
+                   (io/file aot-dir)]]
+          (when (.exists d)
+            (doseq [f (reverse (file-seq d))]
+              (.delete f))))))))
+
 (deftest compile-reports-errors
   (let [dir (io/file (System/getProperty "java.io.tmpdir")
                      (str "meme-e2e-err-" (System/nanoTime)))

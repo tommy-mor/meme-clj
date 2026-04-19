@@ -456,7 +456,17 @@ bb meme transpile src/ --out target/classes  # or override
 
 ### Building to JVM bytecode
 
-Meme doesn't ship a `build` command — AOT compilation composes cleanly with tooling you probably already have. Two equivalent recipes:
+One-shot:
+
+```bash
+bb meme build src/                         # default: transpile-staged in target/meme,
+                                           #          bytecode in target/classes
+bb meme build src/ --out out/classes       # custom output
+```
+
+`meme build` transpiles then spawns `clojure` to AOT-compile each namespace. It stops at `.class` files — JAR packaging stays in whatever build layer you already own.
+
+For more control (different staging layout, no intermediate `.clj`, integration with an existing `build.clj`), skip the CLI and compose directly:
 
 **Via transpile + tools.build** (zero meme runtime dep in your build.clj):
 
