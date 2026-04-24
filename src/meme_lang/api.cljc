@@ -12,7 +12,8 @@
             [meme-lang.expander :as expander]
             #?(:clj [meme-lang.run :as run])
             #?(:clj [meme-lang.repl :as repl])
-            #?(:clj [meme.registry :as registry])))
+            #?(:clj [meme.registry :as registry])
+            #?(:clj [clojure.string :as str])))
 
 ;; ---------------------------------------------------------------------------
 ;; Lang API — delegates to composable stages
@@ -112,11 +113,38 @@
            (run! #(check-depth % 0) result)
            result)))))
 #?(:clj
-   (defn clj->meme
-     "Convert Clojure source to meme. JVM only."
-     [clj-src]
-     {:pre [(string? clj-src)]}
-     (forms->meme (clj->forms clj-src))))
+   (do
+     (defn clj->meme
+       "Convert Clojure source to meme. JVM only."
+       [clj-src]
+       {:pre [(string? clj-src)]}
+       (forms->meme (clj->forms clj-src)))
+
+     (defn normalize-clj-gensym-suffix
+       "For **comparison only** (not a valid Clojure round-trip of source):
+       rewrite `p1__1992#`-style pr-str autogensym suffixes to `p1__#` and
+       `G__12`-style to `G__#`, so that two .clj strings that differ only in
+       reader session numbering remain text-equal.
+
+       Direct `clojure.core/read` and `clj->meme` → `meme->forms` can assign
+       different slot numbers to the same logical `fn*`; `forms->clj` output
+       then byte-compares unequal even when the form trees are equivalent."
+       [^String s]
+       (when s
+         (-> s
+             (str/replace #"([A-Za-z0-9*+!-_.'<>/]+)__\d+#" "$1__#")
+             (str/replace #"\bG__\d+\b" "G__#"))))
+
+     (defn clj-meme-clj-text=
+       "True when the direct Clojure text from `clj->forms` + `forms->clj` matches
+       the `clj->meme` + `meme->clj` text after `normalize-clj-gensym-suffix`.
+       Use this to validate multi-form .clj → .meme → .clj pipelines when strict
+       string equality is not required for autogensym display."
+       [^String clj-src]
+       (let [direct (forms->clj (clj->forms clj-src))
+             via (meme->clj (clj->meme clj-src))]
+         (= (normalize-clj-gensym-suffix direct)
+            (normalize-clj-gensym-suffix via))))))
 
 ;; ---------------------------------------------------------------------------
 ;; Lang commands (for CLI dispatch)

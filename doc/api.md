@@ -135,6 +135,8 @@ Convert a Clojure source string to meme source string. JVM/Babashka only. Equiva
 
 **Known limitation:** Clojure's reader expands reader sugar before meme sees the forms. `'(f x)` becomes `(quote (f x))` → `quote(f(x))` instead of `'f(x)`. Similarly, `@atom` → `clojure.core/deref(atom)`, and `#(+ % 1)` → `fn*([p1__N#] +(p1__N# 1))`. The `meme->clj->meme` roundtrip preserves semantics but not notation for these forms.
 
+**Multi-form clj text compare:** For multi-form sources, `forms->clj` after `clj->forms` and `meme->clj` after `clj->meme` are not always `=` as strings: the reader can assign different `p1__NNNN#` / `G__N` display slots on each pass. Use `normalize-clj-gensym-suffix` and `clj-meme-clj-text=` when you need a stable comparison of those two .clj strings.
+
 ```clojure
 (clj->meme "(defn f [x] (+ x 1))")
 ;=> "defn(f [x] +(x 1))"

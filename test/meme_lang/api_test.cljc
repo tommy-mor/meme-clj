@@ -2,6 +2,7 @@
   "Tests for the meme-lang.api language API."
   (:require [clojure.test :refer [deftest is testing]]
             [meme-lang.api :as lang]
+            #?(:clj [clojure.java.io :as io])
             #?(:clj [meme-lang.repl :as repl])
             #?(:clj [meme-lang.run :as run])))
 
@@ -60,6 +61,19 @@
    (deftest clj->meme-test
      (testing "basic conversion"
        (is (= "+(1 2)" (lang/clj->meme "(+ 1 2)"))))))
+
+#?(:clj
+   (deftest clj-meme-clj-gensym-roundtrip-scar
+     "clj->meme->clj can differ only in p1__NNNN# / G__N slot display across read
+  sessions; normalize-clj-gensym-suffix + clj-meme-clj-text= restores compare."
+     (let [src (slurp (io/resource "gensym_multi_fn.clj"))
+           direct (lang/forms->clj (lang/clj->forms src))
+           via (lang/meme->clj (lang/clj->meme src))
+           n lang/normalize-clj-gensym-suffix]
+       (is (not= direct via)
+           "scar: strict pr-str of both paths must be allowed to differ")
+       (is (= (n direct) (n via)) "normalize should align both strings")
+       (is (true? (lang/clj-meme-clj-text= src)) "public predicate matches"))))
 
 ;; ---------------------------------------------------------------------------
 ;; Eval tests
