@@ -97,11 +97,15 @@
                result (loop [forms []]
                         (let [form (try
                                      (read {:read-cond :preserve :eof eof-sentinel} rdr)
-                                     (catch StackOverflowError _
-                                       (throw (ex-info "Clojure source exceeds maximum nesting depth"
-                                                       {:source (subs clj-src 0 (min 200 (count clj-src)))})))
-                                     (catch Exception e
-                                       (throw (ex-info (str "Clojure read error: " (ex-message e)) {:source clj-src} e))))]
+                                     ;; Single catch: SCI (Babashka) cannot analyze `catch StackOverflowError`.
+                                     (catch Throwable e
+                                       (cond
+                                         (= "java.lang.StackOverflowError" (.getName (class e)))
+                                         (throw (ex-info "Clojure source exceeds maximum nesting depth"
+                                                         {:source (subs clj-src 0 (min 200 (count clj-src)))}))
+                                         (instance? Exception e)
+                                         (throw (ex-info (str "Clojure read error: " (ex-message e)) {:source clj-src} e))
+                                         :else (throw e))))]
                           (if (identical? form eof-sentinel)
                             forms
                             (recur (conj forms form)))))]
